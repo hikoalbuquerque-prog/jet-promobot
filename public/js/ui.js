@@ -47,9 +47,10 @@ const ui = {
 
   bottomNav(active) {
     const items = [
-      { id: 'home', icon: '🏠', label: 'Home',    screen: 'home' },
-      { id: 'slot', icon: '⚡', label: 'Jornada', screen: 'slot', badge: true },
-      { id: 'historico', icon: '📋', label: 'Histórico', screen: 'historico' },
+      { id: 'home',     icon: '🏠', label: 'Home',     screen: 'home' },
+      { id: 'slot',     icon: '⚡', label: 'Jornada',  screen: 'slot', badge: true },
+      { id: 'historico',icon: '📋', label: 'Histórico',screen: 'historico' },
+      { id: 'ranking',  icon: '🏆', label: 'Ranking',  screen: 'ranking' },
     ];
     return `<nav class="bottom-nav">${items.map(it =>
       `<button class="nav-item ${active === it.id ? 'active' : ''}" onclick="router.go('${it.screen}')" style="position:relative">

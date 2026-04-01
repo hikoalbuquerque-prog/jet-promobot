@@ -9,12 +9,7 @@ const ranking = {
         <div style="padding:16px" id="ranking-content">
           <div style="text-align:center;padding:40px;color:#a0aec0;font-size:14px">Carregando...</div>
         </div>
-        <nav style="position:fixed;bottom:0;left:0;right:0;background:#16213e;border-top:1px solid #2a3a55;display:flex;justify-content:space-around;padding:10px 0 calc(10px + env(safe-area-inset-bottom,0px));z-index:100">
-          <button onclick="router.go('home')" style="background:none;border:none;color:#6c7a8d;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><span style="font-size:22px">🏠</span>Home</button>
-          <button onclick="router.go('operacao')" style="background:none;border:none;color:#6c7a8d;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><span style="font-size:22px">⚡</span>Jornada</button>
-          <button onclick="router.go('slot')" style="background:none;border:none;color:#6c7a8d;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><span style="font-size:22px">📍</span>Slot</button>
-          <button onclick="router.go('ranking')" style="background:none;border:none;color:#4f8ef7;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><span style="font-size:22px">🏆</span>Ranking</button>
-        </nav>
+        ${ui.bottomNav('ranking')}
       </div>`;
 
     try {
