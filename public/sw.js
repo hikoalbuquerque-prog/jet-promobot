@@ -1,4 +1,4 @@
-const SW_VERSION = 'jet-ops-v10';
+const SW_VERSION = 'jet-ops-v11';
 const HEARTBEAT_SYNC_TAG = 'jet-heartbeat';
 
 const PRECACHE = [
