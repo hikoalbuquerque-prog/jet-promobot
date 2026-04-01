@@ -11,6 +11,11 @@ jobs:
         run: |
           cp public/manifest.gh.json public/manifest.json
           cp public/sw.gh.js public/sw.js
+          # Fix paths no index.html para GitHub Pages
+          sed -i 's|href="/css/main.css"|href="/jet-promobot/css/main.css"|g' public/index.html
+          sed -i 's|href="/css/components.css"|href="/jet-promobot/css/components.css"|g' public/index.html
+          sed -i 's|href="/icons/icon-192.png"|href="/jet-promobot/icons/icon-192.png"|g' public/index.html
+          sed -i 's|rel="manifest" href="/manifest.json"|rel="manifest" href="/jet-promobot/manifest.json"|g' public/index.html
       - name: Deploy public/ to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
