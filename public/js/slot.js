@@ -17,7 +17,7 @@ const slotScreen = {
         <div style="padding:16px" id="slot-content">
           <div style="text-align:center;padding:40px;color:#a0aec0">Carregando...</div>
         </div>
-        \${ui.bottomNav('slot')}
+        ${ui.bottomNav('slot')}
       </div>`;
 
     try {
