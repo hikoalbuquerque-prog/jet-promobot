@@ -494,7 +494,6 @@ const operacao = {
 
   // ── CHECKOUT ──────────────────────────────────────────────────
   renderCheckout() {
-    const g = state.get('gps');
     ui.render(`
       <div class="screen">
         ${ui.header('Encerrar Jornada', '', true)}
@@ -502,15 +501,13 @@ const operacao = {
           <div class="card" style="font-size:14px;color:var(--text2);line-height:1.6">
             Sua localização atual será registrada como ponto de check-out. Esta ação não pode ser desfeita.
           </div>
-
-          <div class="gps-indicator">
-            <div class="gps-dot ${g?.ok ? 'ok' : 'waiting'}"></div>
+          <div class="gps-indicator" id="checkout-gps">
+            <div class="gps-dot waiting" id="checkout-gps-dot"></div>
             <div style="flex:1">
-              <div style="font-weight:600;font-size:13px">${g?.ok ? 'GPS pronto' : 'Aguardando GPS...'}</div>
-              ${g?.ok ? `<div style="font-size:11px;color:var(--text2)">${g.lat?.toFixed(5)}, ${g.lng?.toFixed(5)}</div>` : ''}
+              <div style="font-weight:600;font-size:13px" id="checkout-gps-label">Aguardando GPS...</div>
+              <div style="font-size:11px;color:var(--text2)" id="checkout-gps-coords"></div>
             </div>
           </div>
-
           <button id="btn-checkout" class="btn btn-danger" onclick="operacao._executarCheckout(false)">🏁 Encerrar Jornada</button>
           <button class="btn btn-ghost" onclick="router.back()">Voltar</button>
           <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
@@ -522,6 +519,37 @@ const operacao = {
         </div>
       </div>
     `);
+    // Atualiza GPS em tempo real
+    const _atualizarGpsCheckout = (g) => {
+      const dot    = document.getElementById('checkout-gps-dot');
+      const label  = document.getElementById('checkout-gps-label');
+      const coords = document.getElementById('checkout-gps-coords');
+      if (!dot) return;
+      if (g?.ok) {
+        dot.className = 'gps-dot ok';
+        if (label)  label.textContent  = 'GPS pronto';
+        if (coords) coords.textContent = g.lat.toFixed(5) + ', ' + g.lng.toFixed(5);
+      } else {
+        dot.className = 'gps-dot waiting';
+        if (label)  label.textContent  = 'Aguardando GPS...';
+        if (coords) coords.textContent = '';
+      }
+    };
+    gps.onChange(_atualizarGpsCheckout);
+    const gAtual = state.get('gps');
+    if (gAtual?.ok) _atualizarGpsCheckout(gAtual);
+    // GPS imediato
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const g = { ok: true, lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+          state.patch('gps', g);
+          _atualizarGpsCheckout(g);
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
+      );
+    }
   },
 
   async _executarCheckout(excepcional = false) {
