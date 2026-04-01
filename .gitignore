@@ -1,0 +1,6 @@
+env.yaml
+*.zip
+patch_*.py
+*.bak
+node_modules/
+.env
