@@ -7,8 +7,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Use GitHub Pages manifest
-        run: cp public/manifest.gh.json public/manifest.json
+      - name: Setup for GitHub Pages
+        run: |
+          cp public/manifest.gh.json public/manifest.json
+          cp public/sw.gh.js public/sw.js
       - name: Deploy public/ to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
