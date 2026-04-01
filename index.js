@@ -175,7 +175,7 @@ app.post('/internal/send-jornada-status', async (req, res) => {
       botoes = [[
         { text: '📍 Compartilhar localização', request_location: true }
       ], [
-        { text: '🌐 Abrir app', url: 'https://promo-telegram-gateway-v3-476120210909.southamerica-east1.run.app' }
+        { text: '🌐 Abrir app', url: 'https://hikoalbuquerque-prog.github.io/jet-promobot' }
       ]];
     } else if (tipo === 'EM_ATIVIDADE') {
       texto = `✅ <b>Você está em atividade!</b>\n\n📍 ${local_nome}\n🕐 ${inicio} – ${fim}\n\nO que deseja fazer?`;
@@ -734,7 +734,7 @@ async function handleCallbackQuery(callbackQuery) {
         await telegramApi('sendMessage', { chat_id: from.id, text: '👍 Registrado! Faça o check-in pelo app assim que chegar.' });
         await telegramApi('editMessageReplyMarkup', { chat_id: from.id, message_id: callbackQuery.message?.message_id, reply_markup: { inline_keyboard: [] } });
       } else {
-        await telegramApi('sendMessage', { chat_id: from.id, text: '📲 Acesse o app para fazer o check-in:\nhttps://promo-telegram-gateway-v3-476120210909.southamerica-east1.run.app' });
+        await telegramApi('sendMessage', { chat_id: from.id, text: '📲 Acesse o app para fazer o check-in:\nhttps://hikoalbuquerque-prog.github.io/jet-promobot' });
       }
       await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Registrado!' });
     } catch(e) {
