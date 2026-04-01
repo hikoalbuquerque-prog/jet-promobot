@@ -1,0 +1,27 @@
+name: PWA CI
+
+on:
+  push:
+    branches: [ "main", "work" ]
+  pull_request:
+
+jobs:
+  validate-pwa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Syntax check JS
+        run: |
+          for f in pwa/js/*.js; do
+            node --check "$f"
+          done
+      - name: Validate required files
+        run: |
+          test -f pwa/index.html
+          test -f pwa/manifest.json
+          test -f pwa/sw.js
+          test -f pwa/assets/logo-jet.svg
+          test -f pwa/js/config.js
