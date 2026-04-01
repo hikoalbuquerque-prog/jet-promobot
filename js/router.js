@@ -26,6 +26,7 @@ const router = (() => {
     vendas:             () => vendas.render(),
     mapa:               () => mapa.render(),
     historico:          () => historico.render(),
+    ranking:            () => ranking.render(),
     // CLT
     'turno-ativo':      () => turnoCLT.render(),
     'historico-clt':    () => historicoCLT.render(),
