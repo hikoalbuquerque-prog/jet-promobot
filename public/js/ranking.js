@@ -37,7 +37,27 @@ const ranking = {
               return '<div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:12px;text-align:center">'
                 + '<div style="font-size:28px;margin-bottom:4px">' + emoji + '</div>'
                 + '<div style="font-size:11px;color:#eaf0fb;font-weight:600">' + nome + '</div>'
-                + '</div>';
+                + '</div>'
+        + '<div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;margin-top:8px">'
+        + '<div style="font-size:12px;font-weight:700;color:#a0aec0;letter-spacing:1px;margin-bottom:12px">BADGES DISPONÍVEIS</div>'
+        + [
+            ['🌟','Primeiro check-in','Faça seu primeiro check-in'],
+            ['💪','10 Jornadas','Complete 10 jornadas'],
+            ['🔥','Streak 5 dias','5 dias consecutivos'],
+            ['⚡','Streak 10 dias','10 dias consecutivos'],
+            ['🏆','Mês perfeito','Sem cancelamentos no mês'],
+            ['🦸','Top 3','Entre no top 3 do ranking'],
+            ['🎯','Pontual','5 check-ins pontuais seguidos'],
+            ['🚀','Madrugador','Check-in antes das 7h'],
+          ].map(function(b) {
+            const conquistado = badges.some(function(x) { return x.descricao.startsWith(b[0]); });
+            return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #2a3a55;opacity:' + (conquistado ? '1' : '0.4') + '">'
+              + '<span style="font-size:24px">' + b[0] + '</span>'
+              + '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:#eaf0fb">' + b[1] + (conquistado ? ' ✓' : '') + '</div>'
+              + '<div style="font-size:11px;color:#a0aec0">' + b[2] + '</div></div>'
+              + '</div>';
+          }).join('')
+        + '</div>';
             }).join('')
           + '</div>'
         : '';
@@ -52,7 +72,27 @@ const ranking = {
               + '<div style="font-size:24px;width:36px;text-align:center">' + medal + '</div>'
               + '<div style="flex:1"><div style="font-size:14px;font-weight:700;color:' + (isMe ? '#4f8ef7' : '#eaf0fb') + '">' + p.nome + (isMe ? ' ✦' : '') + '</div></div>'
               + '<div style="font-size:20px;font-weight:800;color:' + cor + '">' + p.pontos + '</div>'
+              + '</div>'
+        + '<div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;margin-top:8px">'
+        + '<div style="font-size:12px;font-weight:700;color:#a0aec0;letter-spacing:1px;margin-bottom:12px">BADGES DISPONÍVEIS</div>'
+        + [
+            ['🌟','Primeiro check-in','Faça seu primeiro check-in'],
+            ['💪','10 Jornadas','Complete 10 jornadas'],
+            ['🔥','Streak 5 dias','5 dias consecutivos'],
+            ['⚡','Streak 10 dias','10 dias consecutivos'],
+            ['🏆','Mês perfeito','Sem cancelamentos no mês'],
+            ['🦸','Top 3','Entre no top 3 do ranking'],
+            ['🎯','Pontual','5 check-ins pontuais seguidos'],
+            ['🚀','Madrugador','Check-in antes das 7h'],
+          ].map(function(b) {
+            const conquistado = badges.some(function(x) { return x.descricao.startsWith(b[0]); });
+            return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #2a3a55;opacity:' + (conquistado ? '1' : '0.4') + '">'
+              + '<span style="font-size:24px">' + b[0] + '</span>'
+              + '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:#eaf0fb">' + b[1] + (conquistado ? ' ✓' : '') + '</div>'
+              + '<div style="font-size:11px;color:#a0aec0">' + b[2] + '</div></div>'
               + '</div>';
+          }).join('')
+        + '</div>';
           }).join('');
 
       const pontosHtml = [
@@ -63,7 +103,27 @@ const ranking = {
         return '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #2a3a55">'
           + '<span style="font-size:13px;color:#eaf0fb">' + row[0] + '</span>'
           + '<span style="font-size:13px;font-weight:700;color:' + (row[1].includes('-') ? '#fc8181' : '#68d391') + '">' + row[1] + '</span>'
-          + '</div>';
+          + '</div>'
+        + '<div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;margin-top:8px">'
+        + '<div style="font-size:12px;font-weight:700;color:#a0aec0;letter-spacing:1px;margin-bottom:12px">BADGES DISPONÍVEIS</div>'
+        + [
+            ['🌟','Primeiro check-in','Faça seu primeiro check-in'],
+            ['💪','10 Jornadas','Complete 10 jornadas'],
+            ['🔥','Streak 5 dias','5 dias consecutivos'],
+            ['⚡','Streak 10 dias','10 dias consecutivos'],
+            ['🏆','Mês perfeito','Sem cancelamentos no mês'],
+            ['🦸','Top 3','Entre no top 3 do ranking'],
+            ['🎯','Pontual','5 check-ins pontuais seguidos'],
+            ['🚀','Madrugador','Check-in antes das 7h'],
+          ].map(function(b) {
+            const conquistado = badges.some(function(x) { return x.descricao.startsWith(b[0]); });
+            return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #2a3a55;opacity:' + (conquistado ? '1' : '0.4') + '">'
+              + '<span style="font-size:24px">' + b[0] + '</span>'
+              + '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:#eaf0fb">' + b[1] + (conquistado ? ' ✓' : '') + '</div>'
+              + '<div style="font-size:11px;color:#a0aec0">' + b[2] + '</div></div>'
+              + '</div>';
+          }).join('')
+        + '</div>';
       }).join('');
 
       el.innerHTML =
@@ -81,6 +141,26 @@ const ranking = {
         + '<div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;margin-top:8px">'
         + '<div style="font-size:12px;font-weight:700;color:#a0aec0;letter-spacing:1px;margin-bottom:12px">COMO GANHAR PONTOS</div>'
         + pontosHtml
+        + '</div>'
+        + '<div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;margin-top:8px">'
+        + '<div style="font-size:12px;font-weight:700;color:#a0aec0;letter-spacing:1px;margin-bottom:12px">BADGES DISPONÍVEIS</div>'
+        + [
+            ['🌟','Primeiro check-in','Faça seu primeiro check-in'],
+            ['💪','10 Jornadas','Complete 10 jornadas'],
+            ['🔥','Streak 5 dias','5 dias consecutivos'],
+            ['⚡','Streak 10 dias','10 dias consecutivos'],
+            ['🏆','Mês perfeito','Sem cancelamentos no mês'],
+            ['🦸','Top 3','Entre no top 3 do ranking'],
+            ['🎯','Pontual','5 check-ins pontuais seguidos'],
+            ['🚀','Madrugador','Check-in antes das 7h'],
+          ].map(function(b) {
+            const conquistado = badges.some(function(x) { return x.descricao.startsWith(b[0]); });
+            return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #2a3a55;opacity:' + (conquistado ? '1' : '0.4') + '">'
+              + '<span style="font-size:24px">' + b[0] + '</span>'
+              + '<div style="flex:1"><div style="font-size:13px;font-weight:700;color:#eaf0fb">' + b[1] + (conquistado ? ' ✓' : '') + '</div>'
+              + '<div style="font-size:11px;color:#a0aec0">' + b[2] + '</div></div>'
+              + '</div>';
+          }).join('')
         + '</div>';
 
     } catch(e) {
