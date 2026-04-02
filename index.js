@@ -241,6 +241,8 @@ input:focus{border-color:#4f8ef7}
     <input id="cpf" type="text" placeholder="000.000.000-00" maxlength="14" oninput="fmtCpf(this)">
     <label>TELEFONE</label>
     <input id="tel" type="tel" placeholder="(11) 99999-9999" maxlength="15" oninput="fmtTel(this)">
+    <label>CIDADE</label>
+    <input id="cidade" type="text" placeholder="Sua cidade (ex: Sao Paulo)">
     <label>E-MAIL</label>
     <input id="email" type="email" placeholder="seu@email.com">
     <div class="err" id="err">Preencha todos os campos corretamente.</div>
