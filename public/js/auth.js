@@ -50,18 +50,6 @@ const auth = {
     }
   },
 
-  _indicar() {
-    const p = state.get('promotor');
-    if (!p) return;
-    const link = 'https://promo-telegram-gateway-v3-476120210909.southamerica-east1.run.app/indicacao?ref=' + p.user_id;
-    if (navigator.share) {
-      navigator.share({ title: 'Seja um Promotor JET', text: 'Olha essa vaga de promotor!', url: link });
-    } else if (navigator.clipboard) {
-      navigator.clipboard.writeText(link).then(function() { ui.toast('Link copiado!', 'success'); });
-    } else {
-      prompt('Copie o link:', link);
-    }
-  },
 
   async _atualizarBadgesHome() {
     try {
