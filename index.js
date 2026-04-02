@@ -262,7 +262,7 @@ function enviar(){
   var tel=document.getElementById('tel').value.trim();
   var email=document.getElementById('email').value.trim();
   var err=document.getElementById('err');
-  if(!nome||cpf.length<14||tel.length<14||!email.includes('@')){err.style.display='block';return;}
+  var cpfClean=cpf.replace(/\\D/g,''); var telClean=tel.replace(/\\D/g,''); if(!nome||cpfClean.length<11||telClean.length<10||!email.includes('@')){err.style.display='block';return;}
   err.style.display='none';
   fetch('/indicacao/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nome,cpf,telefone:tel,email,ref:REF})})
     .then(function(r){return r.json();})
