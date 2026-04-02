@@ -32,6 +32,7 @@ const auth = {
     // Carrega score e badge
     this._atualizarScore();
     this._atualizarBadgeSlots();
+    this._atualizarBadgesHome();
     setInterval(() => this._atualizarScore(), 60000);
     setInterval(() => this._atualizarBadgeSlots(), 30000);
   },
