@@ -40,6 +40,13 @@ const ranking = {
     ]},
     { id: 'MADRUGADOR',      label: 'Madrugador', icon: '🚀', niveis: [{ label:'Check-in antes das 7h', cor:'#63b3ed', raridade:'Especial' }] },
     { id: 'PRIMEIRO_CHECKIN',label: 'Estreante',  icon: '🌟', niveis: [{ label:'Primeiro check-in',     cor:'#ffd700', raridade:'Marco'    }] },
+    { id: 'INDICACAO', label: 'Indicacoes', icon: '🤝', niveis: [
+        { label:'1 indicacao',   cor:'#cd7f32', raridade:'Bronze'    },
+        { label:'3 indicacoes',  cor:'#a0aec0', raridade:'Prata'     },
+        { label:'5 indicacoes',  cor:'#f6ad55', raridade:'Ouro'      },
+        { label:'10 indicacoes', cor:'#63b3ed', raridade:'Safira'    },
+        { label:'20 indicacoes', cor:'#68d391', raridade:'Esmeralda' },
+    ]},
   ],
 
   _MESES:   ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'],
