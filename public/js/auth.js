@@ -50,6 +50,19 @@ const auth = {
     }
   },
 
+  _indicar() {
+    const p = state.get('promotor');
+    if (!p) return;
+    const link = 'https://promo-telegram-gateway-v3-476120210909.southamerica-east1.run.app/indicacao?ref=' + p.user_id;
+    if (navigator.share) {
+      navigator.share({ title: 'Seja um Promotor JET', text: 'Olha essa vaga de promotor!', url: link });
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(link).then(function() { ui.toast('Link copiado!', 'success'); });
+    } else {
+      prompt('Copie o link:', link);
+    }
+  },
+
   async _atualizarBadgesHome() {
     try {
       const [badgeRes, meRes] = await Promise.all([
@@ -284,6 +297,9 @@ const homeScreen = {
             </button>
             <button onclick="router.go('calculadora')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
               <span style="font-size:24px">💰</span>Ganhos
+            </button>
+            <button onclick="homeScreen._indicar()" style="background:#1e2a45;border:1px solid rgba(104,211,145,0.3);border-radius:12px;padding:16px;color:#68d391;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
+              <span style="font-size:24px">🤝</span>Indicar
             </button>
             <button onclick="homeScreen._indicar()" style="background:#1e2a45;border:1px solid rgba(104,211,145,0.3);border-radius:12px;padding:16px;color:#68d391;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
               <span style="font-size:24px">🤝</span>Indicar
