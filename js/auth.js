@@ -36,6 +36,27 @@ const auth = {
     setInterval(() => this._atualizarBadgeSlots(), 30000);
   },
 
+  async _atualizarBadgesHome() {
+    try {
+      const [badgeRes, meRes] = await Promise.all([
+        api.get('GET_BADGES'),
+        api.get('GET_ME')
+      ]);
+      const badges = badgeRes?.badges || [];
+      const score  = meRes?.user?.score_operacional || 0;
+      const streak = meRes?.user?.streak_dias || 0;
+      const el = document.getElementById('home-badges');
+      if (!el) return;
+      let html = '';
+      if (score > 0) html += '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(246,173,85,0.15);color:#f6ad55;border:1px solid rgba(246,173,85,0.3)">⭐ ' + score + ' pts</span>';
+      if (streak >= 3) html += '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(246,173,85,0.15);color:#f6ad55;border:1px solid rgba(246,173,85,0.3)">🔥 ' + streak + 'd</span>';
+      badges.slice(0, 3).forEach(b => {
+        html += '<span style="font-size:14px" title="' + b.descricao + '">' + b.descricao.split(' ')[0] + '</span>';
+      });
+      el.innerHTML = html;
+    } catch(_) {}
+  },
+
   async _atualizarScore() {
     try {
       const me = await api.get('GET_ME');
@@ -223,6 +244,7 @@ const homeScreen = {
           <div style="flex:1">
             <div style="font-size:17px;font-weight:700">${p.nome_completo||p.nome||'Promotor'}</div>
             <div style="font-size:12px;color:#a0aec0">${p.cidade_base||p.cidade||'—'} · ${p.cargo_principal||p.cargo||''}</div>
+            <div id="home-badges" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"></div>
           </div>
           <span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:${corStatus}22;color:${corStatus};border:1px solid ${corStatus}44">${status.replace(/_/g,' ')}</span>
           <button onclick="auth.logout()" style="margin-left:8px;background:#e74c3c22;border:1px solid #e74c3c44;color:#e74c3c;border-radius:8px;font-size:12px;font-weight:700;padding:6px 10px;cursor:pointer">Sair</button>
