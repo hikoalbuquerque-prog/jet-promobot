@@ -203,6 +203,111 @@ app.post('/internal/send-jornada-status', async (req, res) => {
   }
 });
 
+// ── Página pública de indicação ─────────────────────────────────────────────
+app.get('/indicacao', (req, res) => {
+  const ref = req.query.ref || '';
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JET Promo — Seja um Promotor</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#0a0f1e;color:#eaf0fb;font-family:-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:#16213e;border:1px solid #2a3a55;border-radius:20px;padding:28px 24px;max-width:420px;width:100%}
+.logo{text-align:center;font-size:32px;margin-bottom:8px}
+h1{text-align:center;font-size:20px;font-weight:800;margin-bottom:6px}
+.sub{text-align:center;font-size:13px;color:#a0aec0;margin-bottom:24px}
+label{font-size:12px;font-weight:700;color:#a0aec0;letter-spacing:1px;display:block;margin-bottom:6px;margin-top:14px}
+input{width:100%;background:#1e2a45;border:1px solid #2a3a55;border-radius:10px;color:#eaf0fb;font-size:15px;padding:12px 14px;outline:none}
+input:focus{border-color:#4f8ef7}
+.btn{width:100%;margin-top:24px;background:linear-gradient(135deg,#4f8ef7,#2b6cb0);border:none;border-radius:12px;color:#fff;font-size:16px;font-weight:700;padding:14px;cursor:pointer}
+.success{display:none;text-align:center;padding:20px}
+.success .icon{font-size:48px;margin-bottom:12px}
+.err{color:#fc8181;font-size:13px;margin-top:8px;display:none}
+</style>
+</head>
+<body>
+<div class="card">
+  <div id="form-area">
+    <div class="logo">📍</div>
+    <h1>Seja um Promotor JET</h1>
+    <p class="sub">Preencha seus dados e entraremos em contato!</p>
+    <label>NOME COMPLETO</label>
+    <input id="nome" type="text" placeholder="Seu nome completo" autocomplete="name">
+    <label>CPF</label>
+    <input id="cpf" type="text" placeholder="000.000.000-00" maxlength="14" oninput="fmtCpf(this)">
+    <label>TELEFONE</label>
+    <input id="tel" type="tel" placeholder="(11) 99999-9999" maxlength="15" oninput="fmtTel(this)">
+    <label>E-MAIL</label>
+    <input id="email" type="email" placeholder="seu@email.com">
+    <div class="err" id="err">Preencha todos os campos corretamente.</div>
+    <button class="btn" onclick="enviar()">Quero ser Promotor ✨</button>
+  </div>
+  <div class="success" id="success">
+    <div class="icon">🎉</div>
+    <h1>Cadastro enviado!</h1>
+    <p style="color:#a0aec0;font-size:14px;margin-top:8px">Em breve nossa equipe entrará em contato. Obrigado!</p>
+  </div>
+</div>
+<script>
+var REF = '${ref}';
+function fmtCpf(el){var v=el.value.replace(/\D/g,'');if(v.length>9)v=v.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/,'$1.$2.$3-$4');else if(v.length>6)v=v.replace(/(\d{3})(\d{3})(\d{0,3})/,'$1.$2.$3');else if(v.length>3)v=v.replace(/(\d{3})(\d{0,3})/,'$1.$2');el.value=v;}
+function fmtTel(el){var v=el.value.replace(/\D/g,'');if(v.length>10)v=v.replace(/(\d{2})(\d{5})(\d{0,4})/,'($1) $2-$3');else if(v.length>6)v=v.replace(/(\d{2})(\d{4})(\d{0,4})/,'($1) $2-$3');else if(v.length>2)v=v.replace(/(\d{2})(\d*)/,'($1) $2');el.value=v;}
+function enviar(){
+  var nome=document.getElementById('nome').value.trim();
+  var cpf=document.getElementById('cpf').value.trim();
+  var tel=document.getElementById('tel').value.trim();
+  var email=document.getElementById('email').value.trim();
+  var err=document.getElementById('err');
+  if(!nome||cpf.length<14||tel.length<14||!email.includes('@')){err.style.display='block';return;}
+  err.style.display='none';
+  fetch('/indicacao/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nome,cpf,telefone:tel,email,ref:REF})})
+    .then(function(r){return r.json();})
+    .then(function(r){
+      if(r.ok){document.getElementById('form-area').style.display='none';document.getElementById('success').style.display='block';}
+      else{err.textContent=r.erro||'Erro ao enviar.';err.style.display='block';}
+    }).catch(function(){err.textContent='Erro de conexão.';err.style.display='block';});
+}
+</script>
+</body>
+</html>`);
+});
+
+// ── POST /indicacao/submit ────────────────────────────────────────────────────
+app.post('/indicacao/submit', async (req, res) => {
+  try {
+    const { nome, cpf, telefone, email, ref } = req.body || {};
+    if (!nome || !cpf || !telefone || !email) return res.json({ ok: false, erro: 'Campos obrigatórios' });
+
+    // Salva no GAS
+    const result = await callAppsScriptPost({
+      evento: 'REGISTRAR_INDICACAO',
+      integration_secret: CFG.appsScriptSharedSecret,
+      nome, cpf, telefone, email,
+      indicado_por: ref || ''
+    });
+
+    // Notifica gestor no Telegram
+    const grupos = CFG.telegramGroupIds || {};
+    const chatId = grupos['São Paulo'] || Object.values(grupos)[0];
+    if (chatId) {
+      await telegramApi('sendMessage', {
+        chat_id: chatId,
+        text: '<b>Nova Indicacao!</b>\n\nNome: ' + nome + '\nTel: ' + telefone + '\nEmail: ' + email + '\nCPF: ' + cpf + (ref ? '\nIndicado por: <code>' + ref + '</code>' : ''),
+        parse_mode: 'HTML'
+      });
+    }
+
+    res.json({ ok: true });
+  } catch(e) {
+    console.error('[indicacao]', e.message);
+    res.status(500).json({ ok: false, erro: e.message });
+  }
+});
+
 // ── Fim de turno: pergunta se encerrou ou ficará mais ────────────────────────
 app.post('/internal/send-fim-turno', async (req, res) => {
   try {
