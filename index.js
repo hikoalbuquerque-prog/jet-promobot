@@ -266,7 +266,7 @@ function enviar(){
   var err=document.getElementById('err');
   var cpfClean=cpf.replace(/\\D/g,''); var telClean=tel.replace(/\\D/g,''); if(!nome||cpfClean.length<11||telClean.length<10||!email.includes('@')){err.style.display='block';return;}
   err.style.display='none';
-  fetch('/indicacao/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nome,cpf,telefone:tel,email,ref:REF})})
+  fetch('/indicacao/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nome,cpf,telefone:tel,email,cidade:document.getElementById('cidade').value.trim(),ref:REF})})
     .then(function(r){return r.json();})
     .then(function(r){
       if(r.ok){document.getElementById('form-area').style.display='none';document.getElementById('success').style.display='block';}
