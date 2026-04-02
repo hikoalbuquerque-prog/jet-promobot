@@ -85,7 +85,8 @@ const timer = (() => {
   function segundos() { return _acc + (_startTs ? Math.floor((Date.now() - _startTs) / 1000) : 0); }
   function onTick(fn) { _cbs.push(fn); return () => { _cbs = _cbs.filter(f => f !== fn); }; }
 
-  return { iniciar, pausar, retomar, parar, segundos, onTick };
+  function setAcc(v) { _acc = v; }
+  return { iniciar, pausar, retomar, parar, segundos, onTick, setAcc };
 })();
 
 // ── operacao (telas de checkin → pausa → resume → checkout) ───
@@ -345,7 +346,15 @@ const operacao = {
 
     const _jorn = state.loadJornada();
     if (_jorn?.jornada_id) _heartbeatTimer.iniciar(_jorn.jornada_id);
-    timer.iniciar();
+    // Retoma o timer a partir do inicio_real da jornada
+    if (_jorn?.inicio_real) {
+      const decorridoSeg = Math.floor((Date.now() - new Date(_jorn.inicio_real).getTime()) / 1000);
+      timer.parar();
+      timer._acc = Math.max(0, decorridoSeg);
+      timer.retomar();
+    } else {
+      timer.iniciar();
+    }
     let _avisoFimMostrado = false;
     const unsubTimer = timer.onTick(s => {
       const el = document.getElementById('timer-display');
