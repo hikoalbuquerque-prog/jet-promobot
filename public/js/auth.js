@@ -269,6 +269,9 @@ const homeScreen = {
             <button onclick="router.go('historico')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
               <span style="font-size:24px">📋</span>Histórico
             </button>
+            <button onclick="router.go('calculadora')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
+              <span style="font-size:24px">💰</span>Ganhos
+            </button>
           </div>
         </div>
         ${ui.bottomNav('home')}
