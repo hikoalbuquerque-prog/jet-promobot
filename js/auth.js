@@ -301,9 +301,7 @@ const homeScreen = {
             <button onclick="homeScreen._indicar()" style="background:#1e2a45;border:1px solid rgba(104,211,145,0.3);border-radius:12px;padding:16px;color:#68d391;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
               <span style="font-size:24px">🤝</span>Indicar
             </button>
-            <button onclick="homeScreen._indicar()" style="background:#1e2a45;border:1px solid rgba(104,211,145,0.3);border-radius:12px;padding:16px;color:#68d391;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
-              <span style="font-size:24px">🤝</span>Indicar
-            </button>
+            
           </div>
         </div>
         ${ui.bottomNav('home')}
