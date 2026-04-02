@@ -93,34 +93,6 @@ const ranking = {
         + '</div>';
 
       // Conquistas
-      if (badges.length > 0) {
-        html += '<div style="font-size:11px;color:#a0aec0;font-weight:700;letter-spacing:1px;margin-bottom:10px">SUAS CONQUISTAS</div>';
-        html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">';
-        badges.forEach(function(b) {
-          var emoji = b.descricao ? b.descricao.split(' ')[0] : '🏅';
-          var nome  = b.descricao ? b.descricao.substring(b.descricao.indexOf(' ')+1) : b.tipo;
-          // Busca raridade na definicao de badges
-          var raridade = '';
-          var corRar   = '#a0aec0';
-          self._BADGES_DEF.forEach(function(def) {
-            if (b.tipo && b.tipo.startsWith(def.id)) {
-              var nivel = def.niveis[0];
-              def.niveis.forEach(function(n, i) {
-                if (b.tipo === def.id + '_' + (i+1)) { nivel = n; }
-              });
-              if (nivel) { raridade = nivel.raridade; corRar = nivel.cor; }
-            }
-          });
-          html += '<div style="background:#1e2a45;border:1px solid ' + corRar + '44;border-radius:12px;padding:10px;text-align:center">'
-            + '<div style="font-size:28px">' + emoji + '</div>'
-            + '<div style="font-size:10px;color:#eaf0fb;font-weight:600;margin-top:4px">' + nome + '</div>'
-            + (raridade ? '<div style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;background:' + corRar + '33;color:' + corRar + ';margin-top:3px;display:inline-block">' + raridade + '</div>' : '')
-            + '</div>';
-        });
-        html += '</div>';
-      }
-
-      // Badges evolutivas
       html += '<div style="font-size:11px;color:#a0aec0;font-weight:700;letter-spacing:1px;margin-bottom:10px">BADGES EVOLUTIVAS</div>';
       self._BADGES_DEF.forEach(function(def) {
         var conquistadasDef = badges.filter(function(b){ return b.tipo && b.tipo.startsWith(def.id); });
