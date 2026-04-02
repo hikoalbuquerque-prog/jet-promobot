@@ -28,6 +28,7 @@ const router = (() => {
     historico:          () => historico.render(),
     ranking:            () => ranking.render(),
     calculadora:        () => calculadora.render(),
+    academy:            () => academy.render(),
     // CLT
     'turno-ativo':      () => turnoCLT.render(),
     'historico-clt':    () => historicoCLT.render(),
