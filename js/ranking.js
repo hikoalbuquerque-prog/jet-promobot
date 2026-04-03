@@ -40,6 +40,11 @@ const ranking = {
     ]},
     { id: 'MADRUGADOR',      label: 'Madrugador', icon: '🚀', niveis: [{ label:'Check-in antes das 7h', cor:'#63b3ed', raridade:'Especial' }] },
     { id: 'PRIMEIRO_CHECKIN',label: 'Estreante',  icon: '🌟', niveis: [{ label:'Primeiro check-in',     cor:'#ffd700', raridade:'Marco'    }] },
+    { id: 'ACADEMY_BASICO',        label: 'Academy Basico',        icon: '🎓', niveis: [{ label:'Basico concluido',        cor:'#63b3ed', raridade:'Bronze'   }] },
+    { id: 'ACADEMY_INTERMEDIARIO', label: 'Academy Intermediario', icon: '🏅', niveis: [{ label:'Intermediario concluido', cor:'#f6ad55', raridade:'Prata'    }] },
+    { id: 'ACADEMY_AVANCADO',      label: 'Academy Avancado',      icon: '🚀', niveis: [{ label:'Avancado concluido',      cor:'#68d391', raridade:'Ouro'     }] },
+    { id: 'ACADEMY_ESPECIALISTA',  label: 'Academy Especialista',  icon: '🔬', niveis: [{ label:'Especialista concluido',  cor:'#b794f4', raridade:'Safira'   }] },
+    { id: 'ACADEMY_MASTER',        label: 'Academy Master',        icon: '👑', niveis: [{ label:'Master concluido',        cor:'#ffd700', raridade:'Lendario' }] },
     { id: 'INDICACAO', label: 'Indicacoes', icon: '🤝', niveis: [
         { label:'1 indicacao',   cor:'#cd7f32', raridade:'Bronze'    },
         { label:'3 indicacoes',  cor:'#a0aec0', raridade:'Prata'     },
