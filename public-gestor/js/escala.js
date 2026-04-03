@@ -9,7 +9,8 @@ const escalaScreen = (() => {
       <section class="screen" id="screen-escala">
         <div class="screen-header">
           <h2 class="screen-title">Escala</h2>
-          <button class="btn-icon" id="btn-nova-escala" style="color:#63b3ed;border-color:#63b3ed40;font-size:18px;margin-left:auto">+</button>
+          <button id="btn-replicar-semana" style="margin-left:auto;background:rgba(99,179,237,.1);border:1px solid rgba(99,179,237,.3);color:#63b3ed;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:700">🔄 Replicar Semana Anterior</button>
+          <button class="btn-icon" id="btn-nova-escala" style="color:#63b3ed;border-color:#63b3ed40;font-size:18px;margin-left:10px">+</button>
           <button class="btn-icon" id="btn-refresh-escala" title="Atualizar">↻</button>
         </div>
         <div class="filter-bar">
@@ -72,6 +73,29 @@ const escalaScreen = (() => {
   function _bindEscalaEvents() {
     document.getElementById('btn-refresh-escala').addEventListener('click', _loadEscala);
     document.getElementById('btn-nova-escala').addEventListener('click', async () => { await _popularSelects(); _openModal('modal-escala'); });
+    
+    document.getElementById('btn-replicar-semana')?.addEventListener('click', async () => {
+      const orig = prompt('Data de INÍCIO da semana de ORIGEM (segunda-feira):\nExemplo: 2026-03-30');
+      if (!orig) return;
+      const dest = prompt('Data de INÍCIO da semana de DESTINO (segunda-feira):\nExemplo: 2026-04-06');
+      if (!dest) return;
+
+      if (!confirm(`Deseja replicar todos os slots de ${orig} (7 dias) para a semana de ${dest}?`)) return;
+
+      const btn = document.getElementById('btn-replicar-semana');
+      btn.textContent = '...Aguarde...'; btn.disabled = true;
+
+      try {
+        const res = await api.get('REPLICAR_SEMANA', { data_inicio_origem: orig, data_inicio_destino: dest });
+        alert(res.mensagem || 'Escala replicada com sucesso!');
+        _loadEscala();
+      } catch(e) {
+        alert('Erro ao replicar: ' + e.message);
+      } finally {
+        btn.textContent = '🔄 Replicar Semana Anterior'; btn.disabled = false;
+      }
+    });
+
     document.getElementById('btn-esc-cancel').addEventListener('click', () => _closeModal('modal-escala'));
     document.getElementById('btn-esc-salvar').addEventListener('click', _salvarDraft);
     document.getElementById('btn-pub-cancel').addEventListener('click', () => _closeModal('modal-publicar'));

@@ -17,11 +17,10 @@ const router = (() => {
     historicoCLT: { module: historicoCLTScreen, method: 'render',     hasNav: true,  navId: 'nav-hist-clt' },
     historicoMEI: { module: historicoMEIScreen,  method: 'render',     hasNav: true,  navId: 'nav-hist-mei' },
     cadastros:    { module: cadastrosScreen,     method: 'render',     hasNav: true,  navId: 'nav-cadastros' },
-    'fiscal-turno': { module: fiscalTurnoScreen, method: 'render',     hasNav: true,  navId: 'nav-fiscal-turno' },
     broadcast:    { module: broadcast,           method: 'render',     hasNav: true,  navId: 'nav-broadcast' },
   };
 
-  const _FISCAL_ALLOWED = ['mapa', 'slots', 'fiscal-turno'];
+  const _FISCAL_ALLOWED = ['mapa', 'slots'];
 
   function navigate(screen, pushHistory = true) {
     const _cargoNav2 = state.get('gestor')?.cargo?.toUpperCase();
@@ -165,9 +164,6 @@ const router = (() => {
             </button>
             <button class="nav-item" id="nav-broadcast" data-route="broadcast">
               📢 Broadcast
-            </button>
-            <button class="nav-item" id="nav-fiscal-turno" data-route="fiscal-turno">
-              ⏱️ Meu Turno
             </button>
           </nav>
 

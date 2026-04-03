@@ -38,6 +38,11 @@ const mapaScreen = (() => {
           <button class="toggle-btn active" id="toggle-promotores" onclick="mapaScreen._toggleLayer('promotores')">👤 Pessoas</button>
           <button class="toggle-btn" id="toggle-raios" onclick="mapaScreen._toggleLayer('raios')">⭕ Raios</button>
           <div style="width:1px;height:20px;background:rgba(99,179,237,0.2);margin:0 4px"></div>
+          
+          <select id="filtro-cidade" onchange="mapaScreen._aplicarFiltros()" style="background:#1a2744;border:1px solid rgba(99,179,237,0.2);color:#e2e8f0;padding:4px 8px;border-radius:6px;font-size:11px">
+            <option value="">Todas as cidades</option>
+          </select>
+
           <select id="filtro-status" onchange="mapaScreen._aplicarFiltros()" style="background:#1a2744;border:1px solid rgba(99,179,237,0.2);color:#e2e8f0;padding:4px 8px;border-radius:6px;font-size:11px">
             <option value="">Todos os status</option>
             <option value="DISPONIVEL">Disponível</option>
@@ -111,12 +116,22 @@ const mapaScreen = (() => {
       _todosPromotores = promRes?.data   || [];
       _stats           = slotsRes?.stats || {};
       _atualizarStats();
+      _atualizarFiltroCidades();
       _renderSlots(_aplicarFiltrosLocais(_todosSlots));
-      _renderPromotores(_todosPromotores);
-      _renderListaLateral(_todosPromotores);
+      _renderPromotores(_aplicarFiltrosPromotores(_todosPromotores));
+      _renderListaLateral(_aplicarFiltrosPromotores(_todosPromotores));
       const ts = document.getElementById('mapa-ts');
       if (ts) ts.textContent = 'Atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
     } catch(e) { console.error('[mapa]', e.message); }
+  }
+
+  function _atualizarFiltroCidades() {
+    const sel = document.getElementById('filtro-cidade');
+    if (!sel) return;
+    const valAtual = sel.value;
+    const cidades = [...new Set(_todosSlots.map(s => s.cidade).concat(_todosPromotores.map(p => p.cidade)))].filter(Boolean).sort();
+    sel.innerHTML = '<option value="">Todas as cidades</option>' + cidades.map(c => `<option value="${c}">${c}</option>`).join('');
+    sel.value = valAtual;
   }
 
   function _atualizarStats() {
@@ -125,9 +140,11 @@ const mapaScreen = (() => {
   }
 
   function _aplicarFiltrosLocais(slots) {
+    const cidade  = (document.getElementById('filtro-cidade')?.value  || '').trim();
     const status  = (document.getElementById('filtro-status')?.value  || '').trim();
     const horario = (document.getElementById('filtro-horario')?.value || '').trim();
     return slots.filter(s => {
+      if (cidade && s.cidade !== cidade) return false;
       if (status && s.status_geral !== status) return false;
       if (horario) {
         const h = parseInt((s.inicio_slot||'00').split(':')[0]);
@@ -135,6 +152,14 @@ const mapaScreen = (() => {
         if (horario === 'tarde' && (h < 12 || h >= 18)) return false;
         if (horario === 'noite' && h < 18) return false;
       }
+      return true;
+    });
+  }
+
+  function _aplicarFiltrosPromotores(promotores) {
+    const cidade = (document.getElementById('filtro-cidade')?.value || '').trim();
+    return promotores.filter(p => {
+      if (cidade && p.cidade !== cidade) return false;
       return true;
     });
   }
@@ -292,10 +317,15 @@ const mapaScreen = (() => {
     else { if (_map.hasLayer(lg)) _map.removeLayer(lg); }
   }
 
-  function _aplicarFiltros() { _renderSlots(_aplicarFiltrosLocais(_todosSlots)); }
+  function _aplicarFiltros() { 
+    _renderSlots(_aplicarFiltrosLocais(_todosSlots)); 
+    _renderPromotores(_aplicarFiltrosPromotores(_todosPromotores));
+    _renderListaLateral(_aplicarFiltrosPromotores(_todosPromotores));
+  }
+
   function _limparFiltros() {
-    ['filtro-status','filtro-horario'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-    _renderSlots(_todosSlots);
+    ['filtro-cidade', 'filtro-status', 'filtro-horario'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    _aplicarFiltros();
   }
   function _setDataFiltro(data) {
     _dataFiltroAtual = data;
