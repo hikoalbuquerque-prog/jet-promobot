@@ -129,8 +129,17 @@ const mapaScreen = (() => {
     const sel = document.getElementById('filtro-cidade');
     if (!sel) return;
     const valAtual = sel.value;
-    const cidades = [...new Set(_todosSlots.map(s => s.cidade).concat(_todosPromotores.map(p => p.cidade)))].filter(Boolean).sort();
-    sel.innerHTML = '<option value="">Todas as cidades</option>' + cidades.map(c => `<option value="${c}">${c}</option>`).join('');
+    
+    // Pega cidades únicas de slots e promotores
+    const cidadesSet = new Set();
+    _todosSlots.forEach(s => { if(s.cidade) cidadesSet.add(s.cidade); });
+    _todosPromotores.forEach(p => { if(p.cidade) cidadesSet.add(p.cidade); });
+    
+    const cidades = Array.from(cidadesSet).filter(Boolean).sort();
+    
+    sel.innerHTML = '<option value="">Todas as cidades</option>' + 
+      cidades.map(c => `<option value="${c}">${c}</option>`).join('');
+    
     sel.value = valAtual;
   }
 
@@ -263,6 +272,9 @@ const mapaScreen = (() => {
     painel.innerHTML = `<div style="padding:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><span style="font-size:12px;font-weight:700;color:#63b3ed">SLOT</span><button onclick="mapaScreen._voltarLista()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:12px">← Lista</button></div><div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:4px">${s.nome||'—'}</div><div style="font-size:12px;color:#718096;margin-bottom:12px">${s.inicio_slot} – ${s.fim_slot}</div><div style="display:flex;gap:8px;margin-bottom:12px"><div style="flex:1;background:#1a2744;border-radius:6px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:#e2e8f0">${s.vagas_ocupadas||0}</div><div style="font-size:10px;color:#718096">ocupadas</div></div><div style="flex:1;background:#1a2744;border-radius:6px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:#63b3ed">${(s.max_promotores||1)-(s.vagas_ocupadas||0)}</div><div style="font-size:10px;color:#718096">disponíveis</div></div><div style="flex:1;background:#1a2744;border-radius:6px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:#f6ad55">${s.max_promotores||1}</div><div style="font-size:10px;color:#718096">capacidade</div></div></div><div style="font-size:11px;font-weight:700;color:#718096;margin-bottom:6px">PROMOTORES</div>${proms}</div>`;
   }
 
+  function _showPromotorPanel(p) {
+    const painel = document.getElementById('mapa-painel');
+    if (!painel) return;
     const isFiscal = p.tipo_vinculo === 'FISCAL' || p.cargo_principal === 'FISCAL';
     
     painel.innerHTML = `
@@ -298,6 +310,7 @@ const mapaScreen = (() => {
           <button onclick="mapaScreen._verRelatorioFiscal('${p.user_id}', '${p.nome}')" style="width:100%;margin-top:8px;background:rgba(159,122,234,0.1);border:1px solid rgba(159,122,234,0.3);color:#9f7aea;padding:8px;border-radius:6px;font-size:12px;cursor:pointer">📊 Relatório de Supervisão</button>
         ` : ''}
       </div>`;
+  }
   }
 
   function _voltarLista() {

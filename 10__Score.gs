@@ -47,13 +47,15 @@ function getRankings_(user, periodo) {
   if (periodo === 'SEMANAL') {
     dataLimite = new Date(agora.getTime() - 7 * 86400000);
   } else if (periodo === 'MENSAL') {
-    dataLimite = new Date(agora.getFullYear(), agora.getMonth(), 1); // Início do mês atual
+    dataLimite = new Date(agora.getFullYear(), agora.getMonth(), 1); 
   }
 
   const totais = {};
   for (let r = 1; r < data.length; r++) {
-    if (dataLimite && new Date(data[r][iDt]) < dataLimite) continue;
+    const dataRegistro = new Date(data[r][iDt]);
+    if (dataLimite && dataRegistro < dataLimite) continue;
     const uid = String(data[r][iUsr]).trim();
+    if (!uid) continue;
     totais[uid] = (totais[uid] || 0) + parseFloat(data[r][iPts] || '0');
   }
   
