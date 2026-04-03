@@ -865,6 +865,71 @@ function aceitarSlotTelegram_(body) {
   return{ok:false,erro:'promotor_id não encontrado'};
 }
 
+/**
+ * Cria um slot de reforço na hora para um promotor que chegou no local sem vaga prévia.
+ */
+function criarSlotReforco_(user, body) {
+  const { local_referencia } = body; // Nome ou ID do local aproximado
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws = ss.getSheetByName('SLOTS');
+  if (!ws) return { ok: false, erro: 'Aba SLOTS não encontrada' };
+
+  // Busca um slot modelo para copiar as coordenadas e dados do local
+  const data = ws.getDataRange().getValues();
+  const h = data[0].map(v => String(v).toLowerCase().trim());
+  let modelo = null;
+  for (let r = 1; r < data.length; r++) {
+    if (data[r][h.indexOf('local_nome')] === local_referencia || data[r][h.indexOf('slot_id')] === local_referencia) {
+      modelo = rowToObj_(h, data[r]);
+      break;
+    }
+  }
+
+  if (!modelo) return { ok: false, erro: 'Local de referência não encontrado.' };
+
+  const slotId = 'SLT_REF_' + new Date().getTime();
+  const agora = new Date();
+  const hojeStr = agora.toISOString().split('T')[0];
+  const horaAtual = agora.getHours().toString().padStart(2,'0') + ':' + agora.getMinutes().toString().padStart(2,'0');
+
+  // Cria o novo slot já com status ACEITO para o usuário
+  const newRow = new Array(h.length).fill('');
+  newRow[h.indexOf('slot_id')] = slotId;
+  newRow[h.indexOf('cidade')] = modelo.cidade;
+  newRow[h.indexOf('local_nome')] = modelo.local_nome + ' (REFORÇO)';
+  newRow[h.indexOf('lat')] = modelo.lat;
+  newRow[h.indexOf('lng')] = modelo.lng;
+  newRow[h.indexOf('raio_metros')] = modelo.raio_metros;
+  newRow[h.indexOf('status')] = 'ACEITO';
+  newRow[h.indexOf('user_id')] = user.user_id;
+  newRow[h.indexOf('data')] = hojeStr;
+  newRow[h.indexOf('inicio')] = horaAtual;
+  newRow[h.indexOf('fim')] = modelo.fim; // Assume o mesmo fim do modelo
+  newRow[h.indexOf('operacao')] = modelo.operacao;
+  newRow[h.indexOf('criado_em')] = agora.toISOString();
+  newRow[h.indexOf('atualizado_em')] = agora.toISOString();
+
+  ws.appendRow(newRow);
+  
+  // Cria a jornada
+  const jornId = gerarId_('JRN');
+  const slotMapeado = rowToObj_(h, newRow);
+  criarJornada_(ss, { jornada_id: jornId, user, slot: slotMapeado, horarioServidor: agora.toISOString() });
+
+  // Notifica Gestão
+  const integracoes = [{
+    canal: 'telegram', tipo: 'group_message',
+    cidade: modelo.cidade,
+    topic_key: 'COBERTURAS_URGENCIAS',
+    parse_mode: 'HTML',
+    text_html: `✨ <b>Reforço Detectado</b>\n\n👤 <b>${user.nome_completo || user.user_id}</b>\n📍 ${modelo.local_nome}\n⏰ Iniciou reforço às ${horaAtual}\n\nO sistema criou um slot extraordinário para esta jornada.`,
+  }];
+
+  if (typeof sincronizarCacheSlots_ === 'function') sincronizarCacheSlots_();
+
+  return { ok: true, jornada_id: jornId, slot_id: slotId, integracoes };
+}
+
 function haversineMetros_(lat1,lng1,lat2,lng2) {
   const R=6371000, d1=lat1*Math.PI/180, d2=lat2*Math.PI/180;
   const dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;

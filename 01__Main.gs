@@ -128,6 +128,7 @@ function doPost(e) {
 
       // ── FSM MEI ─────────────────────────────────────────────
       case 'ACEITAR_SLOT':                return jsonResp_(processarFSM_(user, body, 'ACEITAR_SLOT'));
+      case 'CRIAR_SLOT_REFORCO':          return jsonResp_(criarSlotReforco_(user, body));
       case 'REGISTRAR_PUSH_TOKEN':        return jsonResp_(registrarPushToken_(body));
       case 'CHECKIN':                     return jsonResp_(processarFSM_(user, body, 'CHECKIN'));
       case 'PAUSE':                       return jsonResp_(processarFSM_(user, body, 'PAUSE'));

@@ -105,7 +105,28 @@ const slotScreen = {
         return;
       }
 
+      // Se não tem slots disponíveis
+      if (disp.ok && (!disp.slots || disp.slots.length === 0)) {
+        document.getElementById('slot-content').innerHTML = `
+          <div style="text-align:center;padding:40px;color:#a0aec0">
+            <div>Nenhum slot disponível no momento.</div>
+            <button onclick="slotScreen._solicitarReforco()" style="margin-top:20px;background:transparent;border:1px solid #4f8ef7;color:#4f8ef7;padding:12px 20px;border-radius:10px;font-weight:700;cursor:pointer">
+              ✨ Vim trabalhar (Reforço)
+            </button>
+          </div>`;
+        return;
+      }
+
       this._renderDisponiveis(disp.slots);
+      
+      // Adiciona botão de reforço ao final da lista também
+      const btnRef = document.createElement('div');
+      btnRef.style.cssText = 'text-align:center;padding:20px 0';
+      btnRef.innerHTML = `
+        <button onclick="slotScreen._solicitarReforco()" style="background:transparent;border:1px solid #a0aec044;color:#a0aec0;padding:10px 16px;border-radius:10px;font-size:13px;cursor:pointer">
+          ✨ Vim trabalhar sem slot (Reforço)
+        </button>`;
+      document.getElementById('slot-content')?.appendChild(btnRef);
     } catch(err) {
       console.error('slot.js catch:', err);
       document.getElementById('slot-content').innerHTML = `
@@ -233,6 +254,41 @@ const slotScreen = {
       ui.toast('❌ Sem conexão.', 'error');
       btn.textContent = '✅ Aceitar Slot';
       btn.disabled = false;
+    }
+  },
+
+  async _solicitarReforco() {
+    // 1. Pega slots do dia para sugerir locais
+    ui.toast('Carregando locais...', 'info');
+    try {
+      const res = await api.get('GET_SLOTS_HOJE'); // Reuso do endpoint de gestor para pegar locais válidos
+      if (!res.ok || !res.data) throw new Error();
+      
+      const locais = [...new Set(res.data.map(s => s.nome))].sort();
+      const local = prompt('Para qual local você veio fazer reforço?\n\nLocais hoje:\n' + locais.join('\n'));
+      
+      if (!local) return;
+
+      ui.toast('Criando jornada de reforço...', 'info');
+      const createRes = await api.post({ evento: 'CRIAR_SLOT_REFORCO', local_referencia: local });
+      
+      if (createRes.ok) {
+        ui.toast('✅ Reforço registrado! Abrindo jornada...', 'success');
+        setTimeout(() => this.render(), 1000);
+      } else {
+        alert('Erro: ' + createRes.erro);
+      }
+    } catch(e) {
+      const manual = prompt('Não consegui carregar a lista. Digite o nome do local EXATAMENTE como está no sistema:');
+      if (manual) {
+        const createRes = await api.post({ evento: 'CRIAR_SLOT_REFORCO', local_referencia: manual });
+        if (createRes.ok) {
+          ui.toast('✅ Reforço registrado!', 'success');
+          setTimeout(() => this.render(), 1000);
+        } else {
+          alert('Erro: ' + createRes.erro);
+        }
+      }
     }
   }
 };
