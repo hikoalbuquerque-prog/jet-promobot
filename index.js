@@ -32,6 +32,26 @@ app.use(corsMiddleware);
 
 const CFG = loadConfig();
 
+// ── Cache de Performance ─────────────────────────────────────────────────────
+let SLOTS_CACHE = {
+  timestamp: 0,
+  slots: []
+};
+
+app.post('/internal/sync-slots', requireAdminSecret, (req, res) => {
+  const { slots } = req.body || {};
+  if (!Array.isArray(slots)) return res.status(400).json({ ok: false, erro: 'Array de slots obrigatório' });
+  
+  SLOTS_CACHE = {
+    timestamp: Date.now(),
+    slots: slots
+  };
+  
+  console.log(`[CACHE] Sincronizados ${slots.length} slots.`);
+  res.json({ ok: true, count: slots.length });
+});
+// ─────────────────────────────────────────────────────────────────────────────
+
 app.use((req, _res, next) => {
   console.log(`[REQ] ${req.method} ${req.url}`);
   next();
@@ -49,6 +69,13 @@ app.get('/app/query', async (req, res) => {
   try {
     const evento = String(req.query.evento || req.query.action || '').trim();
     if (!evento) return res.status(400).json({ ok: false, mensagem: 'evento obrigatório.' });
+
+    // Se for listagem de slots e tivermos cache recente (menos de 5 min)
+    if (evento === 'GET_SLOTS_DISPONIVEIS' && SLOTS_CACHE.slots.length > 0 && (Date.now() - SLOTS_CACHE.timestamp < 300000)) {
+      console.log('[CACHE] Servindo slots via memória.');
+      return res.json({ ok: true, slots: SLOTS_CACHE.slots, _cache: true });
+    }
+
     const result = await callAppsScriptGet(evento, req.query);
     res.status(result.ok ? 200 : 400).json(result);
   } catch (err) {
@@ -65,7 +92,11 @@ app.post('/app/event', async (req, res) => {
     const result = await callAppsScriptPost({ ...body, evento });
     if (result.ok) {
       await processIntegracoes(result.integracoes, { evento, result });
-      if (evento === 'ACEITAR_SLOT') await reconcileAcceptedSlotMessage(result, null);
+      if (evento === 'ACEITAR_SLOT') {
+        await reconcileAcceptedSlotMessage(result, null);
+        // Invalida cache local para forçar refresh na próxima consulta
+        SLOTS_CACHE.timestamp = 0;
+      }
     }
     res.status(result.ok ? 200 : 400).json(result);
   } catch (err) {

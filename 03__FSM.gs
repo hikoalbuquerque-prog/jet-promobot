@@ -1,6 +1,6 @@
 // ============================================================
 //  03.FSM.gs  — Motor FSM + Jornadas + Sequenciamento de Slots
-//  Versão: 3.1  |  Fase 3 — Consolidação Multi-slots + iOS Checkin
+//  Versão: 3.2  |  Fase 3 — Consolidação Multi-slots + Cache + Preferência
 // ============================================================
 
 function triggerAlertaNoShow() {
@@ -25,7 +25,7 @@ function triggerAlertaNoShow() {
 
   for (let r = 1; r < data.length; r++) {
     const status = String(data[r][iSt]).trim();
-    if (status !== 'ACEITO') continue; // Só alerta se estiver aceito mas não iniciado
+    if (status !== 'ACEITO') continue; 
 
     const dataSlot = String(data[r][iDt]).substring(0, 10);
     if (dataSlot !== hojeStr) continue;
@@ -36,14 +36,12 @@ function triggerAlertaNoShow() {
     const slotDt = new Date(dataSlot + 'T' + inicioStr + ':00');
     const diffMin = (agora - slotDt) / 60000;
 
-    // Se passou mais de 15 min do início e o alerta ainda não foi enviado
     if (diffMin >= 15 && !data[r][iAlerta]) {
       const userId = String(data[r][iUsr]).trim();
       const prom = promotoresMap[userId] || {};
       const local = data[r][iNome] || data[r][iId];
       const cidade = data[r][iCid] || '';
 
-      // Envia Alerta para Gestão
       const integracoes = [{
         canal: 'telegram', tipo: 'group_message',
         cidade: cidade,
@@ -53,10 +51,7 @@ function triggerAlertaNoShow() {
       }];
 
       processIntegracoes(integracoes, { evento: 'ALERTA_NOSHOW' });
-      
-      // Marca como enviado
       ws.getRange(r + 1, iAlerta + 1).setValue('ENVIADO_' + agora.toISOString());
-      console.log('Alerta No-Show enviado:', userId, local);
     }
   }
 }
@@ -156,7 +151,7 @@ function aceitarSlot_(ss, user, body, horarioServidor) {
 
   const lock = LockService.getScriptLock();
   try {
-    lock.waitLock(15000); // Aguarda até 15 segundos para evitar concorrência
+    lock.waitLock(15000); 
 
     const wsSlots = ss.getSheetByName('SLOTS');
     const dataS   = wsSlots.getDataRange().getValues();
@@ -219,7 +214,6 @@ function executarCheckin_(ss, jornada, user, body, horarioServidor) {
       return { ok: false, erro: `Fora do raio: ${Math.round(distM)}m (máx ${raio}m)`, fora_do_raio: true, distancia: Math.round(distM) };
     }
 
-    // ── Validação de horário ────────────────────────────────────
     const dataSlot  = String(slot?.data || '').substring(0, 10);
     const inicioStr = String(slot?.inicio || '').substring(0, 5);
     if (dataSlot && inicioStr) {
@@ -240,17 +234,14 @@ function executarCheckin_(ss, jornada, user, body, horarioServidor) {
 
     consolidarPromocode_(ss, jornada.slot_id, user.user_id);
 
-    // ── Calcula atraso ──────────────────────────────────────────
     const slotDt    = slot?.data && slot?.inicio ? new Date(String(slot.data).substring(0,10) + 'T' + String(slot.inicio).substring(0,5) + ':00') : null;
     const atrasoMin = slotDt ? Math.floor((new Date(horarioServidor) - slotDt) / 60000) : 999;
     const pontual   = atrasoMin <= 5;
 
-    // ── Score ───────────────────────────────────────────────────
     try {
       registrarScore_(ss, user.user_id, pontual ? 'CHECKIN_PONTUAL' : 'CHECKIN_ATRASADO', pontual ? 10 : 5, pontual ? 'Check-in pontual' : `Check-in com ${atrasoMin}min de atraso`, jornada.jornada_id);
     } catch(_) {}
 
-    // ── Badges ──────────────────────────────────────────────────
     try {
       verificarBadges_(ss, user.user_id, {
         evento: 'CHECKIN',
@@ -295,7 +286,6 @@ function executarCheckout_(ss, jornada, user, body, horarioServidor, excepcional
       } catch(_) {}
     }
 
-    // ── Score: checkout +5 ──────────────────────────────────────
     try {
       registrarScore_(ss, user.user_id, 'CHECKOUT', 5, 'Jornada encerrada — ' + duracao, jornada.jornada_id);
       atualizarStreak_(ss, user.user_id, horarioServidor);
@@ -356,7 +346,6 @@ function cancelarSlot_(user, body) {
       }
     }
 
-    // ── Score: cancelamento -20 ─────────────────────────────────
     try {
       registrarScore_(ss, user.user_id, 'CANCELAMENTO', -20, 'Slot cancelado antecipadamente', jornId);
     } catch(_) {}
@@ -371,7 +360,6 @@ function cancelarSlot_(user, body) {
       text_html: `⚠️ <b>Slot Cancelado</b>\n\n👤 <b>${user.nome_completo || user.user_id}</b>\n🔧 ${user.cargo_principal || ''}\n📍 ${slot?.local_nome || slot?.local || slotId}\n⏰ ${hora}`,
     }];
 
-    // Se o slot cancelado é para HOJE, faz o broadcast de vaga urgente
     const hojeStr = new Date().toISOString().split('T')[0];
     const dataSlot = String(slot?.data || '').substring(0, 10);
     if (dataSlot === hojeStr) {
@@ -405,10 +393,8 @@ function broadcastVagaUrgente_(ss, slot) {
     }
   }];
 
-  // Envia para o grupo de slots
   processIntegracoes(integracoes, { evento: 'BROADCAST_URGENTE' });
 
-  // Busca todos os promotores da cidade para enviar no privado (Opcional, pode ser pesado se tiver muitos)
   const promotoresMap = _getPromotoresMap_(ss);
   const integracoesPrivadas = [];
   for (const uid in promotoresMap) {
@@ -427,7 +413,6 @@ function broadcastVagaUrgente_(ss, slot) {
   }
   
   if (integracoesPrivadas.length > 0) {
-    // Envia em lotes pequenos para evitar rate limit do Telegram via Cloud Run
     processIntegracoes(integracoesPrivadas, { evento: 'BROADCAST_URGENTE_PRIVADO' });
   }
 }
@@ -461,7 +446,6 @@ function processarHeartbeat_(user, body) {
   return { ok: true, status: novoStatus, location_trust_score: score };
 }
 
-// ── Integrações de retorno — NOTIFICAÇÕES TELEGRAM ───────────────────────────
 function montarIntegracoes_(evento, resultado, user, body, jornadaAnterior) {
   const integracoes = [];
   const cidade = user.cidade_base || resultado.slot?.cidade || '';
@@ -471,7 +455,6 @@ function montarIntegracoes_(evento, resultado, user, body, jornadaAnterior) {
     const slotNome = resultado.slot?.local_nome || resultado.slot?.local || body.slot_id || '';
     const hora = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
     
-    // Notificação privada para o promotor
     if (user.telegram_user_id) {
       integracoes.push({
         canal: 'telegram', tipo: 'private_message',
@@ -481,7 +464,6 @@ function montarIntegracoes_(evento, resultado, user, body, jornadaAnterior) {
       });
     }
 
-    // Notificação em grupo para visibilidade da operação
     integracoes.push({
       canal: 'telegram', tipo: 'group_message',
       cidade,
@@ -554,7 +536,6 @@ function atualizarStreak_(ss, userId, horarioServidor) {
   }
 }
 
-// ── Sequenciamento ───────────────────────────────────────────────────────────
 function verificarSequenciamento_(ss, userId, slotRow, headers) {
   const iData    = headers.indexOf('data');
   const iInicio  = headers.indexOf('inicio');
@@ -626,7 +607,6 @@ function criarJornada_(ss,{jornada_id,user,slot,horarioServidor}) {
     const inicioPrevisto=dataSlot&&slot.inicio?dataSlot+'T'+String(slot.inicio)+':00':String(slot.inicio||'');
     const fimPrevisto=dataSlot&&slot.fim?dataSlot+'T'+String(slot.fim)+':00':String(slot.fim||'');
     ws.appendRow([jornada_id,user.user_id,slot.slot_id,'',slot.cidade,slot.operacao,user.modo_jornada_padrao||'SLOT',user.tipo_vinculo,user.cargo_principal,user.cargo_principal,'ACEITO',inicioPrevisto,fimPrevisto,'','','','','','','','','','','',horarioServidor,horarioServidor]);
-    console.log('criarJornada_ OK:', jornada_id);
   } catch(e) {
     console.log('criarJornada_ ERRO:', e.message);
   }
@@ -690,14 +670,14 @@ function getSlotsDisponiveis_(params, user) {
   const ws    = ss.getSheetByName('SLOTS');
   const data  = ws.getDataRange().getValues();
   const h     = data[0].map(v => String(v).toLowerCase().trim());
-  const iSt   = h.indexOf('status');
-  const iCid  = h.indexOf('cidade');
-  const iDt   = h.indexOf('data');
-  const iFim  = h.indexOf('fim');
+  const iSt   = h.indexOf('status'), iCid = h.indexOf('cidade'), iDt = h.indexOf('data'), iFim = h.indexOf('fim');
+  const iSugerido = h.indexOf('promotor_sugerido_id'), iPrefAte = h.indexOf('preferencia_ate');
 
   const cidadeUser = (user && user.cidade_base) ? String(user.cidade_base).trim() : '';
+  const userId = user?.user_id || '';
 
   const agora     = new Date();
+  const agoraMs   = agora.getTime();
   const hojeStr   = agora.toISOString().split('T')[0];
   const amanha    = new Date(agora); amanha.setDate(amanha.getDate() + 1);
   const amanhaStr = amanha.toISOString().split('T')[0];
@@ -706,6 +686,12 @@ function getSlotsDisponiveis_(params, user) {
   const slots = [];
   for (let r = 1; r < data.length; r++) {
     if (data[r][iSt] !== 'DISPONIVEL') continue;
+
+    if (iSugerido > -1 && iPrefAte > -1) {
+      const sugeridoId = String(data[r][iSugerido]).trim();
+      const prefAte    = data[r][iPrefAte] ? new Date(data[r][iPrefAte]).getTime() : 0;
+      if (sugeridoId && sugeridoId !== userId && agoraMs < prefAte) continue;
+    }
 
     if (cidadeUser) {
       const cidadeSlot = String(data[r][iCid] || '').trim();
@@ -724,10 +710,17 @@ function getSlotsDisponiveis_(params, user) {
       }
     }
 
-    slots.push(rowToObj_(h, data[r]));
+    const obj = rowToObj_(h, data[r]);
+    if (iSugerido > -1 && String(data[r][iSugerido]).trim() === userId) {
+      obj.is_sugerido = true;
+      obj.preferencia_expira = data[r][iPrefAte] || null;
+    }
+    slots.push(obj);
   }
 
   slots.sort((a, b) => {
+    if (a.is_sugerido && !b.is_sugerido) return -1;
+    if (!a.is_sugerido && b.is_sugerido) return 1;
     const dA = String(a.data || '').substring(0, 10);
     const dB = String(b.data || '').substring(0, 10);
     if (dA !== dB) return dA < dB ? -1 : 1;
@@ -927,4 +920,44 @@ function processarFSMInterno_(body, evento) {
     return processarFSM_(user, body, evento);
   }
   return { ok: false, erro: 'usuário não encontrado' };
+}
+
+/**
+ * Envia os slots disponíveis para o Cloud Run para acelerar o carregamento do app.
+ */
+function sincronizarCacheSlots_() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const res = getSlotsDisponiveis_({}, null); 
+  if (!res.ok) return;
+
+  const url = getConfig_('cloud_run_url') + '/internal/sync-slots';
+  const payload = {
+    integration_secret: getConfig_('integration_secret'),
+    slots: res.slots
+  };
+
+  try {
+    UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    console.log('Sincronização de cache enviada ao Cloud Run.');
+  } catch (e) {
+    console.log('Erro ao sincronizar cache:', e.message);
+  }
+}
+
+/**
+ * Gatilho automático ao editar a planilha.
+ */
+function onEditSync(e) {
+  const sheetName = e.range.getSheet().getName();
+  if (sheetName === 'SLOTS') {
+    const scriptCache = CacheService.getScriptCache();
+    if (scriptCache.get('sync_lock')) return;
+    scriptCache.put('sync_lock', '1', 30); 
+    sincronizarCacheSlots_();
+  }
 }
