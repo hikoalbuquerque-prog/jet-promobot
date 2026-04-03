@@ -281,8 +281,9 @@ function enviarPush_(userId, titulo, mensagem, url = '/') {
 
 /**
  * Sincroniza TUDO com o Cloud Run (Grupos, Slots, Academy).
+ * Pública para execução manual no editor do Apps Script.
  */
-function internalSyncAll_() {
+function internalSyncAll() {
   try {
     sincronizarGruposCache_();
     if (typeof sincronizarCacheSlots_ === 'function') sincronizarCacheSlots_();
