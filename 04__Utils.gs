@@ -211,3 +211,30 @@ function processIntegracoes(integracoes, contexto) {
     } catch(e) { console.log('Erro ao processar integração:', e.message); }
   });
 }
+
+/**
+ * Salva a assinatura de push do navegador na planilha.
+ */
+function registrarPushToken_(body) {
+  const { user_id, subscription_json } = body;
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  let ws = ss.getSheetByName('PUSH_SUBSCRIPTIONS');
+  if (!ws) {
+    ws = ss.insertSheet('PUSH_SUBSCRIPTIONS');
+    ws.appendRow(['user_id', 'subscription_json', 'atualizado_em']);
+  }
+  
+  const data = ws.getDataRange().getValues();
+  const agora = new Date().toISOString();
+  
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][0]).trim() === user_id) {
+      ws.getRange(r + 1, 2).setValue(subscription_json);
+      ws.getRange(r + 1, 3).setValue(agora);
+      return { ok: true };
+    }
+  }
+  
+  ws.appendRow([user_id, subscription_json, agora]);
+  return { ok: true };
+}

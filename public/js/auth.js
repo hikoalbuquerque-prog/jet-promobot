@@ -12,6 +12,7 @@ const auth = {
           const me = await api.get('GET_ME');
           if (me.ok) {
             state.setPromotor(me.dados || me.user);
+            if (typeof pushManager !== 'undefined') pushManager.init();
             this._rotearPorPerfil(me.dados || me.user);
             return;
           }
