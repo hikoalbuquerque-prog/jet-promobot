@@ -404,7 +404,7 @@ function broadcastVagaUrgente_(ss, slot) {
   const integracoes = [{
     canal: 'telegram', tipo: 'group_message',
     cidade: cidade,
-    topic_key: 'SLOTS_DISPONIVEIS',
+    topic_key: 'COBERTURAS_URGENCIAS',
     parse_mode: 'HTML',
     text_html: text_html,
     reply_markup: {
@@ -486,7 +486,7 @@ function montarIntegracoes_(evento, resultado, user, body, jornadaAnterior) {
     integracoes.push({
       canal: 'telegram', tipo: 'group_message',
       cidade,
-      topic_key: 'SLOTS_DISPONIVEIS',
+      topic_key: 'COBERTURAS_URGENCIAS',
       parse_mode: 'HTML',
       text_html: `🤝 <b>Slot Aceito</b>\n\n👤 <b>${user.nome_completo || user.user_id}</b>\n🔧 ${user.cargo_principal || ''} · ${operacao}\n📍 ${slotNome}\n⏰ ${hora}`,
     });
