@@ -411,6 +411,66 @@ function getPromotoresSemSlot_(token, params) {
   return { ok: true, data: result };
 }
 
+function getRelatorioSupervisao_(token, params) {
+  _assertGestor_(token);
+  const { fiscal_id, data } = params;
+  if (!fiscal_id || !data) throw new Error('fiscal_id e data obrigatórios.');
+
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const locWs = ss.getSheetByName('LOCALIZACAO_TEMPO_REAL');
+  const slotsMap = _getSlotsMap_(ss);
+  
+  const rows = locWs.getDataRange().getValues();
+  const h = rows[0].map(v => String(v).toLowerCase().trim());
+  const iUsr = h.indexOf('user_id'), iLat = h.indexOf('lat'), iLng = h.indexOf('lng'), iTs = h.indexOf('horario_servidor');
+
+  const filtroData = data.substring(0, 10);
+  const trajetos = [];
+
+  // 1. Filtrar localizações do fiscal no dia
+  for (let r = 1; r < rows.length; r++) {
+    if (String(rows[r][iUsr]).trim() !== fiscal_id) continue;
+    if (String(rows[r][iTs]).substring(0, 10) !== filtroData) continue;
+    trajetos.push({ lat: rows[r][iLat], lng: rows[r][iLng], ts: new Date(rows[r][iTs]).getTime() });
+  }
+
+  // 2. Analisar permanência em slots
+  const visitas = [];
+  let visitaAtual = null;
+
+  trajetos.forEach(ponto => {
+    let localEncontrado = null;
+    
+    // Verifica se está em algum slot
+    for (const sid in slotsMap) {
+      const s = slotsMap[sid];
+      const dist = haversineMetros_(ponto.lat, ponto.lng, s.lat, s.lng);
+      if (dist <= 150) { // Raio de 150m para considerar "no local"
+        localEncontrado = { id: sid, nome: s.nome };
+        break;
+      }
+    }
+
+    if (localEncontrado) {
+      if (!visitaAtual || visitaAtual.slot_id !== localEncontrado.id) {
+        if (visitaAtual) {
+          visitaAtual.fim = ponto.ts;
+          visitaAtual.duracao_min = Math.round((visitaAtual.fim - visitaAtual.inicio) / 60000);
+          if (visitaAtual.duracao_min >= 5) visitas.push(visitaAtual);
+        }
+        visitaAtual = { slot_id: localEncontrado.id, local: localEncontrado.nome, inicio: ponto.ts };
+      }
+    } else if (visitaAtual) {
+      visitaAtual.fim = ponto.ts;
+      visitaAtual.duracao_min = Math.round((visitaAtual.fim - visitaAtual.inicio) / 60000);
+      if (visitaAtual.duracao_min >= 5) visitas.push(visitaAtual);
+      visitaAtual = null;
+    }
+  });
+
+  return { ok: true, visitas };
+}
+
 function invalidarCache_() {
   const cache = CacheService.getScriptCache();
   cache.remove('promotores_map');

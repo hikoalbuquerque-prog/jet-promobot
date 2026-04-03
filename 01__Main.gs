@@ -56,6 +56,7 @@ function doGet(e) {
       case 'GET_SLOTS_HOJE':                return jsonResp_(getSlotsHoje_(token, params));
       case 'GET_SOLICITACOES_ABERTAS':      return jsonResp_(getSolicitacoesAbertas_(token));
       case 'GET_KPIS_DIA':                  return jsonResp_(getKpisDia_(token));
+      case 'GET_RELATORIO_SUPERVISAO':      return jsonResp_(getRelatorioSupervisao_(token, params));
       case 'GET_HISTORICO_LOCALIZACAO':     return jsonResp_(getHistoricoLocalizacao_(token, { promotor_id: params.promotor_id, data: params.data }));
       case 'GET_HISTORICO_JORNADAS_GESTOR': return jsonResp_(getHistoricoJornadasGestor_(token, params));
       case 'GET_ESCALA_DRAFTS':             return jsonResp_(getEscalaDrafts_(token));

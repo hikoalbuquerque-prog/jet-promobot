@@ -238,10 +238,41 @@ const mapaScreen = (() => {
     painel.innerHTML = `<div style="padding:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><span style="font-size:12px;font-weight:700;color:#63b3ed">SLOT</span><button onclick="mapaScreen._voltarLista()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:12px">← Lista</button></div><div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:4px">${s.nome||'—'}</div><div style="font-size:12px;color:#718096;margin-bottom:12px">${s.inicio_slot} – ${s.fim_slot}</div><div style="display:flex;gap:8px;margin-bottom:12px"><div style="flex:1;background:#1a2744;border-radius:6px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:#e2e8f0">${s.vagas_ocupadas||0}</div><div style="font-size:10px;color:#718096">ocupadas</div></div><div style="flex:1;background:#1a2744;border-radius:6px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:#63b3ed">${(s.max_promotores||1)-(s.vagas_ocupadas||0)}</div><div style="font-size:10px;color:#718096">disponíveis</div></div><div style="flex:1;background:#1a2744;border-radius:6px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:#f6ad55">${s.max_promotores||1}</div><div style="font-size:10px;color:#718096">capacidade</div></div></div><div style="font-size:11px;font-weight:700;color:#718096;margin-bottom:6px">PROMOTORES</div>${proms}</div>`;
   }
 
-  function _showPromotorPanel(p) {
-    const painel = document.getElementById('mapa-painel');
-    if (!painel) return;
-    painel.innerHTML = `<div style="padding:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><span style="font-size:12px;font-weight:700;color:#63b3ed">PROMOTOR</span><button onclick="mapaScreen._voltarLista()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:12px">← Lista</button></div><div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:2px">${p.nome||'—'}</div><div style="font-size:12px;color:#718096;margin-bottom:12px">${p.cargo_principal||''} · ${p.tipo_vinculo||''}</div><div style="background:#1a2744;border-radius:8px;padding:10px"><div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(99,179,237,0.1)"><span style="font-size:11px;color:#718096">Slot</span><span style="font-size:11px;color:#e2e8f0">${p.slot_nome||'—'}</span></div><div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(99,179,237,0.1)"><span style="font-size:11px;color:#718096">Status</span><span style="font-size:11px;color:#68d391">${(p.status_jornada||'').replace('_',' ')}</span></div><div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(99,179,237,0.1)"><span style="font-size:11px;color:#718096">Cidade</span><span style="font-size:11px;color:#e2e8f0">${p.cidade||'—'}</span></div><div style="display:flex;justify-content:space-between;padding:5px 0"><span style="font-size:11px;color:#718096">Última pos.</span><span style="font-size:11px;color:#e2e8f0">${p.ultima_posicao?new Date(p.ultima_posicao).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'—'}</span></div></div><button onclick="mapaScreen._verRota('${p.user_id}')" style="width:100%;margin-top:12px;background:rgba(99,179,237,0.1);border:1px solid rgba(99,179,237,0.3);color:#63b3ed;padding:8px;border-radius:6px;font-size:12px;cursor:pointer">🗺️ Ver trajeto</button></div>`;
+    const isFiscal = p.tipo_vinculo === 'FISCAL' || p.cargo_principal === 'FISCAL';
+    
+    painel.innerHTML = `
+      <div style="padding:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <span style="font-size:12px;font-weight:700;color:#63b3ed">${isFiscal ? 'FISCAL' : 'PROMOTOR'}</span>
+          <button onclick="mapaScreen._voltarLista()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:12px">← Lista</button>
+        </div>
+        <div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:2px">${isFiscal ? '⭐ ' : ''}${p.nome||'—'}</div>
+        <div style="font-size:12px;color:#718096;margin-bottom:12px">${p.cargo_principal||''} · ${p.tipo_vinculo||''}</div>
+        <div style="background:#1a2744;border-radius:8px;padding:10px">
+          <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(99,179,237,0.1)">
+            <span style="font-size:11px;color:#718096">Local Atual</span>
+            <span style="font-size:11px;color:#e2e8f0">${p.slot_nome||'—'}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(99,179,237,0.1)">
+            <span style="font-size:11px;color:#718096">Status</span>
+            <span style="font-size:11px;color:#68d391">${(p.status_jornada||'').replace('_',' ')}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(99,179,237,0.1)">
+            <span style="font-size:11px;color:#718096">Cidade</span>
+            <span style="font-size:11px;color:#e2e8f0">${p.cidade||'—'}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:5px 0">
+            <span style="font-size:11px;color:#718096">Última pos.</span>
+            <span style="font-size:11px;color:#e2e8f0">${p.ultima_posicao?new Date(p.ultima_posicao).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'—'}</span>
+          </div>
+        </div>
+        
+        <button onclick="mapaScreen._verRota('${p.user_id}')" style="width:100%;margin-top:12px;background:rgba(99,179,237,0.1);border:1px solid rgba(99,179,237,0.3);color:#63b3ed;padding:8px;border-radius:6px;font-size:12px;cursor:pointer">🗺️ Ver trajeto hoje</button>
+        
+        ${isFiscal ? `
+          <button onclick="mapaScreen._verRelatorioFiscal('${p.user_id}', '${p.nome}')" style="width:100%;margin-top:8px;background:rgba(159,122,234,0.1);border:1px solid rgba(159,122,234,0.3);color:#9f7aea;padding:8px;border-radius:6px;font-size:12px;cursor:pointer">📊 Relatório de Supervisão</button>
+        ` : ''}
+      </div>`;
   }
 
   function _voltarLista() {
@@ -292,6 +323,51 @@ const mapaScreen = (() => {
   function _focarPromotor(userId) {
     const p = _todosPromotores.find(x => x.user_id === userId);
     if (p && p.lat && p.lng && _map) _map.setView([p.lat, p.lng], 16, { animate: true });
+  }
+
+  async function _verRelatorioFiscal(fiscalId, nome) {
+    const painel = document.getElementById('mapa-painel');
+    if (!painel) return;
+    
+    painel.innerHTML = `<div style="padding:14px;color:#a0aec0;font-size:12px">📊 Gerando relatório de ${nome.split(' ')[0]}...</div>`;
+    
+    try {
+      const res = await api.get('GET_RELATORIO_SUPERVISAO', { fiscal_id: fiscalId, data: _dataFiltroAtual });
+      if (!res.ok) throw new Error(res.erro);
+      
+      const visitasHtml = (res.visitas || []).map(v => {
+        const isLonga = v.duracao_min > 45;
+        return `
+          <div style="padding:10px;border-bottom:1px solid rgba(99,179,237,0.1);background:${isLonga ? 'rgba(252,129,129,0.05)' : 'transparent'}">
+            <div style="font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:4px">📍 ${v.local}</div>
+            <div style="display:flex;justify-content:space-between;font-size:11px">
+              <span>⏰ ${new Date(v.inicio).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})} - ${new Date(v.fim).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</span>
+              <span style="font-weight:800;color:${isLonga ? '#fc8181' : '#68d391'}">⏱️ ${v.duracao_min} min</span>
+            </div>
+            ${isLonga ? '<div style="font-size:9px;color:#fc8181;margin-top:4px;font-weight:700">⚠️ PERMANÊNCIA LONGA</div>' : ''}
+          </div>`;
+      }).join('') || '<div style="padding:20px;text-align:center;color:#4a5568">Nenhuma visita registrada hoje.</div>';
+
+      painel.innerHTML = `
+        <div style="padding:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <span style="font-size:12px;font-weight:700;color:#9f7aea">RELATÓRIO DE VISITAS</span>
+            <button onclick="mapaScreen._voltarLista()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:12px">← Voltar</button>
+          </div>
+          <div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:2px">⭐ ${nome}</div>
+          <div style="font-size:11px;color:#718096;margin-bottom:16px">Data: ${new Date(_dataFiltroAtual).toLocaleDateString('pt-BR')}</div>
+          
+          <div style="background:#1a2744;border-radius:10px;overflow:hidden;border:1px solid rgba(99,179,237,0.1)">
+            ${visitasHtml}
+          </div>
+          
+          <div style="margin-top:16px;font-size:10px;color:#4a5568;line-height:1.4">
+            * Consideramos "visita" permanências de no mínimo 5 minutos dentro de um raio de 150m do slot.
+          </div>
+        </div>`;
+    } catch(e) {
+      painel.innerHTML = `<div style="padding:14px;color:#fc8181">❌ Erro ao carregar: ${e.message}</div><button onclick="mapaScreen._voltarLista()">Voltar</button>`;
+    }
   }
 
   async function _verRota(promotorId) {
