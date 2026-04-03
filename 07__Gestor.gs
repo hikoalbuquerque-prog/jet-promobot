@@ -79,9 +79,10 @@ function getPromotoresAtivos_(token) {
     for (let r=1;r<jData.length;r++) {
       const status=String(jData[r][iStt]).trim();
       if (!['ACEITO','EM_ATIVIDADE','PAUSADO','EM_TURNO'].includes(status)) continue;
-      const uid=String(jData[r][iUsr]).trim(); if(vistos.has(uid)) continue; vistos.add(uid);
+      const uid=String(jData[r][iUsr]).trim();
       const slotId=String(jData[r][iSlt]).trim(), prom=promMap[uid]||{}, slot=slotsMap[slotId]||{}, pos=posMap[uid]||{};
       if (!pos.lat || !pos.lng) continue; // Pula promotores sem localização recente
+      // Nota: Não filtramos mais por vistos.has(uid) para permitir ver múltiplos slots por promotor
       result.push({promotor_id:uid,user_id:uid,nome:prom.nome||uid,cargo_principal:prom.cargo_principal||'',tipo_vinculo:(prom.tipo_vinculo||'MEI').toUpperCase(),cidade:prom.cidade||slot.nome||'',operacao:slot.operacao||'PROMO',status_jornada:status,slot_id:slotId,slot_nome:slot.nome||slotId,inicio_real:jData[r][iIni]?new Date(jData[r][iIni]).toISOString():null,lat:pos.lat||null,lng:pos.lng||null,ultima_posicao:pos.ultima_posicao||null,location_trust_score:pos.location_trust_score||null});
     }
   }

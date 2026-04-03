@@ -266,6 +266,30 @@ function montarIntegracoes_(evento, resultado, user, body, jornadaAnterior) {
   // LOGISTICA → topic_key CHECKIN_PRESENCA / ENCERRAMENTOS (mesmo topic, grupo diferente por cidade)
   // O Cloud Run já resolve o grupo certo pela cidade + CITY_GROUPS_JSON
 
+  if (evento === 'ACEITAR_SLOT') {
+    const slotNome = resultado.slot?.local_nome || resultado.slot?.local || body.slot_id || '';
+    const hora = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+    
+    // Notificação privada para o promotor
+    if (user.telegram_user_id) {
+      integracoes.push({
+        canal: 'telegram', tipo: 'private_message',
+        telegram_user_id: String(user.telegram_user_id),
+        parse_mode: 'HTML',
+        text_html: `✅ <b>Slot Aceito com Sucesso</b>\n\n📍 <b>Local:</b> ${slotNome}\n⏰ <b>Horário:</b> ${hora}\n\nO slot foi vinculado à sua jornada. Não esqueça de realizar o check-in ao chegar no local!`,
+      });
+    }
+
+    // Notificação em grupo para visibilidade da operação
+    integracoes.push({
+      canal: 'telegram', tipo: 'group_message',
+      cidade,
+      topic_key: 'SLOTS_DISPONIVEIS',
+      parse_mode: 'HTML',
+      text_html: `🤝 <b>Slot Aceito</b>\n\n👤 <b>${user.nome_completo || user.user_id}</b>\n🔧 ${user.cargo_principal || ''} · ${operacao}\n📍 ${slotNome}\n⏰ ${hora}`,
+    });
+  }
+
   if (evento === 'CHECKIN') {
     const slotNome = resultado.slot?.local_nome || resultado.slot?.local || body.slot_id || '';
     const hora = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
@@ -397,16 +421,44 @@ function getSlotsDisponiveis_(params,user) {
 
 function getSlotAtual_(user) {
   const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const ws=ss.getSheetByName('JORNADAS'), data=ws.getDataRange().getValues();
+  const ws=ss.getSheetByName('JORNADAS');
+  if (!ws) return { ok:true, jornada:null, slot:null, jornadas:[] };
+  const data=ws.getDataRange().getValues();
   const h=data[0].map(v=>String(v).toLowerCase().trim()), iUsr=h.indexOf('user_id'), iStt=h.indexOf('status');
+  
+  const results = [];
+  const statusValidos = ['ACEITO','EM_ATIVIDADE','PAUSADO','AGUARDANDO_RASTREIO','EM_TURNO','SEM_SINAL','MAPEAMENTO_INTERROMPIDO'];
+  
   for (let r=1;r<data.length;r++) {
     if (String(data[r][iUsr]).trim()!==user.user_id) continue;
-    if (['ACEITO','EM_ATIVIDADE','PAUSADO','AGUARDANDO_RASTREIO','EM_TURNO','SEM_SINAL','MAPEAMENTO_INTERROMPIDO'].includes(data[r][iStt])) {
-      const jornada=rowToObj_(h,data[r]); const slot=getSlot_(ss,jornada.slot_id);
-      return{ok:true,jornada,slot};
+    const status = String(data[r][iStt]).trim().toUpperCase();
+    if (statusValidos.includes(status)) {
+      const jornada=rowToObj_(h,data[r]); 
+      const slot=getSlot_(ss,jornada.slot_id);
+      results.push({jornada, slot});
     }
   }
-  return{ok:true,jornada:null,slot:null};
+
+  if (results.length > 0) {
+    // Ordenação: EM_ATIVIDADE primeiro, depois PAUSADO, depois ACEITO (ordem cronológica de início_previsto)
+    results.sort((a,b) => {
+      const order = { 'EM_ATIVIDADE': 1, 'PAUSADO': 2, 'EM_TURNO': 3, 'ACEITO': 4 };
+      const valA = order[a.jornada.status.toUpperCase()] || 99;
+      const valB = order[b.jornada.status.toUpperCase()] || 99;
+      if (valA !== valB) return valA - valB;
+      // Se mesmo status, ordena pelo início previsto
+      return new Date(a.jornada.inicio_previsto) - new Date(b.jornada.inicio_previsto);
+    });
+
+    return { 
+      ok: true, 
+      jornada: results[0].jornada, 
+      slot: results[0].slot,
+      jornadas: results 
+    };
+  }
+
+  return{ok:true,jornada:null,slot:null,jornadas:[]};
 }
 
 function internalListarSlotsDisponiveis_(params) {
