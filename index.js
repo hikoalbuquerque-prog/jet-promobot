@@ -310,6 +310,22 @@ app.post('/indicacao/submit', async (req, res) => {
   }
 });
 
+// ── Rota interna: envia mensagem Telegram ────────────────────────────────────
+app.post('/internal/telegram-send', async (req, res) => {
+  try {
+    const { integration_secret, chat_id, text, reply_markup } = req.body || {};
+    if (integration_secret !== CFG.appsScriptSharedSecret) return res.status(401).json({ ok: false });
+    if (!chat_id || !text) return res.json({ ok: false, erro: 'chat_id e text obrigatorios' });
+    const payload = { chat_id, text, parse_mode: 'HTML' };
+    if (reply_markup) payload.reply_markup = reply_markup;
+    await telegramApi('sendMessage', payload);
+    res.json({ ok: true });
+  } catch(e) {
+    console.error('[telegram-send]', e.message);
+    res.status(500).json({ ok: false, erro: e.message });
+  }
+});
+
 // ── Broadcast para promotores ───────────────────────────────────────────────
 app.post('/gestor/broadcast', async (req, res) => {
   try {
