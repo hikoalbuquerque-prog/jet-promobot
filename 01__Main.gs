@@ -15,6 +15,7 @@ function doGet(e) {
       if (!validarIntegrationSecret_(integSecret)) return jsonResp_({ ok: false, erro: 'integration_secret inválido' }, 401);
       if (evento === 'INTERNAL_LISTAR_SLOTS_DISPONIVEIS') return jsonResp_(internalListarSlotsDisponiveis_(params));
       if (evento === 'INTERNAL_GET_SLOT')                 return jsonResp_(internalGetSlot_(params));
+      if (evento === 'INTERNAL_SYNC_ALL')                 return jsonResp_(internalSyncAll_());
       if (evento === 'BOT_GET_SESSION')                   return jsonResp_(botGetSession_(params));
       if (evento === 'BOT_SET_SESSION')                   return jsonResp_(botSetSession_({ telegram_user_id: params.telegram_user_id, estado: params.estado, payload_json: params.payload_json }));
       if (evento === 'BOT_CLEAR_SESSION')                 return jsonResp_(botClearSession_({ telegram_user_id: params.telegram_user_id }));

@@ -99,6 +99,11 @@ let ACADEMY_CACHE = {
   quizzes: {}
 };
 
+let GROUPS_CACHE = {
+  timestamp: 0,
+  data: [] // [{ cidade, operacao, topico_key, chat_id, topic_id }]
+};
+
 app.post('/internal/sync-slots', requireAdminSecret, (req, res) => {
   const { slots } = req.body || {};
   if (!Array.isArray(slots)) return res.status(400).json({ ok: false, erro: 'Array de slots obrigatório' });
@@ -116,6 +121,17 @@ app.post('/internal/sync-academy', requireAdminSecret, (req, res) => {
     quizzes: quizzes || {}
   };
   console.log(`[CACHE] Academy sincronizado: ${modulos.length} módulos.`);
+  res.json({ ok: true });
+});
+
+app.post('/internal/sync-groups', requireAdminSecret, (req, res) => {
+  const { grupos } = req.body || {};
+  if (!Array.isArray(grupos)) return res.status(400).json({ ok: false, erro: 'Array de grupos obrigatório' });
+  GROUPS_CACHE = {
+    timestamp: Date.now(),
+    data: grupos
+  };
+  console.log(`[CACHE] Grupos de Telegram sincronizados: ${grupos.length} regras.`);
   res.json({ ok: true });
 });
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1331,24 +1347,66 @@ async function processIntegracoes(integracoes, context) {
   const out = [];
   for (const item of integracoes) {
     if (!item || item.canal !== 'telegram') continue;
-    if (item.tipo === 'group_message') {
-      const group = resolveCityGroup(item.cidade);
-      if (!group) continue;
-      const sent = await telegramApi('sendMessage', { chat_id: group.chatId, message_thread_id: topicId(group, item.topic_key), parse_mode: item.parse_mode || 'HTML', disable_web_page_preview: true, text: item.text_html || item.text || '' });
-      out.push(sent);
-      if (context?.evento && context.evento.startsWith('ACEITAR_SLOT') && item.topic_key === 'SLOTS_OCUPADOS') {
-        const slotId = context?.result?.dados?.slot?.slot_id;
-        if (slotId && sent.ok && sent.result?.message_id) {
-          await callAppsScriptPost({ evento: 'INTERNAL_REGISTRAR_SLOT_TELEGRAM_META', integration_secret: CFG.appsScriptSharedSecret, slot_id: slotId, kind: 'ocupado', chat_id: String(group.chatId), topic_key: item.topic_key, message_id: String(sent.result.message_id) });
+    
+    let targetChatId = item.chat_id;
+    let targetTopicId = item.topic_id;
+
+    if (item.tipo === 'group_message' && !targetChatId) {
+      // Tenta buscar no cache dinâmico da aba GRUPOS_TELEGRAM
+      const rule = GROUPS_CACHE.data.find(g => 
+        normStr(g.cidade) === normStr(item.cidade) && 
+        g.topico_key === item.topic_key
+      ) || GROUPS_CACHE.data.find(g => g.topico_key === item.topic_key); // Fallback p/ qualquer cidade
+
+      if (rule) {
+        targetChatId = rule.chat_id;
+        targetTopicId = rule.topic_id;
+      } else {
+        // Fallback legado
+        const group = resolveCityGroup(item.cidade);
+        if (group) {
+          targetChatId = group.chatId;
+          targetTopicId = topicId(group, item.topic_key);
         }
       }
     }
-    if (item.tipo === 'private_message' && item.telegram_user_id) {
-      const sent = await telegramApi('sendMessage', { chat_id: item.telegram_user_id, parse_mode: item.parse_mode || 'HTML', disable_web_page_preview: true, text: item.text_html || item.text || '' });
+
+    if (item.tipo === 'group_message' && targetChatId) {
+      const sent = await telegramApi('sendMessage', { 
+        chat_id: targetChatId, 
+        message_thread_id: targetTopicId, 
+        parse_mode: item.parse_mode || 'HTML', 
+        disable_web_page_preview: true, 
+        text: item.text_html || item.text || '',
+        reply_markup: item.reply_markup
+      });
+      out.push(sent);
+      
+      if (context?.evento && context.evento.startsWith('ACEITAR_SLOT') && item.topic_key === 'SLOTS_OCUPADOS') {
+        const slotId = context?.result?.dados?.slot?.slot_id;
+        if (slotId && sent.ok && sent.result?.message_id) {
+          await callAppsScriptPost({ evento: 'INTERNAL_REGISTRAR_SLOT_TELEGRAM_META', integration_secret: CFG.appsScriptSharedSecret, slot_id: slotId, kind: 'ocupado', chat_id: String(targetChatId), topic_key: item.topic_key, message_id: String(sent.result.message_id) });
+        }
+      }
+    }
+
+    if (item.tipo === 'private_message' && (item.telegram_user_id || item.chat_id)) {
+      const sent = await telegramApi('sendMessage', { 
+        chat_id: item.telegram_user_id || item.chat_id, 
+        parse_mode: item.parse_mode || 'HTML', 
+        disable_web_page_preview: true, 
+        text: item.text_html || item.text || '',
+        reply_markup: item.reply_markup
+      });
       out.push(sent);
     }
   }
   return out;
+}
+
+function normStr(str) {
+  if (!str) return '';
+  return String(str).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 }
 
 async function botGetSessionCloudRun(telegramUserId) {

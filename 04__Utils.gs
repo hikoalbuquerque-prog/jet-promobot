@@ -278,3 +278,53 @@ function enviarPush_(userId, titulo, mensagem, url = '/') {
     console.log('Erro ao enviar Push:', e.message);
   }
 }
+
+/**
+ * Sincroniza TUDO com o Cloud Run (Grupos, Slots, Academy).
+ */
+function internalSyncAll_() {
+  try {
+    sincronizarGruposCache_();
+    if (typeof sincronizarCacheSlots_ === 'function') sincronizarCacheSlots_();
+    if (typeof sincronizarAcademyCache_ === 'function') sincronizarAcademyCache_();
+    return { ok: true, mensagem: 'Sincronização global disparada.' };
+  } catch (e) {
+    return { ok: false, erro: e.message };
+  }
+}
+
+/**
+ * Sincroniza as regras de grupos de Telegram com o Cloud Run.
+ */
+function sincronizarGruposCache_() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws = ss.getSheetByName('GRUPOS_TELEGRAM');
+  if (!ws) return;
+
+  const data = ws.getDataRange().getValues();
+  const h = data[0].map(v => String(v).toLowerCase().trim());
+  const grupos = [];
+
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][h.indexOf('ativo')]).trim().toUpperCase() !== 'SIM') continue;
+    grupos.push({
+      cidade: String(data[r][h.indexOf('cidade')] || '').trim(),
+      operacao: String(data[r][h.indexOf('operacao')] || '').trim(),
+      topico_key: String(data[r][h.indexOf('topico_key')] || '').trim(),
+      chat_id: String(data[r][h.indexOf('chat_id')] || '').trim(),
+      topic_id: String(data[r][h.indexOf('topic_id')] || '').trim()
+    });
+  }
+
+  const url = getConfig_('cloud_run_url') + '/internal/sync-groups';
+  UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify({
+      integration_secret: getConfig_('integration_secret'),
+      grupos: grupos
+    }),
+    muteHttpExceptions: true
+  });
+  console.log('Grupos sincronizados com Cloud Run.');
+}
