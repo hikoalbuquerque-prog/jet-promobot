@@ -32,7 +32,8 @@ function getScore_(userId) {
   return { score: 0, streak: 0 };
 }
 
-function getRankingSemanal_(user) {
+function getRankings_(user, periodo) {
+  // periodo: 'SEMANAL' | 'MENSAL' | 'GERAL'
   const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   const ws = ss.getSheetByName('SCORE_HISTORICO');
   if (!ws) return { ok: true, nacional: [], regional: [] };
@@ -40,9 +41,18 @@ function getRankingSemanal_(user) {
   const data = ws.getDataRange().getValues(), h = data[0].map(v => String(v).toLowerCase().trim());
   const iUsr = h.indexOf('user_id'), iPts = h.indexOf('pontos'), iDt = h.indexOf('criado_em');
   
-  const semana = new Date(Date.now() - 7 * 86400000).toISOString(), totais = {};
+  const agora = new Date();
+  let dataLimite = null;
+  
+  if (periodo === 'SEMANAL') {
+    dataLimite = new Date(agora.getTime() - 7 * 86400000);
+  } else if (periodo === 'MENSAL') {
+    dataLimite = new Date(agora.getFullYear(), agora.getMonth(), 1); // Início do mês atual
+  }
+
+  const totais = {};
   for (let r = 1; r < data.length; r++) {
-    if (String(data[r][iDt]) < semana) continue;
+    if (dataLimite && new Date(data[r][iDt]) < dataLimite) continue;
     const uid = String(data[r][iUsr]).trim();
     totais[uid] = (totais[uid] || 0) + parseFloat(data[r][iPts] || '0');
   }
@@ -50,7 +60,6 @@ function getRankingSemanal_(user) {
   const promMap = _getPromotoresMap_(ss);
   const entries = Object.entries(totais).sort((a, b) => b[1] - a[1]);
   
-  // Ranking Nacional (Top 10)
   const nacional = entries.slice(0, 10).map(([uid, pts], i) => ({
     posicao: i + 1,
     user_id: uid,
@@ -59,7 +68,6 @@ function getRankingSemanal_(user) {
     cidade: promMap[uid]?.cidade || ''
   }));
 
-  // Ranking Regional (Cidade do usuário)
   const userCity = user?.cidade_base || '';
   const regionalEntries = entries.filter(([uid]) => normStr_(promMap[uid]?.cidade) === normStr_(userCity));
   const regional = regionalEntries.slice(0, 10).map(([uid, pts], i) => ({
@@ -69,7 +77,6 @@ function getRankingSemanal_(user) {
     pontos: pts
   }));
 
-  // Encontrar posição do usuário logado se não estiver no top 10
   let meuNacional = null;
   if (user?.user_id) {
     const nIdx = entries.findIndex(e => e[0] === user.user_id);
