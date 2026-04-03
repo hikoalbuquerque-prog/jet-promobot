@@ -114,7 +114,7 @@ const academy = {
         html += '<div style="background:rgba(99,179,237,0.08);border:1px solid rgba(99,179,237,0.2);border-radius:12px;padding:14px;margin-bottom:10px">'
           + '<div style="font-size:11px;font-weight:700;color:#63b3ed;margin-bottom:6px">' + (block.label||'SCRIPT') + '</div>'
           + '<div style="font-size:13px;color:#eaf0fb;font-style:italic;margin-bottom:8px">' + (block.value||'') + '</div>'
-          + '<button class="btn-copy" style="background:rgba(99,179,237,0.15);border:1px solid rgba(99,179,237,0.3);color:#63b3ed;padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer" onclick="academy._copiar(this.previousElementSibling.textContent)">Copiar</button>'
+          + '<button data-val="' + (block.value||'').replace(/"/g,'&quot;') + '" onclick="academy._copiar(this.dataset.val)" style="background:rgba(99,179,237,0.15);border:1px solid rgba(99,179,237,0.3);color:#63b3ed;padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer">Copiar</button>'
           + ' style="background:rgba(99,179,237,0.15);border:1px solid rgba(99,179,237,0.3);color:#63b3ed;padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer">Copiar</button>'
           + '</div>';
 
@@ -213,7 +213,8 @@ const academy = {
     btn.textContent = 'Salvando...';
     api.post({ evento: 'CONCLUIR_MODULO', modulo_id: moduloId, score_quiz: scoreMin, pontos: pontos }).then(function(res) {
       if (res.ok) {
-        ui.toast('+' + pontos + ' pts! Modulo concluido!', 'success');
+        var msg = res.ja_concluido ? 'Modulo ja concluido!' : '+' + pontos + ' pts! Modulo concluido!';
+        ui.toast(msg, 'success');
         // Recarrega trilha do servidor para pegar desbloqueios atualizados
         setTimeout(function(){
           api.get('GET_ACADEMY_TRILHA').then(function(r){
