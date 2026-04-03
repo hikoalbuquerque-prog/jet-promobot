@@ -21,12 +21,17 @@ const slotScreen = {
       </div>`;
 
     try {
-      // Verificar jornada ativa primeiro
+      // Verificar jornadas ativas primeiro
       const atual = await api.get('GET_SLOT_ATUAL');
-      if (atual.ok && atual.jornada) {
-        state.set('slot', atual.slot);
-        state.saveJornada(atual.jornada);
-        this._renderAtivo(atual.slot, atual.jornada);
+      if (atual.ok && (atual.jornadas?.length || atual.jornada)) {
+        const jornadasAtivas = atual.jornadas || (atual.jornada ? [{jornada: atual.jornada, slot: atual.slot}] : []);
+        
+        // Renderizar jornadas ativas
+        document.getElementById('slot-content').innerHTML = `
+          <div style="font-size:11px;color:#a0aec0;font-weight:700;letter-spacing:1px;margin-bottom:12px">MINHA JORNADA</div>
+          ${jornadasAtivas.map(item => this._renderItemAtivo(item.slot, item.jornada)).join('')}
+        `;
+
         // Carrega slots disponíveis adicionais (sem sobreposição)
         try {
           const disp2 = await api.get('GET_SLOTS_DISPONIVEIS');
@@ -46,7 +51,7 @@ const slotScreen = {
                     <div><div style="font-size:10px;color:#6c7a8d;margin-bottom:2px">INÍCIO</div><div style="font-size:13px;font-weight:600">${_fmtHora(slot.inicio)||'—'}</div></div>
                     <div><div style="font-size:10px;color:#6c7a8d;margin-bottom:2px">FIM</div><div style="font-size:13px;font-weight:600">${_fmtHora(slot.fim)||'—'}</div></div>
                   </div>
-                  <button onclick="slotScreen._aceitar('${slot.slot_id}', event)" data-slot-inicio="${slot.inicio||''}" data-slot-data="${slot.data||''}"
+                  <button onclick="slotScreen._aceitar('${slot.slot_id}', event)" data-slot-id="${slot.slot_id}" data-slot-inicio="${slot.inicio||''}" data-slot-data="${slot.data||''}"
                     style="width:100%;background:#2ecc71;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;padding:13px;cursor:pointer">
                     ✅ Aceitar Slot
                   </button>
@@ -88,9 +93,9 @@ const slotScreen = {
     }
   },
 
-  _renderAtivo(slot, jornada) {
+  _renderItemAtivo(slot, jornada) {
     const statusColor = {EM_ATIVIDADE:'#2ecc71',ACEITO:'#4f8ef7',PAUSADO:'#f1c40f'}[jornada.status]||'#6c7a8d';
-    document.getElementById('slot-content').innerHTML = `
+    return `
       <div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:14px;padding:18px;margin-bottom:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:${statusColor}22;color:${statusColor};border:1px solid ${statusColor}44">${jornada.status.replace(/_/g,' ')}</span>
@@ -108,7 +113,7 @@ const slotScreen = {
             style="width:100%;background:#1a1a2e;border:1px solid #2a3a55;border-radius:10px;color:#4f8ef7;padding:12px;font-size:14px;cursor:pointer;margin-bottom:10px">
             🗺️ Ver no Google Maps
           </button>` : ''}
-        <button onclick="router.go('operacao')"
+        <button onclick="state.set('slot', ${JSON.stringify(slot).replace(/"/g,'&quot;')}); state.saveJornada(${JSON.stringify(jornada).replace(/"/g,'&quot;')}); router.go('operacao')"
           style="width:100%;background:#4f8ef7;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;padding:15px;cursor:pointer;margin-bottom:10px">
           ⚡ Abrir Jornada
         </button>

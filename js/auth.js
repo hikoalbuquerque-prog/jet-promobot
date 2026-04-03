@@ -248,10 +248,30 @@ const homeScreen = {
     const vinculo = (p.tipo_vinculo || '').toUpperCase();
     if (vinculo === 'CLT') return router.replace('home-clt');
 
-    const slot    = state.get('slot');
-    const jornada = state.loadJornada();
-    const status  = jornada?.status || slot?.status || 'SEM_SLOT';
-    const corStatus = { EM_ATIVIDADE:'#2ecc71', ACEITO:'#4f8ef7', PAUSADO:'#f1c40f', ENCERRADO:'#6c7a8d' }[status] || '#6c7a8d';
+    // Carregar todas as jornadas para mostrar na home
+    api.get('GET_SLOT_ATUAL').then(res => {
+      const container = document.getElementById('home-jornada-container');
+      if (!container) return;
+      if (res.ok && res.jornadas?.length) {
+        container.innerHTML = res.jornadas.map(item => `
+          <div onclick="state.set('slot', ${JSON.stringify(item.slot).replace(/"/g,'&quot;')}); state.saveJornada(${JSON.stringify(item.jornada).replace(/"/g,'&quot;')}); router.go('operacao')" 
+            style="background:#1e2a45;border:1px solid #2ecc7144;border-radius:14px;padding:16px;cursor:pointer;border-left:3px solid ${item.jornada.status === 'EM_ATIVIDADE' ? '#2ecc71' : '#4f8ef7'};margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <div style="font-size:11px;color:${item.jornada.status === 'EM_ATIVIDADE' ? '#2ecc71' : '#4f8ef7'};font-weight:700;letter-spacing:1px">${item.jornada.status.replace(/_/g,' ')}</div>
+              <div style="font-size:10px;color:#a0aec0">${item.slot?.slot_id || ''}</div>
+            </div>
+            <div style="font-size:16px;font-weight:700">${item.slot?.local_nome||item.slot?.local||'Slot ativo'}</div>
+            <div style="font-size:13px;color:#a0aec0;margin-top:4px">${item.slot?.cidade||''} · ${item.slot?.inicio || ''} - ${item.slot?.fim || ''}</div>
+            <div style="margin-top:10px;color:#4f8ef7;font-size:13px;font-weight:600">Abrir jornada →</div>
+          </div>
+        `).join('');
+      } else {
+        container.innerHTML = `
+          <div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:14px;padding:20px;text-align:center;color:#a0aec0;font-size:14px">
+            Nenhuma jornada ativa
+          </div>`;
+      }
+    }).catch(() => {});
 
     document.getElementById('app').innerHTML = `
       <div style="min-height:100dvh;background:#1a1a2e;color:#eaf0fb;font-family:-apple-system,sans-serif;padding-bottom:80px">
@@ -261,21 +281,12 @@ const homeScreen = {
             <div style="font-size:12px;color:#a0aec0">${p.cidade_base||p.cidade||'—'} · ${p.cargo_principal||p.cargo||''}</div>
             <div id="home-badges" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px"></div>
           </div>
-          <span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:${corStatus}22;color:${corStatus};border:1px solid ${corStatus}44">${status.replace(/_/g,' ')}</span>
           <button onclick="auth.logout()" style="margin-left:8px;background:#e74c3c22;border:1px solid #e74c3c44;color:#e74c3c;border-radius:8px;font-size:12px;font-weight:700;padding:6px 10px;cursor:pointer">Sair</button>
         </div>
         <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
-          ${jornada && jornada.status !== 'ENCERRADO' ? `
-            <div onclick="router.go('operacao')" style="background:#1e2a45;border:1px solid #2ecc7144;border-radius:14px;padding:16px;cursor:pointer;border-left:3px solid #2ecc71">
-              <div style="font-size:11px;color:#2ecc71;font-weight:700;margin-bottom:6px;letter-spacing:1px">JORNADA ATIVA</div>
-              <div style="font-size:16px;font-weight:700">${slot?.local||slot?.local_nome||'Slot ativo'}</div>
-              <div style="font-size:13px;color:#a0aec0;margin-top:4px">${slot?.cidade||''}</div>
-              <div style="margin-top:10px;color:#4f8ef7;font-size:13px;font-weight:600">Abrir jornada →</div>
-            </div>` : ''}
-          ${!jornada || jornada.status === 'ENCERRADO' ? `
-            <div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:14px;padding:20px;text-align:center;color:#a0aec0;font-size:14px">
-              Nenhuma jornada ativa
-            </div>` : ''}
+          <div id="home-jornada-container">
+            <div style="text-align:center;padding:20px;color:#a0aec0;font-size:13px">Carregando jornada...</div>
+          </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <button onclick="router.go('slot')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
               <span style="font-size:24px">📍</span>Slots
