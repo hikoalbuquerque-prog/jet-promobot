@@ -496,3 +496,52 @@ function registrarIndicacao_(body) {
   }
   return { ok: true, indicacao_id: id };
 }
+
+/**
+ * Duplica os slots de uma data para outra (Escala em Massa).
+ */
+function replicarEscala_(token, params) {
+  _assertGestor_(token);
+  const { data_origem, data_destino } = params;
+  if (!data_origem || !data_destino) throw new Error('Data origem e destino obrigatórias.');
+
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws = ss.getSheetByName('SLOTS');
+  if (!ws) throw new Error('Aba SLOTS não encontrada.');
+
+  const data = ws.getDataRange().getValues();
+  const h = data[0].map(v => String(v).toLowerCase().trim());
+  
+  const iId = h.indexOf('slot_id'), iSt = h.indexOf('status'), iDt = h.indexOf('data');
+  const iUsr = h.indexOf('user_id'), iJrn = h.indexOf('jornada_id'), iAlerta = h.indexOf('tg_alerta_noshow');
+  const iCri = h.indexOf('criado_em'), iUpd = h.indexOf('atualizado_em');
+
+  const novosSlots = [];
+  const agora = new Date().toISOString();
+
+  for (let r = 1; r < data.length; r++) {
+    const dataSlot = String(data[r][iDt]).substring(0, 10);
+    if (dataSlot !== data_origem) continue;
+
+    // Clona a linha e limpa campos de vínculo/status
+    const newRow = [...data[r]];
+    newRow[iId] = 'SLT_' + new Date().getTime() + '_' + Math.random().toString(36).substring(2, 5).toUpperCase();
+    newRow[iDt] = data_destino;
+    newRow[iSt] = 'DISPONIVEL';
+    if (iUsr > -1) newRow[iUsr] = '';
+    if (iJrn > -1) newRow[iJrn] = '';
+    if (iAlerta > -1) newRow[iAlerta] = '';
+    if (iCri > -1) newRow[iCri] = agora;
+    if (iUpd > -1) newRow[iUpd] = agora;
+
+    novosSlots.push(newRow);
+  }
+
+  if (novosSlots.length > 0) {
+    ws.getRange(ws.getLastRow() + 1, 1, novosSlots.length, novosSlots[0].length).setValues(novosSlots);
+    // Força sincronização do cache após criar em massa
+    if (typeof sincronizarCacheSlots_ === 'function') sincronizarCacheSlots_();
+  }
+
+  return { ok: true, count: novosSlots.length, mensagem: `${novosSlots.length} slots replicados para ${data_destino}.` };
+}

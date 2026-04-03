@@ -30,7 +30,62 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false }));
 app.use(corsMiddleware);
 
+const webpush = require('web-push');
+
 const CFG = loadConfig();
+
+// ── Web Push Configuration ──────────────────────────────────────────────────
+const vapidKeys = {
+  publicKey: process.env.VAPID_PUBLIC_KEY || 'BCyAa3hD-bzlH4gr3iYvr7fSOXU0MTU6kKMRGiBaW-kBN5vGbbAxloNDjnGWit-G31tpf-wHkmSqMaWYVWs9QNc',
+  privateKey: process.env.VAPID_PRIVATE_KEY || 'M4p9PZSjabld-fXWCs-Xlgccg40wu9GcS_XVolFSw7w'
+};
+
+webpush.setVapidDetails(
+  'mailto:contato@jetpromo.com.br',
+  vapidKeys.publicKey,
+  vapidKeys.privateKey
+);
+
+// Salvar assinatura do navegador
+app.post('/app/push-subscribe', async (req, res) => {
+  try {
+    const { subscription, user_id } = req.body;
+    if (!subscription || !user_id) return res.status(400).json({ ok: false, erro: 'Dados incompletos.' });
+    
+    // Repassa para o Apps Script salvar na planilha
+    const result = await callAppsScriptPost({
+      evento: 'REGISTRAR_PUSH_TOKEN',
+      user_id,
+      subscription_json: JSON.stringify(subscription)
+    });
+    
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ ok: false, erro: err.message });
+  }
+});
+
+// Enviar notificação push (chamado internamente ou via Apps Script)
+app.post('/internal/send-push', requireAdminSecret, async (req, res) => {
+  try {
+    const { subscription_json, title, body, icon, url } = req.body;
+    const subscription = JSON.parse(subscription_json);
+    
+    const payload = JSON.stringify({
+      title: title || 'JET Ops',
+      body: body || '',
+      icon: icon || '/assets/icons/icon-192x192.png',
+      data: { url: url || '/' }
+    });
+
+    await webpush.sendNotification(subscription, payload);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[PUSH ERROR]', err);
+    res.status(500).json({ ok: false, erro: err.message });
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ── Cache de Performance ─────────────────────────────────────────────────────
 let SLOTS_CACHE = {
@@ -38,17 +93,30 @@ let SLOTS_CACHE = {
   slots: []
 };
 
+let ACADEMY_CACHE = {
+  timestamp: 0,
+  modulos: [],
+  quizzes: {}
+};
+
 app.post('/internal/sync-slots', requireAdminSecret, (req, res) => {
   const { slots } = req.body || {};
   if (!Array.isArray(slots)) return res.status(400).json({ ok: false, erro: 'Array de slots obrigatório' });
-  
-  SLOTS_CACHE = {
-    timestamp: Date.now(),
-    slots: slots
-  };
-  
+  SLOTS_CACHE = { timestamp: Date.now(), slots };
   console.log(`[CACHE] Sincronizados ${slots.length} slots.`);
   res.json({ ok: true, count: slots.length });
+});
+
+app.post('/internal/sync-academy', requireAdminSecret, (req, res) => {
+  const { modulos, quizzes } = req.body || {};
+  if (!Array.isArray(modulos)) return res.status(400).json({ ok: false, erro: 'Array de modulos obrigatório' });
+  ACADEMY_CACHE = {
+    timestamp: Date.now(),
+    modulos: modulos,
+    quizzes: quizzes || {}
+  };
+  console.log(`[CACHE] Academy sincronizado: ${modulos.length} módulos.`);
+  res.json({ ok: true });
 });
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -74,6 +142,26 @@ app.get('/app/query', async (req, res) => {
     if (evento === 'GET_SLOTS_DISPONIVEIS' && SLOTS_CACHE.slots.length > 0 && (Date.now() - SLOTS_CACHE.timestamp < 300000)) {
       console.log('[CACHE] Servindo slots via memória.');
       return res.json({ ok: true, slots: SLOTS_CACHE.slots, _cache: true });
+    }
+
+    if (evento === 'GET_ACADEMY_TRILHA' && ACADEMY_CACHE.modulos.length > 0) {
+      console.log('[CACHE] Servindo trilha Academy via memória.');
+      const result = await callAppsScriptGet(evento, req.query); // Ainda chama para pegar progresso do user
+      if (result.ok) {
+        result.modulos = ACADEMY_CACHE.modulos.map(m => ({
+          ...m,
+          concluido: result.progresso_ids?.includes(m.modulo_id) || false
+        }));
+        return res.json(result);
+      }
+    }
+
+    if (evento === 'GET_ACADEMY_MODULO' && req.query.modulo_id && ACADEMY_CACHE.quizzes) {
+      const mod = ACADEMY_CACHE.modulos.find(m => m.modulo_id === req.query.modulo_id);
+      if (mod) {
+        console.log('[CACHE] Servindo módulo Academy via memória.');
+        return res.json({ ok: true, modulo: { ...mod, quizzes: ACADEMY_CACHE.quizzes } });
+      }
     }
 
     const result = await callAppsScriptGet(evento, req.query);

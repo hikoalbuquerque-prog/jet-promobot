@@ -238,6 +238,12 @@ function executarCheckin_(ss, jornada, user, body, horarioServidor) {
     }
 
     const score = calcularLocationTrustScore_({ lat, lng, isMock: body.is_mock === true, accuracy: body.accuracy || 999 });
+    
+    // BLOQUEIO GPS FALSO
+    if (body.is_mock === true || score < 20) {
+      return { ok: false, erro: '⛔ GPS FALSO DETECTADO. O uso de simuladores de localização é proibido e pode gerar suspensão.' };
+    }
+
     atualizarJornada_(ss, jornada.jornada_id, {
       status: 'EM_ATIVIDADE', inicio_real: horarioServidor,
       checkin_lat: lat, checkin_lng: lng, location_trust_score: score,

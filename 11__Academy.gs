@@ -29,7 +29,13 @@ function getAcademyTrilha_(user) {
 
   const nivelOrd = { BASICO:0, INTERMEDIARIO:1, AVANCADO:2, ESPECIALISTA:3, MASTER:4 };
   modulos.sort((a, b) => (nivelOrd[a.nivel] || 9) - (nivelOrd[b.nivel] || 9) || a.ordem - b.ordem);
-  return { ok: true, modulos, total_concluidos: concluidos.size };
+  
+  return { 
+    ok: true, 
+    modulos, 
+    total_concluidos: concluidos.size,
+    progresso_ids: Array.from(concluidos) 
+  };
 }
 
 function getAcademyModulo_(params, user) {
@@ -78,4 +84,52 @@ function concluirModulo_(user, body) {
   ws.appendRow([user.user_id, modId, 'TRUE', scoreQuiz, new Date().toISOString()]);
   registrarScore_(ss, user.user_id, 'ACADEMY_MODULO', pontos, 'Academy: ' + modId, modId);
   return { ok: true, pontos_ganhos: pontos, score_quiz: scoreQuiz };
+}
+
+/**
+ * Sincroniza os módulos e quizzes com o Cloud Run para carregamento instantâneo.
+ */
+function sincronizarAcademyCache_() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  
+  // 1. Pega módulos (simulando um user fake apenas para pegar a estrutura)
+  const resTrilha = getAcademyTrilha_({ user_id: 'SYSTEM' });
+  
+  // 2. Pega todos os Quizzes da aba QUIZ
+  const wsQuiz = ss.getSheetByName('QUIZ');
+  const quizzes = {};
+  if (wsQuiz) {
+    const dataQ = wsQuiz.getDataRange().getValues();
+    const hQ    = dataQ[0].map(v => String(v).toLowerCase().trim());
+    const iQId  = hQ.indexOf('quiz_id');
+    for (let r = 1; r < dataQ.length; r++) {
+      const qid = String(dataQ[r][iQId]).trim();
+      if (!qid) continue;
+      if (!quizzes[qid]) quizzes[qid] = [];
+      quizzes[qid].push({
+        q_id:String(dataQ[r][hQ.indexOf('q_id')]),
+        pergunta:String(dataQ[r][hQ.indexOf('pergunta')]),
+        opcoes:[dataQ[r][hQ.indexOf('a')], dataQ[r][hQ.indexOf('b')], dataQ[r][hQ.indexOf('c')], dataQ[r][hQ.indexOf('d')]].filter(Boolean),
+        correta:String(dataQ[r][hQ.indexOf('correta')]).trim(),
+        pontos:parseInt(dataQ[r][hQ.indexOf('pontos')]||1)
+      });
+    }
+  }
+
+  const url = getConfig_('cloud_run_url') + '/internal/sync-academy';
+  const payload = {
+    integration_secret: getConfig_('integration_secret'),
+    modulos: resTrilha.modulos,
+    quizzes: quizzes
+  };
+
+  try {
+    UrlFetchApp.fetch(url, {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify(payload), muteHttpExceptions: true
+    });
+    console.log('Cache do Academy sincronizado!');
+  } catch (e) {
+    console.log('Erro ao sincronizar Academy:', e.message);
+  }
 }
