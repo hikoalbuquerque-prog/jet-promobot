@@ -149,6 +149,10 @@ function aceitarSlot_(ss, user, body, horarioServidor) {
   const slotId = body.slot_id;
   if (!slotId) return { ok: false, erro: 'slot_id obrigatório' };
 
+  // ── Verificação de Bloqueios ────────────────────────────────
+  const bloqueio = verificarBloqueiosPromotores_(ss, user.user_id);
+  if (bloqueio.bloqueado) return { ok: false, erro: bloqueio.motivo };
+
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(15000); 
@@ -983,4 +987,60 @@ function onEditSync(e) {
     scriptCache.put('sync_lock', '1', 30); 
     sincronizarCacheSlots_();
   }
+}
+
+/**
+ * Verifica se um promotor possui bloqueios ativos (manuais ou automáticos)
+ */
+function verificarBloqueiosPromotores_(ss, userId) {
+  // 1. Verificar Bloqueio Manual na aba PROMOTORES
+  const wsP = ss.getSheetByName('PROMOTORES');
+  if (wsP) {
+    const dataP = wsP.getDataRange().getValues();
+    const hP = dataP[0].map(v => String(v).toLowerCase().trim());
+    const iId = hP.indexOf('user_id'), iSt = hP.indexOf('status');
+    
+    if (iId > -1 && iSt > -1) {
+      for (let r = 1; r < dataP.length; r++) {
+        if (String(dataP[r][iId]).trim() === userId) {
+          const status = String(dataP[r][iSt]).trim().toUpperCase();
+          if (status === 'BLOQUEADO' || status === 'SUSPENSO') {
+            return { bloqueado: true, motivo: '⚠️ Seu cadastro está ' + status + '. Entre em contato com o suporte.' };
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  // 2. Verificar excesso de cancelamentos nos últimos 7 dias
+  const wsJ = ss.getSheetByName('JORNADAS');
+  if (wsJ) {
+    const dataJ = wsJ.getDataRange().getValues();
+    const hJ = dataJ[0].map(v => String(v).toLowerCase().trim());
+    const iUsr = hJ.indexOf('user_id'), iStt = hJ.indexOf('status'), iUpd = hJ.indexOf('atualizado_em');
+    
+    const seteDiasAtras = new Date();
+    seteDiasAtras.setDate(seteDiasAtras.getDate() - 7);
+    let cancelamentos = 0;
+
+    for (let r = dataJ.length - 1; r >= 1; r--) {
+      if (String(dataJ[r][iUsr]).trim() !== userId) continue;
+      
+      const dataAtt = new Date(dataJ[r][iUpd]);
+      if (dataAtt < seteDiasAtras) break; 
+
+      if (String(dataJ[r][iStt]).trim().toUpperCase() === 'CANCELADO') {
+        cancelamentos++;
+      }
+    }
+
+    // Pega limite das configurações ou padrão 3
+    const limite = 3; 
+    if (cancelamentos >= limite) {
+      return { bloqueado: true, motivo: '⚠️ Você atingiu o limite de ' + limite + ' cancelamentos nos últimos 7 dias e está temporariamente suspenso.' };
+    }
+  }
+
+  return { bloqueado: false, motivo: '' };
 }
