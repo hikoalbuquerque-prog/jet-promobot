@@ -687,10 +687,38 @@ function getSlotsDisponiveis_(params, user) {
   for (let r = 1; r < data.length; r++) {
     if (data[r][iSt] !== 'DISPONIVEL') continue;
 
-    if (iSugerido > -1 && iPrefAte > -1) {
+    const obj = rowToObj_(h, data[r]);
+
+    // ── Lógica de Preferência Dinâmica (13h-14h do dia anterior) ────────────────
+    if (iSugerido > -1) {
       const sugeridoId = String(data[r][iSugerido]).trim();
-      const prefAte    = data[r][iPrefAte] ? new Date(data[r][iPrefAte]).getTime() : 0;
-      if (sugeridoId && sugeridoId !== userId && agoraMs < prefAte) continue;
+      if (sugeridoId) {
+        const dataSlotStr = String(data[r][iDt]).substring(0, 10);
+        const dataSlot = new Date(dataSlotStr + 'T00:00:00');
+        
+        // Janela: 13h às 14h do dia ANTERIOR ao slot
+        const inicioPref = new Date(dataSlot.getTime() - 24 * 60 * 60 * 1000);
+        inicioPref.setHours(13, 0, 0, 0);
+        const fimPref = new Date(dataSlot.getTime() - 24 * 60 * 60 * 1000);
+        fimPref.setHours(14, 0, 0, 0);
+
+        // Se estamos na janela de 13h-14h do dia anterior
+        if (agoraMs >= inicioPref.getTime() && agoraMs < fimPref.getTime()) {
+          if (sugeridoId !== userId) continue; // Esconde dos outros
+          obj.is_sugerido = true;
+          obj.preferencia_expira = fimPref.toISOString();
+        }
+        
+        // Fallback: se preencheu preferencia_ate manualmente (ou se já passou das 14h mas quer manter reserva)
+        if (iPrefAte > -1 && data[r][iPrefAte]) {
+          const prefManual = new Date(data[r][iPrefAte]).getTime();
+          if (agoraMs < prefManual) {
+            if (sugeridoId !== userId) continue;
+            obj.is_sugerido = true;
+            obj.preferencia_expira = data[r][iPrefAte];
+          }
+        }
+      }
     }
 
     if (cidadeUser) {
@@ -710,11 +738,6 @@ function getSlotsDisponiveis_(params, user) {
       }
     }
 
-    const obj = rowToObj_(h, data[r]);
-    if (iSugerido > -1 && String(data[r][iSugerido]).trim() === userId) {
-      obj.is_sugerido = true;
-      obj.preferencia_expira = data[r][iPrefAte] || null;
-    }
     slots.push(obj);
   }
 
