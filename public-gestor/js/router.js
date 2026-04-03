@@ -100,7 +100,8 @@ const router = (() => {
           <div style="display:flex;align-items:center;gap:12px;">
             <div style="
               font-size:12px;color:#a0aec0;
-              font-family:'IBM Plex Mono',monospace;
+              font-family:'IBM Plex Mono',
+    broadcast: () => broadcast.render(),monospace;
             ">${gestor?.nome || ''}</div>
             <div style="
               width:32px;height:32px;border-radius:50%;
