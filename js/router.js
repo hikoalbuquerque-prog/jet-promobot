@@ -44,20 +44,33 @@ const router = (() => {
 
       const fn = routes[screen];
       if (!fn) { console.warn('Rota não encontrada:', screen); return; }
-      if (pushHistory && state.get('currentScreen')) _history.push(state.get('currentScreen'));
+      
       state.set('currentScreen', screen);
+      
+      if (pushHistory) {
+        history.pushState({ screen }, '', '#' + screen);
+      }
+
       fn();
       window.scrollTo(0, 0);
     },
     back() {
-      const prev = _history.pop();
-      this.go(prev || 'home', false);
+      window.history.back();
     },
     replace(screen) {
-      this.go(screen, false);
+      state.set('currentScreen', screen);
+      history.replaceState({ screen }, '', '#' + screen);
+      const fn = routes[screen];
+      if (fn) fn();
     }
   };
 })();
+
+// ── Navegação nativa (botão voltar do celular) ───────────────────────────────
+window.addEventListener('popstate', (e) => {
+  const screen = e.state?.screen || 'home';
+  router.go(screen, false);
+});
 
 window.addEventListener('load', () => {
   // ── PWA: captura prompt de instalação ────────────────────────────────────

@@ -292,20 +292,32 @@ const homeScreen = {
             <button onclick="router.go('slot')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
               <span style="font-size:24px">📍</span>Slots
             </button>
+            <button onclick="router.go('mapa')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
+              <span style="font-size:24px">🗺️</span>Mapa
+            </button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+            <button onclick="router.go('solicitacoes-lista')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px 8px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:600">
+              <span style="font-size:20px">🆘</span>Suporte
+            </button>
+            <button onclick="router.go('ranking')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px 8px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:600">
+              <span style="font-size:20px">🏆</span>Ranking
+            </button>
+            <button onclick="router.go('calculadora')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px 8px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:600">
+              <span style="font-size:20px">💰</span>Ganhos
+            </button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <button onclick="router.go('historico')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
               <span style="font-size:24px">📋</span>Histórico
             </button>
-            <button onclick="router.go('calculadora')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
-              <span style="font-size:24px">💰</span>Ganhos
-            </button>
-            <button onclick="homeScreen._indicar()" style="background:#1e2a45;border:1px solid rgba(104,211,145,0.3);border-radius:12px;padding:16px;color:#68d391;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
+            <button onclick="homeScreen._indicar()" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
               <span style="font-size:24px">🤝</span>Indicar
             </button>
-            <button onclick="router.go('academy')" style="background:#1e2a45;border:1px solid rgba(99,179,237,0.3);border-radius:12px;padding:16px;color:#63b3ed;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
-              <span style="font-size:24px">🎓</span>Academy
-            </button>
-            
           </div>
+          <button onclick="router.go('academy')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:10px;font-size:13px;font-weight:700">
+            <span style="font-size:24px">🎓</span>JET Academy
+          </button>
         </div>
         ${ui.bottomNav('home')}
       </div>`;
