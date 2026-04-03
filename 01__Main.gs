@@ -37,7 +37,7 @@ function doGet(e) {
       case 'GET_HISTORICO':           return jsonResp_(getHistorico_(user, params));
       case 'GET_MAPA_PROMOTOR':       return jsonResp_(getMapaPromotor_(user, params));
       case 'GET_PROMOTORES_SEM_SLOT': return jsonResp_(getPromotoresSemSlot_(token, params));
-      case 'GET_RANKING_SEMANAL':     return jsonResp_(getRankingSemanal_());
+      case 'GET_RANKING_SEMANAL':     return jsonResp_(getRankingSemanal_(user));
       case 'GET_BADGES':              return jsonResp_(getBadges_(user.user_id));
       case 'GET_ACADEMY_TRILHA':      return jsonResp_(getAcademyTrilha_(user));
       case 'GET_ACADEMY_MODULO':      return jsonResp_(getAcademyModulo_(params, user));

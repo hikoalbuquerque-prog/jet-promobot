@@ -32,9 +32,11 @@ function getScore_(userId) {
   return { score: 0, streak: 0 };
 }
 
-function getRankingSemanal_() {
-  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws = ss.getSheetByName('SCORE_HISTORICO');
-  if (!ws) return { ok: true, ranking: [] };
+function getRankingSemanal_(user) {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws = ss.getSheetByName('SCORE_HISTORICO');
+  if (!ws) return { ok: true, nacional: [], regional: [] };
+  
   const data = ws.getDataRange().getValues(), h = data[0].map(v => String(v).toLowerCase().trim());
   const iUsr = h.indexOf('user_id'), iPts = h.indexOf('pontos'), iDt = h.indexOf('criado_em');
   
@@ -46,8 +48,41 @@ function getRankingSemanal_() {
   }
   
   const promMap = _getPromotoresMap_(ss);
-  const ranking = Object.entries(totais).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([uid, pts], i) => ({ posicao: i+1, user_id: uid, nome: promMap[uid]?.nome || uid, pontos: pts }));
-  return { ok: true, ranking };
+  const entries = Object.entries(totais).sort((a, b) => b[1] - a[1]);
+  
+  // Ranking Nacional (Top 10)
+  const nacional = entries.slice(0, 10).map(([uid, pts], i) => ({
+    posicao: i + 1,
+    user_id: uid,
+    nome: promMap[uid]?.nome || uid,
+    pontos: pts,
+    cidade: promMap[uid]?.cidade || ''
+  }));
+
+  // Ranking Regional (Cidade do usuário)
+  const userCity = user?.cidade_base || '';
+  const regionalEntries = entries.filter(([uid]) => normStr_(promMap[uid]?.cidade) === normStr_(userCity));
+  const regional = regionalEntries.slice(0, 10).map(([uid, pts], i) => ({
+    posicao: i + 1,
+    user_id: uid,
+    nome: promMap[uid]?.nome || uid,
+    pontos: pts
+  }));
+
+  // Encontrar posição do usuário logado se não estiver no top 10
+  let meuNacional = null;
+  if (user?.user_id) {
+    const nIdx = entries.findIndex(e => e[0] === user.user_id);
+    if (nIdx > -1) meuNacional = { posicao: nIdx + 1, pontos: totais[user.user_id] };
+    
+    let meuRegional = null;
+    const rIdx = regionalEntries.findIndex(e => e[0] === user.user_id);
+    if (rIdx > -1) meuRegional = { posicao: rIdx + 1, pontos: totais[user.user_id] };
+    
+    return { ok: true, nacional, regional, meuNacional, meuRegional, cidade: userCity };
+  }
+
+  return { ok: true, nacional, regional, cidade: userCity };
 }
 
 function verificarBadges_(ss, userId, contexto) {
