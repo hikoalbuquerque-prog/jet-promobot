@@ -120,10 +120,29 @@ function getPromotoresAtivos_(token) {
     const iZon=th.indexOf('zona_nome'), iCar=th.indexOf('cargo_clt'), iNom=th.indexOf('nome_completo');
     for (let r=1;r<tData.length;r++) {
       const status=String(tData[r][iStt]).trim();
-      if (!['CONFIRMADO','EM_ANDAMENTO'].includes(status)) continue;
+      if (!['CONFIRMADO','EM_ANDAMENTO','PAUSADO'].includes(status)) continue;
       const uid=String(tData[r][iUsr]).trim(); if(vistos.has(uid)) continue; vistos.add(uid);
       const prom=promMap[uid]||{}, pos=posMap[uid]||{};
-      result.push({promotor_id:uid,user_id:uid,nome:tData[r][iNom]||prom.nome||uid,cargo_principal:tData[r][iCar]||prom.cargo_principal||'',tipo_vinculo:'CLT',cidade:prom.cidade||tData[r][iZon]||'',operacao:'LOGISTICA',status_jornada:status,slot_id:'',slot_nome:tData[r][iZon]||'—',inicio_real:tData[r][iIni]?new Date(tData[r][iIni]).toISOString():null,lat:pos.lat||null,lng:pos.lng||null,ultima_posicao:pos.ultima_posicao||null,location_trust_score:pos.location_trust_score||null});
+      const cargo = String(tData[r][iCar] || prom.cargo_principal || '').toUpperCase();
+      const tipoVinc = cargo === 'FISCAL' ? 'FISCAL' : 'CLT';
+      
+      result.push({
+        promotor_id:uid,
+        user_id:uid,
+        nome:tData[r][iNom]||prom.nome||uid,
+        cargo_principal:cargo,
+        tipo_vinculo:tipoVinc,
+        cidade:prom.cidade||tData[r][iZon]||'',
+        operacao:'LOGISTICA',
+        status_jornada:status,
+        slot_id:'',
+        slot_nome:tData[r][iZon]||'—',
+        inicio_real:tData[r][iIni]?new Date(tData[r][iIni]).toISOString():null,
+        lat:pos.lat||null,
+        lng:pos.lng||null,
+        ultima_posicao:pos.ultima_posicao||null,
+        location_trust_score:pos.location_trust_score||null
+      });
     }
   }
 

@@ -201,14 +201,15 @@ const mapaScreen = (() => {
     _layerPromotores.clearLayers();
     promotores.forEach(p => {
       if (!p.lat || !p.lng) return;
-      const cor   = p.status_jornada === 'EM_ATIVIDADE' ? '#68d391' : '#63b3ed';
-      const label = p.confirmacao_presenca === 'A_CAMINHO' ? '🚀' : (p.status_jornada === 'EM_ATIVIDADE' ? '⚡' : '⏳');
+      const isFiscal = p.tipo_vinculo === 'FISCAL' || p.cargo_principal === 'FISCAL';
+      const cor   = isFiscal ? '#9f7aea' : (p.status_jornada === 'EM_ATIVIDADE' ? '#68d391' : '#63b3ed');
+      const label = isFiscal ? '⭐' : (p.confirmacao_presenca === 'A_CAMINHO' ? '🚀' : (p.status_jornada === 'EM_ATIVIDADE' ? '⚡' : '⏳'));
       const icon  = L.divIcon({
         html: `<div style="display:flex;flex-direction:column;align-items:center"><div style="background:${cor};border:2px solid #fff;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${label}</div><div style="background:rgba(13,21,38,0.9);color:#e2e8f0;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;margin-top:2px;white-space:nowrap;max-width:70px;overflow:hidden;text-overflow:ellipsis">${(p.nome||'').split(' ')[0]}</div></div>`,
         className: '', iconSize:[36,52], iconAnchor:[18,52]
       });
       L.marker([p.lat, p.lng], { icon })
-        .bindTooltip(`<b>${p.nome}</b><br>${p.slot_nome||'—'}<br>${(p.status_jornada||'').replace('_',' ')}`, { permanent:false, direction:'top', className:'jet-tooltip' })
+        .bindTooltip(`<b>${isFiscal ? '[FISCAL] ' : ''}${p.nome}</b><br>${p.slot_nome||'—'}<br>${(p.status_jornada||'').replace('_',' ')}`, { permanent:false, direction:'top', className:'jet-tooltip' })
         .on('click', () => _showPromotorPanel(p))
         .addTo(_layerPromotores);
     });
@@ -221,9 +222,10 @@ const mapaScreen = (() => {
     if (count) count.textContent = promotores.length;
     if (!promotores.length) { lista.innerHTML = '<div style="text-align:center;padding:20px;color:#4a5568;font-size:12px">Nenhum promotor ativo</div>'; return; }
     lista.innerHTML = promotores.map(p => {
-      const cor    = p.status_jornada === 'EM_ATIVIDADE' ? '#68d391' : '#63b3ed';
-      const status = p.status_jornada === 'EM_ATIVIDADE' ? 'Em atividade' : (p.confirmacao_presenca === 'A_CAMINHO' ? 'A caminho' : 'Aceito');
-      return `<div onclick="mapaScreen._focarPromotor('${p.user_id}')" style="background:#1a2744;border:1px solid rgba(99,179,237,0.15);border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer" onmouseover="this.style.borderColor='rgba(99,179,237,0.4)'" onmouseout="this.style.borderColor='rgba(99,179,237,0.15)'"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div style="font-size:12px;font-weight:700;color:#e2e8f0">${p.nome||'—'}</div><span style="font-size:10px;font-weight:700;color:${cor};background:${cor}20;padding:2px 6px;border-radius:10px;flex-shrink:0">${status}</span></div><div style="font-size:11px;color:#718096;margin-top:3px">${p.slot_nome||'—'}</div><div style="font-size:10px;color:#4a5568;margin-top:2px">${p.cargo_principal||''} · ${p.tipo_vinculo||''}</div></div>`;
+      const isFiscal = p.tipo_vinculo === 'FISCAL' || p.cargo_principal === 'FISCAL';
+      const cor    = isFiscal ? '#9f7aea' : (p.status_jornada === 'EM_ATIVIDADE' ? '#68d391' : '#63b3ed');
+      const status = isFiscal ? 'Supervisão' : (p.status_jornada === 'EM_ATIVIDADE' ? 'Em atividade' : (p.confirmacao_presenca === 'A_CAMINHO' ? 'A caminho' : 'Aceito'));
+      return `<div onclick="mapaScreen._focarPromotor('${p.user_id}')" style="background:#1a2744;border:1px solid ${isFiscal ? '#9f7aea44' : 'rgba(99,179,237,0.15)'};border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer" onmouseover="this.style.borderColor='${isFiscal ? '#9f7aea88' : 'rgba(99,179,237,0.4)'}'" onmouseout="this.style.borderColor='${isFiscal ? '#9f7aea44' : 'rgba(99,179,237,0.15)'}'"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div style="font-size:12px;font-weight:700;color:#e2e8f0">${isFiscal ? '⭐ ' : ''}${p.nome||'—'}</div><span style="font-size:10px;font-weight:700;color:${cor};background:${cor}20;padding:2px 6px;border-radius:10px;flex-shrink:0">${status}</span></div><div style="font-size:11px;color:#718096;margin-top:3px">${p.slot_nome||'—'}</div><div style="font-size:10px;color:#4a5568;margin-top:2px">${p.cargo_principal||''} · ${p.tipo_vinculo||''}</div></div>`;
     }).join('');
   }
 
