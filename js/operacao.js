@@ -98,7 +98,8 @@ const operacao = {
     let slot = null;
     let jornada = null;
     try {
-      const res = await api.get('GET_SLOT_ATUAL');
+      const currentSlot = state.get('slot');
+      const res = await api.get('GET_SLOT_ATUAL' + (currentSlot?.slot_id ? '&slot_id=' + currentSlot.slot_id : ''));
       if (res.ok && res.slot)    { slot    = res.slot;    state.set('slot', slot); }
       if (res.ok && res.jornada) { jornada = res.jornada; state.saveJornada(jornada); }
     } catch(_) {}
@@ -622,10 +623,11 @@ const operacao = {
   async renderPorStatus() {
     // Usar estado local primeiro — sem chamada de API
     let jornada = state.loadJornada();
+    const currentSlot = state.get('slot');
 
     // Só busca da API se não tiver jornada local
     if (!jornada) {
-      const res = await api.get('GET_SLOT_ATUAL');
+      const res = await api.get('GET_SLOT_ATUAL' + (currentSlot?.slot_id ? '&slot_id=' + currentSlot.slot_id : ''));
       if (res.ok && res.jornada) {
         state.saveJornada(res.jornada);
         state.set('slot', res.slot);
