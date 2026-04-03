@@ -69,36 +69,47 @@ const ranking = {
     try {
       var results = await Promise.all([
         api.get('GET_RANKING_SEMANAL'),
-        api.get('GET_ME'),
         api.get('GET_BADGES')
       ]);
-      var rankRes  = results[0], meRes = results[1], badgeRes = results[2];
-      var el       = document.getElementById('ranking-content');
-      var lista    = rankRes.ranking || [];
-      var eu       = meRes && meRes.user;
-      var score    = eu ? (eu.score_operacional || 0) : 0;
-      var streak   = eu ? (eu.streak_dias || 0) : 0;
-      var badges   = badgeRes && badgeRes.badges || [];
-      var meuRank  = eu ? lista.find(function(p){ return p.user_id === eu.user_id; }) : null;
-      var ganho    = meuRank ? meuRank.pontos : 0;
-      var pos      = meuRank ? meuRank.posicao : '-';
-      var self     = ranking;
-      var anoAtual = new Date().getFullYear();
-      var mesAtual = new Date().getMonth();
+      var rankRes = results[0], badgeRes = results[1];
+      var el      = document.getElementById('ranking-content');
+      var eu      = state.get('promotor');
+      var score   = eu ? (eu.score_operacional || 0) : 0;
+      var streak  = eu ? (eu.streak_dias || 0) : 0;
+      var badges  = badgeRes && badgeRes.badges || [];
+      var self    = ranking;
+      
+      // Meu rank atual (usando o que o servidor calculou)
+      var meuRank = rankRes.meuNacional;
+      var pos     = meuRank ? meuRank.posicao : '-';
+      var ganho   = meuRank ? meuRank.pontos : 0;
 
-      // Score
+      // Score Header
       var html =
         '<div style="background:linear-gradient(135deg,#1e3a5f,#16213e);border:1px solid #2a3a55;border-radius:16px;padding:20px;margin-bottom:16px">'
         + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center;margin-bottom:12px">'
         + '<div style="background:rgba(246,173,85,0.1);border-radius:10px;padding:10px"><div style="font-size:26px;font-weight:800;color:#f6ad55">' + score + '</div><div style="font-size:10px;color:#a0aec0">TOTAL</div></div>'
         + '<div style="background:rgba(104,211,145,0.1);border-radius:10px;padding:10px"><div style="font-size:26px;font-weight:800;color:#68d391">+' + ganho + '</div><div style="font-size:10px;color:#a0aec0">SEMANA</div></div>'
-        + '<div style="background:rgba(99,179,237,0.1);border-radius:10px;padding:10px"><div style="font-size:26px;font-weight:800;color:#63b3ed">' + pos + 'º</div><div style="font-size:10px;color:#a0aec0">POSICAO</div></div>'
+        + '<div style="background:rgba(99,179,237,0.1);border-radius:10px;padding:10px"><div style="font-size:26px;font-weight:800;color:#63b3ed">' + pos + 'º</div><div style="font-size:10px;color:#a0aec0">NACIONAL</div></div>'
         + '</div>'
         + (streak >= 3 ? '<div style="text-align:center"><span style="display:inline-flex;align-items:center;gap:6px;background:rgba(246,173,85,0.15);border:1px solid rgba(246,173,85,0.3);border-radius:20px;padding:4px 14px"><span>🔥</span><span style="font-size:13px;font-weight:700;color:#f6ad55">' + streak + ' dias</span></span></div>' : '')
         + '</div>';
 
+      // Tabs de Ranking
+      html += '<div style="background:#16213e;border-radius:12px;padding:4px;display:flex;margin-bottom:12px">'
+        + '<button id="tab-rank-nac" onclick="ranking._switchRank(\'nacional\')" style="flex:1;background:#4f8ef7;color:#fff;border:none;border-radius:10px;padding:10px;font-size:12px;font-weight:700;cursor:pointer">Nacional</button>'
+        + '<button id="tab-rank-reg" onclick="ranking._switchRank(\'regional\')" style="flex:1;background:transparent;color:#a0aec0;border:none;border-radius:10px;padding:10px;font-size:12px;font-weight:700;cursor:pointer">Minha Cidade</button>'
+        + '</div>';
+
+      // Containers de Ranking
+      html += '<div id="rank-list-nacional">' + this._renderLista(rankRes.nacional, eu) + '</div>';
+      html += '<div id="rank-list-regional" style="display:none">' + this._renderLista(rankRes.regional, eu, rankRes.cidade) + '</div>';
+
+      // Separador
+      html += '<div style="height:24px"></div>';
+
       // Conquistas
-      html += '<div style="font-size:11px;color:#a0aec0;font-weight:700;letter-spacing:1px;margin-bottom:10px">BADGES EVOLUTIVAS</div>';
+      html += '<div style="font-size:11px;color:#a0aec0;font-weight:700;letter-spacing:1px;margin-bottom:10px">MINHAS CONQUISTAS</div>';
       self._BADGES_DEF.forEach(function(def) {
         var conquistadasDef = badges.filter(function(b){ return b.tipo && b.tipo.startsWith(def.id); });
         var nivelAtingido   = conquistadasDef.length;
@@ -119,34 +130,56 @@ const ranking = {
           + '</div></div>';
       });
 
-      // Badges mensais
-      html += '<div style="font-size:11px;color:#a0aec0;font-weight:700;letter-spacing:1px;margin-bottom:10px;margin-top:16px">BADGES MENSAIS ' + anoAtual + '</div>';
-      html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">';
-      self._MESES.forEach(function(mes, i) {
-        var tipo = 'MES_' + anoAtual + '_' + (i < 9 ? '0' : '') + (i+1);
-        var tem  = badges.some(function(b){ return b.tipo === tipo; });
-        var cor  = self._COR_MES[i];
-        html += '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;opacity:' + (tem ? '1' : '0.25') + '">'
-          + '<div style="width:36px;height:36px;border-radius:50%;background:' + (tem ? cor : cor+'33') + ';border:2px solid ' + cor + ';display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff">' + (tem ? '✓' : (i+1)) + '</div>'
-          + '<div style="font-size:9px;color:#718096">' + mes + '</div></div>';
-      });
-      html += '</div>';
+      el.innerHTML = html;
 
-      // Ranking
-      html += '<div style="font-size:11px;color:#a0aec0;font-weight:700;letter-spacing:1px;margin-bottom:10px">TOP PROMOTORES</div>';
-      if (lista.length === 0) {
-        html += '<div style="text-align:center;padding:20px;color:#a0aec0">Nenhum dado ainda</div>';
-      } else {
-        lista.forEach(function(p, i) {
-          var medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'º';
-          var isMe  = eu && p.user_id === eu.user_id;
-          var cor   = i===0?'#f6ad55':i===1?'#a0aec0':i===2?'#cd7f32':'#4f8ef7';
-          html += '<div style="background:' + (isMe?'rgba(79,142,247,0.1)':'#1e2a45') + ';border:1px solid ' + (isMe?'#4f8ef7':'#2a3a55') + ';border-radius:12px;padding:12px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px">'
-            + '<div style="font-size:22px;width:32px;text-align:center">' + medal + '</div>'
-            + '<div style="flex:1;font-size:13px;font-weight:700;color:' + (isMe?'#4f8ef7':'#eaf0fb') + '">' + p.nome + (isMe?' ✦':'') + '</div>'
-            + '<div style="font-size:18px;font-weight:800;color:' + cor + '">' + p.pontos + '</div></div>';
-        });
-      }
+    } catch(e) {
+      var el = document.getElementById('ranking-content');
+      if (el) el.innerHTML = '<div style="text-align:center;padding:40px;color:#e74c3c;font-size:13px">Erro ao carregar ranking</div>';
+      console.error('[ranking]', e);
+    }
+  },
+
+  _renderLista(lista, eu, cidade) {
+    var html = '';
+    if (cidade) html += '<div style="font-size:10px;color:#718096;margin-bottom:8px;text-align:center">Exibindo promotores de <b>' + cidade + '</b></div>';
+    
+    if (!lista || lista.length === 0) {
+      return html + '<div style="text-align:center;padding:20px;color:#4a5568">Nenhum dado nesta categoria</div>';
+    }
+
+    lista.forEach(function(p, i) {
+      var medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'º';
+      var isMe  = eu && p.user_id === eu.user_id;
+      var cor   = i===0?'#f6ad55':i===1?'#a0aec0':i===2?'#cd7f32':'#4f8ef7';
+      html += '<div style="background:' + (isMe?'rgba(79,142,247,0.1)':'#1e2a45') + ';border:1px solid ' + (isMe?'#4f8ef7':'#2a3a55') + ';border-radius:12px;padding:12px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px">'
+        + '<div style="font-size:22px;width:32px;text-align:center">' + medal + '</div>'
+        + '<div style="flex:1">'
+        + '<div style="font-size:13px;font-weight:700;color:' + (isMe?'#4f8ef7':'#eaf0fb') + '">' + p.nome + (isMe?' ✦':'') + '</div>'
+        + (p.cidade && !cidade ? '<div style="font-size:10px;color:#718096">' + p.cidade + '</div>' : '')
+        + '</div>'
+        + '<div style="font-size:18px;font-weight:800;color:' + cor + '">' + p.pontos + '</div></div>';
+    });
+    return html;
+  },
+
+  _switchRank(tipo) {
+    const nac = document.getElementById('rank-list-nacional');
+    const reg = document.getElementById('rank-list-regional');
+    const btnNac = document.getElementById('tab-rank-nac');
+    const btnReg = document.getElementById('tab-rank-reg');
+
+    if (tipo === 'nacional') {
+      nac.style.display = 'block';
+      reg.style.display = 'none';
+      btnNac.style.background = '#4f8ef7'; btnNac.style.color = '#fff';
+      btnReg.style.background = 'transparent'; btnReg.style.color = '#a0aec0';
+    } else {
+      nac.style.display = 'none';
+      reg.style.display = 'block';
+      btnReg.style.background = '#4f8ef7'; btnReg.style.color = '#fff';
+      btnNac.style.background = 'transparent'; btnNac.style.color = '#a0aec0';
+    }
+  },
 
       // Pontos
       html += '<div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;margin-top:8px">'
