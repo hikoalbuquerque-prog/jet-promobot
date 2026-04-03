@@ -62,6 +62,7 @@ function doGet(e) {
       case 'GET_ESCALA_DRAFTS':             return jsonResp_(getEscalaDrafts_(token));
       case 'GET_CADASTROS_PENDENTES':       return jsonResp_(getCadastrosPendentes_(token));
       case 'REPLICAR_ESCALA':               return jsonResp_(replicarEscala_(token, params));
+      case 'REPLICAR_SEMANA':               return jsonResp_(replicarSemana_(token, params));
 
       // ── Gestor CLT ───────────────────────────────────────────
       case 'GET_SUGESTOES_ESCALA':        return jsonResp_(getSugestoesEscala_(token, params));

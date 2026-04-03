@@ -545,3 +545,31 @@ function replicarEscala_(token, params) {
 
   return { ok: true, count: novosSlots.length, mensagem: `${novosSlots.length} slots replicados para ${data_destino}.` };
 }
+
+/**
+ * Reclica uma semana inteira de slots (7 dias).
+ */
+function replicarSemana_(token, params) {
+  _assertGestor_(token);
+  const { data_inicio_origem, data_inicio_destino } = params;
+  if (!data_inicio_origem || !data_inicio_destino) throw new Error('Datas de início obrigatórias.');
+
+  let totalReplicado = 0;
+  const dataOrigem = new Date(data_inicio_origem + 'T12:00:00');
+  const dataDestino = new Date(data_inicio_destino + 'T12:00:00');
+
+  for (let i = 0; i < 7; i++) {
+    const dOrigem = new Date(dataOrigem);
+    dOrigem.setDate(dOrigem.getDate() + i);
+    const sOrigem = dOrigem.toISOString().split('T')[0];
+
+    const dDestino = new Date(dataDestino);
+    dDestino.setDate(dDestino.getDate() + i);
+    const sDestino = dDestino.toISOString().split('T')[0];
+
+    const res = replicarEscala_(token, { data_origem: sOrigem, data_destino: sDestino });
+    totalReplicado += res.count;
+  }
+
+  return { ok: true, count: totalReplicado, mensagem: `Escala semanal replicada! Total de ${totalReplicado} slots criados.` };
+}
