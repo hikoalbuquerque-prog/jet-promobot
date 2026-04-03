@@ -169,56 +169,93 @@ function logErro_(origem, err) {
 }
 
 /**
- * Verifica slots que já deveriam ter sido encerrados (30min após o fim previsto)
- * e envia notificação para o Cloud Run ou encerra automaticamente.
+ * Verifica jornadas que ficaram abertas (fantasmas) e as encerra automaticamente.
+ * Identifica slots de dias passados ou slots que já foram encerrados/cancelados na aba SLOTS.
  */
-function verificarSlotsFantasma_() {
+function encerrarJornadasFantasma() {
   const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const ws = ss.getSheetByName('JORNADAS');
-  if (!ws) return { ok: false, erro: 'Aba JORNADAS não encontrada' };
-  
-  const data = ws.getDataRange().getValues();
-  const h = data[0].map(v => String(v).toLowerCase().trim());
-  const iStt = h.indexOf('status'), iFimP = h.indexOf('fim_previsto'), iSlt = h.indexOf('slot_id'), iUsr = h.indexOf('user_id');
-  const iJrn = h.indexOf('jornada_id');
-  
-  const agora = new Date();
-  const resultados = [];
-  
-  for (let r = 1; r < data.length; r++) {
-    const status = String(data[r][iStt]).toUpperCase();
-    if (!['ACEITO', 'EM_ATIVIDADE', 'PAUSADO'].includes(status)) continue;
-    
-    const fimPrevisto = data[r][iFimP];
-    if (!fimPrevisto) continue;
-    
-    const dataFim = new Date(fimPrevisto);
-    // Se o fim previsto foi há mais de 30 minutos
-    if (agora.getTime() > (dataFim.getTime() + 30 * 60000)) {
-      const jornId = data[r][iJrn];
-      const userId = data[r][iUsr];
-      const slotId = data[r][iSlt];
-      
-      // Tenta enviar notificação de fim de turno via Cloud Run
-      try {
-        const user = getPromotorById_(ss, userId);
-        const slot = getSlot_(ss, slotId);
-        
-        if (user && user.telegram_user_id) {
-          notificarFimTurnoCloudRun_(user, slot);
-          resultados.push({ jornada_id: jornId, acao: 'notificacao_enviada' });
-        } else {
-          // Se não tem telegram, encerra exepcionalmente
-          processarFSM_(user, { jornada_id: jornId, slot_id: slotId, token: 'SYSTEM' }, 'CHECKOUT_EXCEPCIONAL');
-          resultados.push({ jornada_id: jornId, acao: 'checkout_automatico' });
-        }
-      } catch (e) {
-        resultados.push({ jornada_id: jornId, acao: 'erro', erro: e.message });
-      }
+  const wsJ = ss.getSheetByName('JORNADAS');
+  const wsS = ss.getSheetByName('SLOTS');
+  if (!wsJ || !wsS) return { ok: false, erro: 'Abas JORNADAS ou SLOTS não encontradas' };
+
+  const dataJ = wsJ.getDataRange().getValues();
+  const hJ = dataJ[0].map(v => String(v).toLowerCase().trim());
+  const iJStt = hJ.indexOf('status'), iJSlt = hJ.indexOf('slot_id'), iJUpd = hJ.indexOf('atualizado_em');
+
+  const dataS = wsS.getDataRange().getValues();
+  const hS = dataS[0].map(v => String(v).toLowerCase().trim());
+  const iSSlt = hS.indexOf('slot_id'), iSStt = hS.indexOf('status'), iSData = hS.indexOf('data'), iSFim = hS.indexOf('fim');
+
+  // Mapa de slots para consulta rápida
+  const slotsMap = {};
+  for (let r = 1; r < dataS.length; r++) {
+    const sid = String(dataS[r][iSSlt]).trim();
+    if (sid) {
+      slotsMap[sid] = {
+        status: String(dataS[r][iSStt]).trim().toUpperCase(),
+        data: String(dataS[r][iSData]).substring(0, 10),
+        fim: String(dataS[r][iSFim]).substring(0, 5),
+        row: r + 1
+      };
     }
   }
-  
-  return { ok: true, processados: resultados.length, detalhes: resultados };
+
+  const agora = new Date();
+  const hoje = agora.toISOString().split('T')[0];
+  const agoraISO = agora.toISOString();
+  let encerradas = 0;
+
+  for (let r = 1; r < dataJ.length; r++) {
+    const status = String(dataJ[r][iJStt]).trim().toUpperCase();
+    if (!['EM_ATIVIDADE', 'PAUSADO', 'ACEITO'].includes(status)) continue;
+
+    const slotId = String(dataJ[r][iJSlt]).trim();
+    const slot = slotsMap[slotId];
+
+    let deveEncerrar = false;
+    let motivo = '';
+
+    if (!slot) {
+      deveEncerrar = true;
+      motivo = 'Slot não existe mais';
+    } else if (['ENCERRADO', 'CANCELADO'].includes(slot.status)) {
+      deveEncerrar = true;
+      motivo = 'Slot já encerrado na aba SLOTS';
+    } else if (slot.data && slot.data < hoje) {
+      deveEncerrar = true;
+      motivo = 'Slot de dia passado';
+    } else {
+      // Verificação extra: se está em atividade mas não manda sinal há mais de 1 hora
+      const ultimaAtu = dataJ[r][iJUpd] ? new Date(dataJ[r][iJUpd]).getTime() : 0;
+      if (status === 'EM_ATIVIDADE' && (agora.getTime() - ultimaAtu > 60 * 60 * 1000)) {
+        deveEncerrar = true;
+        motivo = 'Sem sinal de localização há >1h';
+      }
+    }
+
+    if (deveEncerrar) {
+      // 1. Atualiza o status na aba JORNADAS
+      wsJ.getRange(r + 1, iJStt + 1).setValue('ENCERRADO');
+      wsJ.getRange(r + 1, iJUpd + 1).setValue(agoraISO);
+
+      // 2. Se o slot ainda estiver 'ACEITO' ou 'OCUPADO' na aba SLOTS, libera ele
+      if (slot && slot.status !== 'ENCERRADO' && slot.status !== 'CANCELADO') {
+        wsS.getRange(slot.row, iSStt + 1).setValue('ENCERRADO');
+        const iSUpd = hS.indexOf('atualizado_em');
+        if (iSUpd > -1) wsS.getRange(slot.row, iSUpd + 1).setValue(agoraISO);
+      }
+      
+      encerradas++;
+      console.log(`[Fantasma] Jornada ${dataJ[r][hJ.indexOf('jornada_id')]} encerrada. Motivo: ${motivo}`);
+    }
+  }
+
+  return { ok: true, encerradas: encerradas };
+}
+
+// Mantendo o nome antigo para compatibilidade com acionadores existentes
+function verificarSlotsFantasma_() {
+  return encerrarJornadasFantasma();
 }
 
 function notificarFimTurnoCloudRun_(user, slot) {

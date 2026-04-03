@@ -54,14 +54,21 @@ function getPromotoresAtivos_(token) {
     const locData=locWs.getDataRange().getValues(), lh=locData[0].map(v=>String(v).toLowerCase().trim());
     const iUsr=lh.indexOf('user_id'), iLat=lh.indexOf('lat'), iLng=lh.indexOf('lng');
     const iTs=lh.indexOf('horario_servidor'), iScore=lh.indexOf('location_trust_score');
+    const agora = new Date().getTime();
+    const trintaMin = 30 * 60 * 1000;
+
     // Percorre todas as linhas e mantém apenas a posição MAIS RECENTE por user_id
-    for (let r=1;r<locData.length;r++) {
-      const uid=String(locData[r][iUsr]).trim(); if(!uid) continue;
-      const ts=locData[r][iTs]?new Date(locData[r][iTs]).getTime():0;
-      const existing=posMap[uid];
-      const existingTs=existing&&existing._ts||0;
-      if (!existing||ts>existingTs) {
-        posMap[uid]={lat:locData[r][iLat]||null,lng:locData[r][iLng]||null,ultima_posicao:locData[r][iTs]||null,location_trust_score:locData[r][iScore]||null,_ts:ts};
+    for (let r = 1; r < locData.length; r++) {
+      const uid = String(locData[r][iUsr]).trim(); if (!uid) continue;
+      const ts = locData[r][iTs] ? new Date(locData[r][iTs]).getTime() : 0;
+      
+      // Se a posição for mais antiga que 30 minutos, ignora (evita promotores "congelados" no mapa)
+      if (agora - ts > trintaMin) continue;
+
+      const existing = posMap[uid];
+      const existingTs = existing && existing._ts || 0;
+      if (!existing || ts > existingTs) {
+        posMap[uid] = { lat: locData[r][iLat] || null, lng: locData[r][iLng] || null, ultima_posicao: locData[r][iTs] || null, location_trust_score: locData[r][iScore] || null, _ts: ts };
       }
     }
     // Remove campo interno _ts antes de retornar
@@ -79,6 +86,7 @@ function getPromotoresAtivos_(token) {
       if (!['ACEITO','EM_ATIVIDADE','PAUSADO','EM_TURNO'].includes(status)) continue;
       const uid=String(jData[r][iUsr]).trim(); if(vistos.has(uid)) continue; vistos.add(uid);
       const slotId=String(jData[r][iSlt]).trim(), prom=promMap[uid]||{}, slot=slotsMap[slotId]||{}, pos=posMap[uid]||{};
+      if (!pos.lat || !pos.lng) continue; // Pula promotores sem localização recente
       result.push({promotor_id:uid,user_id:uid,nome:prom.nome||uid,cargo_principal:prom.cargo_principal||'',tipo_vinculo:(prom.tipo_vinculo||'MEI').toUpperCase(),cidade:prom.cidade||slot.nome||'',operacao:slot.operacao||'PROMO',status_jornada:status,slot_id:slotId,slot_nome:slot.nome||slotId,inicio_real:jData[r][iIni]?new Date(jData[r][iIni]).toISOString():null,lat:pos.lat||null,lng:pos.lng||null,ultima_posicao:pos.ultima_posicao||null,location_trust_score:pos.location_trust_score||null});
     }
   }
@@ -93,6 +101,7 @@ function getPromotoresAtivos_(token) {
       if (!['CONFIRMADO','EM_ANDAMENTO'].includes(status)) continue;
       const uid=String(tData[r][iUsr]).trim(); if(vistos.has(uid)) continue; vistos.add(uid);
       const prom=promMap[uid]||{}, pos=posMap[uid]||{};
+      if (!pos.lat || !pos.lng) continue; // Pula promotores sem localização recente
       result.push({promotor_id:uid,user_id:uid,nome:tData[r][iNom]||prom.nome||uid,cargo_principal:tData[r][iCar]||prom.cargo_principal||'',tipo_vinculo:'CLT',cidade:prom.cidade||tData[r][iZon]||'',operacao:'LOGISTICA',status_jornada:status,slot_id:'',slot_nome:tData[r][iZon]||'—',inicio_real:tData[r][iIni]?new Date(tData[r][iIni]).toISOString():null,lat:pos.lat||null,lng:pos.lng||null,ultima_posicao:pos.ultima_posicao||null,location_trust_score:pos.location_trust_score||null});
     }
   }
