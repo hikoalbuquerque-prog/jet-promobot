@@ -3,6 +3,64 @@
 //  Versão: 3.1  |  Fase 3 — Consolidação Multi-slots + iOS Checkin
 // ============================================================
 
+function triggerAlertaNoShow() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws = ss.getSheetByName('SLOTS');
+  if (!ws) return;
+  const data = ws.getDataRange().getValues();
+  const h = data[0].map(v => String(v).toLowerCase().trim());
+  
+  const iId = h.indexOf('slot_id'), iSt = h.indexOf('status'), iDt = h.indexOf('data');
+  const iIni = h.indexOf('inicio'), iUsr = h.indexOf('user_id'), iNome = h.indexOf('local_nome');
+  const iCid = h.indexOf('cidade'), iAlerta = h.indexOf('tg_alerta_noshow');
+  
+  if (iAlerta < 0) {
+    console.log('Aba SLOTS precisa da coluna técnica "tg_alerta_noshow"');
+    return;
+  }
+
+  const agora = new Date();
+  const hojeStr = agora.toISOString().split('T')[0];
+  const promotoresMap = _getPromotoresMap_(ss);
+
+  for (let r = 1; r < data.length; r++) {
+    const status = String(data[r][iSt]).trim();
+    if (status !== 'ACEITO') continue; // Só alerta se estiver aceito mas não iniciado
+
+    const dataSlot = String(data[r][iDt]).substring(0, 10);
+    if (dataSlot !== hojeStr) continue;
+
+    const inicioStr = String(data[r][iIni]).substring(0, 5);
+    if (!inicioStr) continue;
+
+    const slotDt = new Date(dataSlot + 'T' + inicioStr + ':00');
+    const diffMin = (agora - slotDt) / 60000;
+
+    // Se passou mais de 15 min do início e o alerta ainda não foi enviado
+    if (diffMin >= 15 && !data[r][iAlerta]) {
+      const userId = String(data[r][iUsr]).trim();
+      const prom = promotoresMap[userId] || {};
+      const local = data[r][iNome] || data[r][iId];
+      const cidade = data[r][iCid] || '';
+
+      // Envia Alerta para Gestão
+      const integracoes = [{
+        canal: 'telegram', tipo: 'group_message',
+        cidade: cidade,
+        topic_key: 'ALERTAS',
+        parse_mode: 'HTML',
+        text_html: `🚨 <b>ALERTA DE NO-SHOW</b>\n\nO promotor ainda não fez check-in!\n\n👤 <b>${prom.nome || userId}</b>\n📍 ${local}\n⏰ Início era: ${inicioStr}\n⏱️ Atraso: ${Math.round(diffMin)} min`,
+      }];
+
+      processIntegracoes(integracoes, { evento: 'ALERTA_NOSHOW' });
+      
+      // Marca como enviado
+      ws.getRange(r + 1, iAlerta + 1).setValue('ENVIADO_' + agora.toISOString());
+      console.log('Alerta No-Show enviado:', userId, local);
+    }
+  }
+}
+
 function processarFSM_(user, body, evento) {
   const ss       = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   const slotId   = body.slot_id   || '';
@@ -313,12 +371,64 @@ function cancelarSlot_(user, body) {
       text_html: `⚠️ <b>Slot Cancelado</b>\n\n👤 <b>${user.nome_completo || user.user_id}</b>\n🔧 ${user.cargo_principal || ''}\n📍 ${slot?.local_nome || slot?.local || slotId}\n⏰ ${hora}`,
     }];
 
+    // Se o slot cancelado é para HOJE, faz o broadcast de vaga urgente
+    const hojeStr = new Date().toISOString().split('T')[0];
+    const dataSlot = String(slot?.data || '').substring(0, 10);
+    if (dataSlot === hojeStr) {
+      broadcastVagaUrgente_(ss, slot);
+    }
+
     return { ok: true, integracoes };
 
   } catch (e) {
     return { ok: false, erro: 'Erro ao cancelar slot, tente novamente.' };
   } finally {
     lock.releaseLock();
+  }
+}
+
+function broadcastVagaUrgente_(ss, slot) {
+  const cidade = slot.cidade || '';
+  const local = slot.local_nome || slot.local || slot.slot_id;
+  const horario = (slot.inicio || '') + ' - ' + (slot.fim || '');
+  
+  const text_html = `🔥 <b>VAGA URGENTE DISPONÍVEL!</b>\n\nUm slot acaba de ficar vago para HOJE em sua cidade.\n\n📍 <b>Local:</b> ${local}\n⏰ <b>Horário:</b> ${horario}\n🏙️ <b>Cidade:</b> ${cidade}\n\nCorra para o app para aceitar! 🏃💨`;
+  
+  const integracoes = [{
+    canal: 'telegram', tipo: 'group_message',
+    cidade: cidade,
+    topic_key: 'SLOTS_DISPONIVEIS',
+    parse_mode: 'HTML',
+    text_html: text_html,
+    reply_markup: {
+      inline_keyboard: [[{ text: '📍 Ver Slots no App', url: 'https://hikoalbuquerque-prog.github.io/jet-promobot' }]]
+    }
+  }];
+
+  // Envia para o grupo de slots
+  processIntegracoes(integracoes, { evento: 'BROADCAST_URGENTE' });
+
+  // Busca todos os promotores da cidade para enviar no privado (Opcional, pode ser pesado se tiver muitos)
+  const promotoresMap = _getPromotoresMap_(ss);
+  const integracoesPrivadas = [];
+  for (const uid in promotoresMap) {
+    const p = promotoresMap[uid];
+    if (p.cidade === cidade && p.telegram_user_id && p.tipo_vinculo === 'MEI') {
+      integracoesPrivadas.push({
+        canal: 'telegram', tipo: 'private_message',
+        telegram_user_id: String(p.telegram_user_id),
+        parse_mode: 'HTML',
+        text_html: text_html,
+        reply_markup: {
+          inline_keyboard: [[{ text: '✅ Aceitar Vaga Agora', url: 'https://hikoalbuquerque-prog.github.io/jet-promobot' }]]
+        }
+      });
+    }
+  }
+  
+  if (integracoesPrivadas.length > 0) {
+    // Envia em lotes pequenos para evitar rate limit do Telegram via Cloud Run
+    processIntegracoes(integracoesPrivadas, { evento: 'BROADCAST_URGENTE_PRIVADO' });
   }
 }
 
