@@ -96,41 +96,51 @@ function aceitarSlot_(ss, user, body, horarioServidor) {
   const slotId = body.slot_id;
   if (!slotId) return { ok: false, erro: 'slot_id obrigatório' };
 
-  const wsSlots = ss.getSheetByName('SLOTS');
-  const dataS   = wsSlots.getDataRange().getValues();
-  const hS      = dataS[0].map(v => String(v).toLowerCase().trim());
-  const iSlotId=hS.indexOf('slot_id'), iStatus=hS.indexOf('status'), iUserId=hS.indexOf('user_id');
-  const iJornId=hS.indexOf('jornada_id'), iUpdAt=hS.indexOf('atualizado_em');
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(15000); // Aguarda até 15 segundos para evitar concorrência
 
-  for (let r = 1; r < dataS.length; r++) {
-    if (String(dataS[r][iSlotId]).trim() !== slotId) continue;
-    if (dataS[r][iStatus] !== 'DISPONIVEL') return { ok: false, erro: 'Slot não disponível: ' + dataS[r][iStatus] };
+    const wsSlots = ss.getSheetByName('SLOTS');
+    const dataS   = wsSlots.getDataRange().getValues();
+    const hS      = dataS[0].map(v => String(v).toLowerCase().trim());
+    const iSlotId=hS.indexOf('slot_id'), iStatus=hS.indexOf('status'), iUserId=hS.indexOf('user_id');
+    const iJornId=hS.indexOf('jornada_id'), iUpdAt=hS.indexOf('atualizado_em');
 
-    const verificacao = verificarSequenciamento_(ss, user.user_id, dataS[r], hS);
-    if (verificacao.conflito) return { ok: false, erro: verificacao.mensagem };
+    for (let r = 1; r < dataS.length; r++) {
+      if (String(dataS[r][iSlotId]).trim() !== slotId) continue;
+      if (dataS[r][iStatus] !== 'DISPONIVEL') return { ok: false, erro: 'Slot não disponível: ' + dataS[r][iStatus] };
 
-    const jornId = gerarId_('JRN');
-    wsSlots.getRange(r+1, iStatus+1).setValue('ACEITO');
-    wsSlots.getRange(r+1, iUserId+1).setValue(user.user_id);
-    wsSlots.getRange(r+1, iJornId+1).setValue(jornId);
-    wsSlots.getRange(r+1, iUpdAt+1).setValue(horarioServidor);
+      const verificacao = verificarSequenciamento_(ss, user.user_id, dataS[r], hS);
+      if (verificacao.conflito) return { ok: false, erro: verificacao.mensagem };
 
-    if (verificacao.slot_anterior_id) {
-      const iSlotAnt=hS.indexOf('slot_anterior_id'), iTempDesc=hS.indexOf('tempo_estimado_deslocamento_min');
-      const iTransPre=hS.indexOf('transicao_pre_aprovada'), iTipoTran=hS.indexOf('tipo_transicao');
-      if (iSlotAnt>-1)  wsSlots.getRange(r+1, iSlotAnt+1).setValue(verificacao.slot_anterior_id);
-      if (iTempDesc>-1) wsSlots.getRange(r+1, iTempDesc+1).setValue(verificacao.tempo_estimado_min);
-      if (iTransPre>-1) wsSlots.getRange(r+1, iTransPre+1).setValue(verificacao.pre_aprovado ? 'TRUE' : 'FALSE');
-      if (iTipoTran>-1) wsSlots.getRange(r+1, iTipoTran+1).setValue(verificacao.tipo_transicao);
+      const jornId = gerarId_('JRN');
+      wsSlots.getRange(r+1, iStatus+1).setValue('ACEITO');
+      wsSlots.getRange(r+1, iUserId+1).setValue(user.user_id);
+      wsSlots.getRange(r+1, iJornId+1).setValue(jornId);
+      wsSlots.getRange(r+1, iUpdAt+1).setValue(horarioServidor);
+
+      if (verificacao.slot_anterior_id) {
+        const iSlotAnt=hS.indexOf('slot_anterior_id'), iTempDesc=hS.indexOf('tempo_estimado_deslocamento_min');
+        const iTransPre=hS.indexOf('transicao_pre_aprovada'), iTipoTran=hS.indexOf('tipo_transicao');
+        if (iSlotAnt>-1)  wsSlots.getRange(r+1, iSlotAnt+1).setValue(verificacao.slot_anterior_id);
+        if (iTempDesc>-1) wsSlots.getRange(r+1, iTempDesc+1).setValue(verificacao.tempo_estimado_min);
+        if (iTransPre>-1) wsSlots.getRange(r+1, iTransPre+1).setValue(verificacao.pre_aprovado ? 'TRUE' : 'FALSE');
+        if (iTipoTran>-1) wsSlots.getRange(r+1, iTipoTran+1).setValue(verificacao.tipo_transicao);
+      }
+
+      const slot = mapearSlot_(hS, dataS[r]);
+      criarJornada_(ss, { jornada_id: jornId, user, slot, horarioServidor });
+      gerarConviteCalendar_(user, slot, jornId);
+
+      return { ok: true, jornada_id: jornId, slot_id: slotId, slot };
     }
+    return { ok: false, erro: 'slot_id não encontrado' };
 
-    const slot = mapearSlot_(hS, dataS[r]);
-    criarJornada_(ss, { jornada_id: jornId, user, slot, horarioServidor });
-    gerarConviteCalendar_(user, slot, jornId);
-
-    return { ok: true, jornada_id: jornId, slot_id: slotId, slot };
+  } catch (e) {
+    return { ok: false, erro: 'Erro de concorrência: tente novamente em instantes.' };
+  } finally {
+    lock.releaseLock();
   }
-  return { ok: false, erro: 'slot_id não encontrado' };
 }
 
 
@@ -139,99 +149,120 @@ function executarCheckin_(ss, jornada, user, body, horarioServidor) {
   const lng = parseFloat(body.lng || 0);
   const forcar = body.forcar === true || body.ignore_radius === true;
 
-  const slot  = getSlot_(ss, jornada.slot_id);
-  const raio  = parseFloat(slot ? slot.raio_metros : getConfig_('raio_checkin_metros') || 200);
-  const distM = haversineMetros_(lat, lng, parseFloat(slot.lat), parseFloat(slot.lng));
-  
-  if (distM > raio && !forcar) {
-    return { ok: false, erro: `Fora do raio: ${Math.round(distM)}m (máx ${raio}m)`, fora_do_raio: true, distancia: Math.round(distM) };
-  }
-
-  // ── Validação de horário ────────────────────────────────────
-  const dataSlot  = String(slot?.data || '').substring(0, 10);
-  const inicioStr = String(slot?.inicio || '').substring(0, 5);
-  if (dataSlot && inicioStr) {
-    const agora    = new Date(horarioServidor);
-    const slotDt   = new Date(dataSlot + 'T' + inicioStr + ':00');
-    const diffMin  = (slotDt - agora) / 60000; // positivo = falta X min para começar
-    if (diffMin > 60) return { ok: false, erro: `Check-in disponível apenas 1h antes do início. Faltam ${Math.round(diffMin)} minutos.` };
-    if (diffMin < -120) return { ok: false, erro: 'Este slot já encerrou.' };
-  }
-
-  const score = calcularLocationTrustScore_({ lat, lng, isMock: body.is_mock === true, accuracy: body.accuracy || 999 });
-  atualizarJornada_(ss, jornada.jornada_id, {
-    status: 'EM_ATIVIDADE', inicio_real: horarioServidor,
-    checkin_lat: lat, checkin_lng: lng, location_trust_score: score,
-    horario_servidor_checkin: horarioServidor, evidencia_checkin: body.foto_url || '', atualizado_em: horarioServidor,
-    checkin_fora_raio: distM > raio
-  });
-
-  consolidarPromocode_(ss, jornada.slot_id, user.user_id);
-
-  // ── Calcula atraso ──────────────────────────────────────────
-  const slotDt    = slot?.data && slot?.inicio ? new Date(String(slot.data).substring(0,10) + 'T' + String(slot.inicio).substring(0,5) + ':00') : null;
-  const atrasoMin = slotDt ? Math.floor((new Date(horarioServidor) - slotDt) / 60000) : 999;
-  const pontual   = atrasoMin <= 5;
-
-  // ── Score ───────────────────────────────────────────────────
+  const lock = LockService.getScriptLock();
   try {
-    registrarScore_(ss, user.user_id, pontual ? 'CHECKIN_PONTUAL' : 'CHECKIN_ATRASADO', pontual ? 10 : 5, pontual ? 'Check-in pontual' : `Check-in com ${atrasoMin}min de atraso`, jornada.jornada_id);
-  } catch(_) {}
+    lock.waitLock(15000);
 
-  // ── Badges ──────────────────────────────────────────────────
-  try {
-    verificarBadges_(ss, user.user_id, {
-      evento: 'CHECKIN',
-      pontual,
-      streak: getScore_(user.user_id).streak
+    const slot  = getSlot_(ss, jornada.slot_id);
+    const raio  = parseFloat(slot ? slot.raio_metros : getConfig_('raio_checkin_metros') || 200);
+    const distM = haversineMetros_(lat, lng, parseFloat(slot.lat), parseFloat(slot.lng));
+    
+    if (distM > raio && !forcar) {
+      return { ok: false, erro: `Fora do raio: ${Math.round(distM)}m (máx ${raio}m)`, fora_do_raio: true, distancia: Math.round(distM) };
+    }
+
+    // ── Validação de horário ────────────────────────────────────
+    const dataSlot  = String(slot?.data || '').substring(0, 10);
+    const inicioStr = String(slot?.inicio || '').substring(0, 5);
+    if (dataSlot && inicioStr) {
+      const agora    = new Date(horarioServidor);
+      const slotDt   = new Date(dataSlot + 'T' + inicioStr + ':00');
+      const diffMin  = (slotDt - agora) / 60000;
+      if (diffMin > 60) return { ok: false, erro: `Check-in disponível apenas 1h antes do início. Faltam ${Math.round(diffMin)} minutos.` };
+      if (diffMin < -120) return { ok: false, erro: 'Este slot já encerrou.' };
+    }
+
+    const score = calcularLocationTrustScore_({ lat, lng, isMock: body.is_mock === true, accuracy: body.accuracy || 999 });
+    atualizarJornada_(ss, jornada.jornada_id, {
+      status: 'EM_ATIVIDADE', inicio_real: horarioServidor,
+      checkin_lat: lat, checkin_lng: lng, location_trust_score: score,
+      horario_servidor_checkin: horarioServidor, evidencia_checkin: body.foto_url || '', atualizado_em: horarioServidor,
+      checkin_fora_raio: distM > raio
     });
-  } catch(_) {}
 
-  return { ok: true, jornada_id: jornada.jornada_id, slot, distancia_metros: Math.round(distM), location_trust_score: score };
+    consolidarPromocode_(ss, jornada.slot_id, user.user_id);
+
+    // ── Calcula atraso ──────────────────────────────────────────
+    const slotDt    = slot?.data && slot?.inicio ? new Date(String(slot.data).substring(0,10) + 'T' + String(slot.inicio).substring(0,5) + ':00') : null;
+    const atrasoMin = slotDt ? Math.floor((new Date(horarioServidor) - slotDt) / 60000) : 999;
+    const pontual   = atrasoMin <= 5;
+
+    // ── Score ───────────────────────────────────────────────────
+    try {
+      registrarScore_(ss, user.user_id, pontual ? 'CHECKIN_PONTUAL' : 'CHECKIN_ATRASADO', pontual ? 10 : 5, pontual ? 'Check-in pontual' : `Check-in com ${atrasoMin}min de atraso`, jornada.jornada_id);
+    } catch(_) {}
+
+    // ── Badges ──────────────────────────────────────────────────
+    try {
+      verificarBadges_(ss, user.user_id, {
+        evento: 'CHECKIN',
+        pontual,
+        streak: getScore_(user.user_id).streak
+      });
+    } catch(_) {}
+
+    return { ok: true, jornada_id: jornada.jornada_id, slot, distancia_metros: Math.round(distM), location_trust_score: score };
+
+  } catch (e) {
+    return { ok: false, erro: 'Sistema ocupado, tente novamente.' };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function executarCheckout_(ss, jornada, user, body, horarioServidor, excepcional) {
   const lat = parseFloat(body.lat || 0);
   const lng = parseFloat(body.lng || 0);
-  const campos = { status:'ENCERRADO', fim_real:horarioServidor, horario_servidor_checkout:horarioServidor, evidencia_checkout:body.foto_url||'', atualizado_em:horarioServidor };
-  if (lat && lng) { campos.checkout_lat=lat; campos.checkout_lng=lng; }
 
-  atualizarJornada_(ss, jornada.jornada_id, campos);
-  atualizarSlotStatus_(ss, jornada.slot_id, 'ENCERRADO', horarioServidor);
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(15000);
 
-  const slot = getSlot_(ss, jornada.slot_id);
-  let duracao = '—';
-  const inicioReal = jornada.inicio_real || '';
-  if (inicioReal) {
+    const campos = { status:'ENCERRADO', fim_real:horarioServidor, horario_servidor_checkout:horarioServidor, evidencia_checkout:body.foto_url||'', atualizado_em:horarioServidor };
+    if (lat && lng) { campos.checkout_lat=lat; campos.checkout_lng=lng; }
+
+    atualizarJornada_(ss, jornada.jornada_id, campos);
+    atualizarSlotStatus_(ss, jornada.slot_id, 'ENCERRADO', horarioServidor);
+
+    const slot = getSlot_(ss, jornada.slot_id);
+    let duracao = '—';
+    const inicioReal = jornada.inicio_real || '';
+    if (inicioReal) {
+      try {
+        const diffMs = new Date(horarioServidor) - new Date(inicioReal);
+        if (diffMs > 0) {
+          const hh = Math.floor(diffMs/3600000), mm = Math.floor((diffMs%3600000)/60000);
+          duracao = hh + 'h' + String(mm).padStart(2,'0');
+        }
+      } catch(_) {}
+    }
+
+    // ── Score: checkout +5 ──────────────────────────────────────
     try {
-      const diffMs = new Date(horarioServidor) - new Date(inicioReal);
-      if (diffMs > 0) {
-        const hh = Math.floor(diffMs/3600000), mm = Math.floor((diffMs%3600000)/60000);
-        duracao = hh + 'h' + String(mm).padStart(2,'0');
-      }
+      registrarScore_(ss, user.user_id, 'CHECKOUT', 5, 'Jornada encerrada — ' + duracao, jornada.jornada_id);
+      atualizarStreak_(ss, user.user_id, horarioServidor);
     } catch(_) {}
+
+    try {
+      verificarBadges_(ss, user.user_id, {
+        evento: 'CHECKOUT',
+        streak: getScore_(user.user_id).streak
+      });
+    } catch(_) {}
+
+
+    if (excepcional) {
+      registrarScore_(ss, user.user_id, 'CHECKOUT_SEM_GPS', -5, 'Checkout sem GPS', jornada.jornada_id);
+    }
+
+
+    return { ok: true, jornada_id: jornada.jornada_id, slot, duracao, excepcional };
+
+  } catch (e) {
+    return { ok: false, erro: 'Erro ao encerrar jornada, tente novamente.' };
+  } finally {
+    lock.releaseLock();
   }
-
-  // ── Score: checkout +5 ──────────────────────────────────────
-  try {
-    registrarScore_(ss, user.user_id, 'CHECKOUT', 5, 'Jornada encerrada — ' + duracao, jornada.jornada_id);
-    atualizarStreak_(ss, user.user_id, horarioServidor);
-  } catch(_) {}
-
-  try {
-    verificarBadges_(ss, user.user_id, {
-      evento: 'CHECKOUT',
-      streak: getScore_(user.user_id).streak
-    });
-  } catch(_) {}
-
-
-  if (excepcional) {
-    registrarScore_(ss, user.user_id, 'CHECKOUT_SEM_GPS', -5, 'Checkout sem GPS', jornada.jornada_id);
-  }
-
-
-  return { ok: true, jornada_id: jornada.jornada_id, slot, duracao, excepcional };
 }
 
 function cancelarSlot_(user, body) {
@@ -240,45 +271,55 @@ function cancelarSlot_(user, body) {
   const slotId = body.slot_id    || '';
   const agora  = new Date().toISOString();
 
-  const jornada = getJornada_(ss, jornId);
-  if (!jornada) return { ok: false, erro: 'Jornada não encontrada' };
-  if (jornada.status !== 'ACEITO') return { ok: false, erro: 'Só é possível cancelar slot no status ACEITO' };
-  if (jornada.user_id !== user.user_id) return { ok: false, erro: 'Sem permissão' };
-
-  atualizarJornada_(ss, jornId, { status: 'CANCELADO', atualizado_em: agora });
-
-  const wsSlots = ss.getSheetByName('SLOTS');
-  if (wsSlots && slotId) {
-    const data = wsSlots.getDataRange().getValues();
-    const h    = data[0].map(v => String(v).toLowerCase().trim());
-    const iId  = h.indexOf('slot_id'), iSt = h.indexOf('status');
-    const iUsr = h.indexOf('user_id'), iJrn = h.indexOf('jornada_id'), iUpd = h.indexOf('atualizado_em');
-    for (let r = 1; r < data.length; r++) {
-      if (String(data[r][iId]).trim() !== slotId) continue;
-      if (iSt  > -1) wsSlots.getRange(r+1, iSt+1).setValue('DISPONIVEL');
-      if (iUsr > -1) wsSlots.getRange(r+1, iUsr+1).setValue('');
-      if (iJrn > -1) wsSlots.getRange(r+1, iJrn+1).setValue('');
-      if (iUpd > -1) wsSlots.getRange(r+1, iUpd+1).setValue(agora);
-      break;
-    }
-  }
-
-  // ── Score: cancelamento -20 ─────────────────────────────────
+  const lock = LockService.getScriptLock();
   try {
-    registrarScore_(ss, user.user_id, 'CANCELAMENTO', -20, 'Slot cancelado antecipadamente', jornId);
-  } catch(_) {}
+    lock.waitLock(15000);
 
-  const slot = getSlot_(ss, slotId);
-  const hora = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
-  const integracoes = [{
-    canal: 'telegram', tipo: 'group_message',
-    cidade: user.cidade_base || slot?.cidade || '',
-    topic_key: 'ENCERRAMENTOS',
-    parse_mode: 'HTML',
-    text_html: `⚠️ <b>Slot Cancelado</b>\n\n👤 <b>${user.nome_completo || user.user_id}</b>\n🔧 ${user.cargo_principal || ''}\n📍 ${slot?.local_nome || slot?.local || slotId}\n⏰ ${hora}`,
-  }];
+    const jornada = getJornada_(ss, jornId);
+    if (!jornada) return { ok: false, erro: 'Jornada não encontrada' };
+    if (jornada.status !== 'ACEITO') return { ok: false, erro: 'Só é possível cancelar slot no status ACEITO' };
+    if (jornada.user_id !== user.user_id) return { ok: false, erro: 'Sem permissão' };
 
-  return { ok: true, integracoes };
+    atualizarJornada_(ss, jornId, { status: 'CANCELADO', atualizado_em: agora });
+
+    const wsSlots = ss.getSheetByName('SLOTS');
+    if (wsSlots && slotId) {
+      const data = wsSlots.getDataRange().getValues();
+      const h    = data[0].map(v => String(v).toLowerCase().trim());
+      const iId  = h.indexOf('slot_id'), iSt = h.indexOf('status');
+      const iUsr = h.indexOf('user_id'), iJrn = h.indexOf('jornada_id'), iUpd = h.indexOf('atualizado_em');
+      for (let r = 1; r < data.length; r++) {
+        if (String(data[r][iId]).trim() !== slotId) continue;
+        if (iSt  > -1) wsSlots.getRange(r+1, iSt+1).setValue('DISPONIVEL');
+        if (iUsr > -1) wsSlots.getRange(r+1, iUsr+1).setValue('');
+        if (iJrn > -1) wsSlots.getRange(r+1, iJrn+1).setValue('');
+        if (iUpd > -1) wsSlots.getRange(r+1, iUpd+1).setValue(agora);
+        break;
+      }
+    }
+
+    // ── Score: cancelamento -20 ─────────────────────────────────
+    try {
+      registrarScore_(ss, user.user_id, 'CANCELAMENTO', -20, 'Slot cancelado antecipadamente', jornId);
+    } catch(_) {}
+
+    const slot = getSlot_(ss, slotId);
+    const hora = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+    const integracoes = [{
+      canal: 'telegram', tipo: 'group_message',
+      cidade: user.cidade_base || slot?.cidade || '',
+      topic_key: 'ENCERRAMENTOS',
+      parse_mode: 'HTML',
+      text_html: `⚠️ <b>Slot Cancelado</b>\n\n👤 <b>${user.nome_completo || user.user_id}</b>\n🔧 ${user.cargo_principal || ''}\n📍 ${slot?.local_nome || slot?.local || slotId}\n⏰ ${hora}`,
+    }];
+
+    return { ok: true, integracoes };
+
+  } catch (e) {
+    return { ok: false, erro: 'Erro ao cancelar slot, tente novamente.' };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function mudarStatus_(ss, jornada, novoStatus, horarioServidor) {

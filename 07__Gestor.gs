@@ -193,23 +193,32 @@ function criarSlot_(token, params) {
   const gestor=_assertGestor_(token);
   const{nome,cidade,lat,lng,data,inicio,fim,raio_metros,cargo_previsto}=params;
   if(!nome||!cidade||!lat||!lng||!data||!inicio||!fim) throw new Error('Campos obrigatórios faltando.');
-  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const sheet=ss.getSheetByName('SLOTS'); if(!sheet) throw new Error('Aba SLOTS não encontrada.');
-  const slotId='SLT_'+new Date().getTime(), agora=new Date().toISOString();
-  const headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
-  const row=new Array(headers.length).fill(''), h=headers.map(v=>String(v).toLowerCase().trim());
-  row[h.indexOf('slot_id')]=slotId; row[h.indexOf('cidade')]=cidade; row[h.indexOf('operacao')]='PROMO';
-  row[h.indexOf('local_nome')]=nome; row[h.indexOf('lat')]=parseFloat(lat); row[h.indexOf('lng')]=parseFloat(lng);
-  row[h.indexOf('raio_metros')]=parseInt(raio_metros)||100; row[h.indexOf('status')]='DISPONIVEL';
-  row[h.indexOf('cargo_previsto')]=cargo_previsto||'PROMOTOR'; row[h.indexOf('criado_em')]=agora; row[h.indexOf('atualizado_em')]=agora;
-  sheet.appendRow(row);
-  const lastRow=sheet.getLastRow();
-  const iData=h.indexOf('data'), iInicio=h.indexOf('inicio'), iFim=h.indexOf('fim');
-  if(iData>-1)   sheet.getRange(lastRow,iData+1).setNumberFormat('@').setValue(String(data).substring(0,10));
-  if(iInicio>-1) sheet.getRange(lastRow,iInicio+1).setNumberFormat('@').setValue(String(inicio).substring(0,5));
-  if(iFim>-1)    sheet.getRange(lastRow,iFim+1).setNumberFormat('@').setValue(String(fim).substring(0,5));
-  registrarAuditoria_({tabela:'SLOTS',registro_id:slotId,campo:'criacao',valor_anterior:'',valor_novo:JSON.stringify({nome,cidade,data,inicio,fim}),alterado_por:gestor.user_id||'',origem:'painel_gestor'});
-  return{ok:true,slot_id:slotId,mensagem:'Slot criado com sucesso.'};
+
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(15000);
+
+    const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+    const sheet=ss.getSheetByName('SLOTS'); if(!sheet) throw new Error('Aba SLOTS não encontrada.');
+    const slotId='SLT_'+new Date().getTime(), agora=new Date().toISOString();
+    const headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
+    const row=new Array(headers.length).fill(''), h=headers.map(v=>String(v).toLowerCase().trim());
+    row[h.indexOf('slot_id')]=slotId; row[h.indexOf('cidade')]=cidade; row[h.indexOf('operacao')]='PROMO';
+    row[h.indexOf('local_nome')]=nome; row[h.indexOf('lat')]=parseFloat(lat); row[h.indexOf('lng')]=parseFloat(lng);
+    row[h.indexOf('raio_metros')]=parseInt(raio_metros)||100; row[h.indexOf('status')]='DISPONIVEL';
+    row[h.indexOf('cargo_previsto')]=cargo_previsto||'PROMOTOR'; row[h.indexOf('criado_em')]=agora; row[h.indexOf('atualizado_em')]=agora;
+    sheet.appendRow(row);
+    const lastRow=sheet.getLastRow();
+    const iData=h.indexOf('data'), iInicio=h.indexOf('inicio'), iFim=h.indexOf('fim');
+    if(iData>-1)   sheet.getRange(lastRow,iData+1).setNumberFormat('@').setValue(String(data).substring(0,10));
+    if(iInicio>-1) sheet.getRange(lastRow,iInicio+1).setNumberFormat('@').setValue(String(inicio).substring(0,5));
+    if(iFim>-1)    sheet.getRange(lastRow,iFim+1).setNumberFormat('@').setValue(String(fim).substring(0,5));
+    registrarAuditoria_({tabela:'SLOTS',registro_id:slotId,campo:'criacao',valor_anterior:'',valor_novo:JSON.stringify({nome,cidade,data,inicio,fim}),alterado_por:gestor.user_id||'',origem:'painel_gestor'});
+    return{ok:true,slot_id:slotId,mensagem:'Slot criado com sucesso.'};
+
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function getSolicitacoesAbertas_(token) {
@@ -236,33 +245,41 @@ function responderSolicitacao_(token, params) {
   if(!solicitacao_id) throw new Error('solicitacao_id obrigatório.');
   if(!['APROVADA','NEGADA','ATENDIDA','CANCELADA'].includes(decisao)) throw new Error('decisao inválida.');
 
-  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const sheet=ss.getSheetByName('SOLICITACOES_OPERACIONAIS'); if(!sheet) throw new Error('Aba não encontrada.');
-  const data=sheet.getDataRange().getValues(), h=data[0].map(v=>String(v).toLowerCase().trim());
-  const iId=h.indexOf('solicitacao_id'), iStt=h.indexOf('status'), iAprov=h.indexOf('aprovado_por'), iUpd=h.indexOf('atualizado_em');
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(15000);
 
-  for (let r=1;r<data.length;r++) {
-    if (String(data[r][iId]).trim()!==solicitacao_id) continue;
-    if (data[r][iStt]!=='ABERTA') throw new Error('Solicitação já respondida: '+data[r][iStt]);
+    const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+    const sheet=ss.getSheetByName('SOLICITACOES_OPERACIONAIS'); if(!sheet) throw new Error('Aba não encontrada.');
+    const data=sheet.getDataRange().getValues(), h=data[0].map(v=>String(v).toLowerCase().trim());
+    const iId=h.indexOf('solicitacao_id'), iStt=h.indexOf('status'), iAprov=h.indexOf('aprovado_por'), iUpd=h.indexOf('atualizado_em');
 
-    const agora=new Date().toISOString();
-    const novoStatus=decisao==='APROVADA'?'ATENDIDA':'CANCELADA';
-    sheet.getRange(r+1,iStt+1).setValue(novoStatus);
-    sheet.getRange(r+1,iAprov+1).setValue(gestor.user_id||'');
-    sheet.getRange(r+1,iUpd+1).setValue(agora);
+    for (let r=1;r<data.length;r++) {
+      if (String(data[r][iId]).trim()!==solicitacao_id) continue;
+      if (data[r][iStt]!=='ABERTA') throw new Error('Solicitação já respondida: '+data[r][iStt]);
 
-    registrarAuditoria_({tabela:'SOLICITACOES_OPERACIONAIS',registro_id:solicitacao_id,campo:'status',valor_anterior:'ABERTA',valor_novo:decisao,alterado_por:gestor.user_id||'',origem:'painel_gestor'});
+      const agora=new Date().toISOString();
+      const novoStatus=decisao==='APROVADA'?'ATENDIDA':'CANCELADA';
+      sheet.getRange(r+1,iStt+1).setValue(novoStatus);
+      sheet.getRange(r+1,iAprov+1).setValue(gestor.user_id||'');
+      sheet.getRange(r+1,iUpd+1).setValue(agora);
 
-    const userId=String(data[r][h.indexOf('user_id')]).trim(), promMap=_getPromotoresMap_(ss), prom=promMap[userId]||{}, telegramUserId=prom.telegram_user_id||'';
-    const tipo=data[r][h.indexOf('tipo')]||'', tipoLabel={REFORCO_PATINETES:'Reforço de Patinetes',TROCA_BATERIA:'Troca de Bateria',REALOCACAO:'Realocação',OCORRENCIA:'Ocorrência'}[tipo]||tipo, emoji=novoStatus==='ATENDIDA'?'✅':'❌';
+      registrarAuditoria_({tabela:'SOLICITACOES_OPERACIONAIS',registro_id:solicitacao_id,campo:'status',valor_anterior:'ABERTA',valor_novo:decisao,alterado_por:gestor.user_id||'',origem:'painel_gestor'});
 
-    const integracoes=[];
-    if (telegramUserId) {
-      integracoes.push({ canal:'telegram', tipo:'private_message', telegram_user_id:String(telegramUserId), parse_mode:'HTML', text_html:`${emoji} <b>Solicitação ${novoStatus==='ATENDIDA'?'Aprovada':'Negada'}</b>\n\nTipo: ${tipoLabel}${observacao?'\nObs: '+observacao:''}` });
+      const userId=String(data[r][h.indexOf('user_id')]).trim(), promMap=_getPromotoresMap_(ss), prom=promMap[userId]||{}, telegramUserId=prom.telegram_user_id||'';
+      const tipo=data[r][h.indexOf('tipo')]||'', tipoLabel={REFORCO_PATINETES:'Reforço de Patinetes',TROCA_BATERIA:'Troca de Bateria',REALOCACAO:'Realocação',OCORRENCIA:'Ocorrência'}[tipo]||tipo, emoji=novoStatus==='ATENDIDA'?'✅':'❌';
+
+      const integracoes=[];
+      if (telegramUserId) {
+        integracoes.push({ canal:'telegram', tipo:'private_message', telegram_user_id:String(telegramUserId), parse_mode:'HTML', text_html:`${emoji} <b>Solicitação ${novoStatus==='ATENDIDA'?'Aprovada':'Negada'}</b>\n\nTipo: ${tipoLabel}${observacao?'\nObs: '+observacao:''}` });
+      }
+      return{ok:true,mensagem:'Solicitação '+decisao+' com sucesso.',integracoes};
     }
-    return{ok:true,mensagem:'Solicitação '+decisao+' com sucesso.',integracoes};
+    throw new Error('Solicitação não encontrada: '+solicitacao_id);
+
+  } finally {
+    lock.releaseLock();
   }
-  throw new Error('Solicitação não encontrada: '+solicitacao_id);
 }
 
 function getKpisDia_(token) {
@@ -320,10 +337,18 @@ function getEscalaDrafts_(token) {
 
 function criarEscalaDraft_(token,params) {
   _assertGestor_(token);
-  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), sheet=ss.getSheetByName('ESCALAS_DRAFT'); if(!sheet) throw new Error('Aba ESCALAS_DRAFT não encontrada.');
-  const draftId='DRAFT_'+new Date().getTime(), agora=new Date().toISOString(), gestor=validarToken_(token), gestorId=gestor.user?.user_id||'';
-  sheet.appendRow([draftId,gestorId,'',params.user_id||'',params.cidade||'',params.operacao||'PROMO',params.cargo_principal||'PROMOTOR',params.funcao_prevista||params.cargo_principal||'PROMOTOR',params.tipo_jornada||'SLOT',params.data||'',params.inicio||'',params.fim||'','RASCUNHO',params.slot_id||'',agora,agora]);
-  return{ok:true,escala_draft_id:draftId};
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(15000);
+
+    const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), sheet=ss.getSheetByName('ESCALAS_DRAFT'); if(!sheet) throw new Error('Aba ESCALAS_DRAFT não encontrada.');
+    const draftId='DRAFT_'+new Date().getTime(), agora=new Date().toISOString(), gestor=validarToken_(token), gestorId=gestor.user?.user_id||'';
+    sheet.appendRow([draftId,gestorId,'',params.user_id||'',params.cidade||'',params.operacao||'PROMO',params.cargo_principal||'PROMOTOR',params.funcao_prevista||params.cargo_principal||'PROMOTOR',params.tipo_jornada||'SLOT',params.data||'',params.inicio||'',params.fim||'','RASCUNHO',params.slot_id||'',agora,agora]);
+    return{ok:true,escala_draft_id:draftId};
+
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function excluirEscalaDraft_(token,params) {
