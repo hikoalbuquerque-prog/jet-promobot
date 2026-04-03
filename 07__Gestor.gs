@@ -1,6 +1,6 @@
 // ============================================================
 //  07.Gestor.gs  — Endpoints do Painel Gestor
-//  Versão: 3.0  |  Fase 3 — Notificações Telegram
+//  Versão: 3.1  |  Fase 3 — Consolidação Multi-slots + Cache
 // ============================================================
 
 function _assertGestor_(token) {
@@ -12,36 +12,67 @@ function _assertGestor_(token) {
 }
 
 function _getPromotoresMap_(ss) {
-  const ws=ss.getSheetByName('PROMOTORES'); if(!ws) return {};
-  const data=ws.getDataRange().getValues(), h=data[0].map(v=>String(v).toLowerCase().trim());
-  const iId=h.indexOf('user_id'), iNome=h.indexOf('nome_completo'), iCargo=h.indexOf('cargo_principal');
-  const iVinc=h.indexOf('tipo_vinculo'), iCid=h.indexOf('cidade_base'), iTg=h.indexOf('telegram_user_id');
-  const map={};
-  for (let r=1;r<data.length;r++) {
-    const id=String(data[r][iId]).trim();
-    if (id) map[id]={
-      nome:data[r][iNome]||'', cargo:data[r][iCargo]||'',
-      cargo_principal:data[r][iCargo]||'',
-      tipo_vinculo:(data[r][iVinc]||'MEI').toUpperCase(),
-      cidade:data[r][iCid]||'',
-      telegram_user_id:data[r][iTg]||'',
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get('promotores_map');
+  if (cached) {
+    try { return JSON.parse(cached); } catch(_) {}
+  }
+  const ws   = ss.getSheetByName('PROMOTORES'); if (!ws) return {};
+  const data = ws.getDataRange().getValues();
+  const h    = data[0].map(v => String(v).toLowerCase().trim());
+  const iId  = h.indexOf('user_id'), iNome = h.indexOf('nome_completo');
+  const iCargo = h.indexOf('cargo_principal'), iVinc = h.indexOf('tipo_vinculo');
+  const iCid = h.indexOf('cidade_base'), iTg = h.indexOf('telegram_user_id');
+  const map = {};
+  for (let r = 1; r < data.length; r++) {
+    const id = String(data[r][iId]).trim();
+    if (id) map[id] = {
+      nome: data[r][iNome] || '',
+      cargo: data[r][iCargo] || '',
+      cargo_principal: data[r][iCargo] || '',
+      tipo_vinculo: (data[r][iVinc] || 'MEI').toUpperCase(),
+      cidade: data[r][iCid] || '',
+      telegram_user_id: data[r][iTg] || ''
     };
   }
+  try { cache.put('promotores_map', JSON.stringify(map), 30); } catch(_) {}
   return map;
 }
 
+
 function _getSlotsMap_(ss) {
-  const ws=ss.getSheetByName('SLOTS'); if(!ws) return {};
-  const data=ws.getDataRange().getValues(), h=data[0].map(v=>String(v).toLowerCase().trim());
-  const iId=h.indexOf('slot_id'), iNome=h.indexOf('local_nome'), iLat=h.indexOf('lat'), iLng=h.indexOf('lng');
-  const iRaio=h.indexOf('raio_metros'), iIni=h.indexOf('inicio'), iFim=h.indexOf('fim'), iOp=h.indexOf('operacao');
-  const map={};
-  for (let r=1;r<data.length;r++) {
-    const id=String(data[r][iId]).trim();
-    if (id) map[id]={nome:data[r][iNome]||'',lat:data[r][iLat]||null,lng:data[r][iLng]||null,raio_metros:data[r][iRaio]||100,inicio:data[r][iIni]||'',fim:data[r][iFim]||'',operacao:data[r][iOp]||'PROMO'};
+  const cache  = CacheService.getScriptCache();
+  const cached = cache.get('slots_map');
+  if (cached) {
+    try { return JSON.parse(cached); } catch(_) {}
   }
+  const ws   = ss.getSheetByName('SLOTS'); if (!ws) return {};
+  const data = ws.getDataRange().getValues();
+  const h    = data[0].map(v => String(v).toLowerCase().trim());
+  const iId  = h.indexOf('slot_id'), iNome = h.indexOf('local_nome');
+  const iLat = h.indexOf('lat'), iLng = h.indexOf('lng');
+  const iRaio = h.indexOf('raio_metros'), iIni = h.indexOf('inicio');
+  const iFim = h.indexOf('fim'), iOp = h.indexOf('operacao');
+  const iDt  = h.indexOf('data'), iCid = h.indexOf('cidade');
+  const map = {};
+  for (let r = 1; r < data.length; r++) {
+    const id = String(data[r][iId]).trim();
+    if (id) map[id] = {
+      nome: data[r][iNome] || '',
+      lat: data[r][iLat] || null,
+      lng: data[r][iLng] || null,
+      raio_metros: data[r][iRaio] || 100,
+      inicio: data[r][iIni] || '',
+      fim: data[r][iFim] || '',
+      operacao: data[r][iOp] || 'PROMO',
+      data: String(data[r][iDt] || '').substring(0, 10),
+      cidade: data[r][iCid] || ''
+    };
+  }
+  try { cache.put('slots_map', JSON.stringify(map), 30); } catch(_) {}
   return map;
 }
+
 
 function getPromotoresAtivos_(token) {
   _assertGestor_(token);
@@ -54,19 +85,15 @@ function getPromotoresAtivos_(token) {
     const locData=locWs.getDataRange().getValues(), lh=locData[0].map(v=>String(v).toLowerCase().trim());
     const iUsr=lh.indexOf('user_id'), iLat=lh.indexOf('lat'), iLng=lh.indexOf('lng');
     const iTs=lh.indexOf('horario_servidor'), iScore=lh.indexOf('location_trust_score');
-    
-    // Percorre todas as linhas e mantém apenas a posição MAIS RECENTE por user_id
-    for (let r = 1; r < locData.length; r++) {
-      const uid = String(locData[r][iUsr]).trim(); if (!uid) continue;
-      const ts = locData[r][iTs] ? new Date(locData[r][iTs]).getTime() : 0;
-      
-      const existing = posMap[uid];
-      const existingTs = existing && existing._ts || 0;
-      if (!existing || ts > existingTs) {
-        posMap[uid] = { lat: locData[r][iLat] || null, lng: locData[r][iLng] || null, ultima_posicao: locData[r][iTs] || null, location_trust_score: locData[r][iScore] || null, _ts: ts };
+    for (let r=1;r<locData.length;r++) {
+      const uid=String(locData[r][iUsr]).trim(); if(!uid) continue;
+      const ts=locData[r][iTs]?new Date(locData[r][iTs]).getTime():0;
+      const existing=posMap[uid];
+      const existingTs=existing&&existing._ts||0;
+      if (!existing||ts>existingTs) {
+        posMap[uid]={lat:locData[r][iLat]||null,lng:locData[r][iLng]||null,ultima_posicao:locData[r][iTs]||null,location_trust_score:locData[r][iScore]||null,_ts:ts};
       }
     }
-    // Remove campo interno _ts antes de retornar
     Object.values(posMap).forEach(p=>delete p._ts);
   }
 
@@ -80,10 +107,9 @@ function getPromotoresAtivos_(token) {
       const status=String(jData[r][iStt]).trim();
       if (!['ACEITO','EM_ATIVIDADE','PAUSADO','EM_TURNO'].includes(status)) continue;
       const uid=String(jData[r][iUsr]).trim();
-      const slotId=String(jData[r][iSlt]).trim(), prom=promMap[uid]||{}, slot=slotsMap[slotId]||{}, pos=posMap[uid]||{};
-      if (!pos.lat || !pos.lng) continue; // Pula promotores sem localização recente
       // Nota: Não filtramos mais por vistos.has(uid) para permitir ver múltiplos slots por promotor
-      result.push({promotor_id:uid,user_id:uid,nome:prom.nome||uid,cargo_principal:prom.cargo_principal||'',tipo_vinculo:(prom.tipo_vinculo||'MEI').toUpperCase(),cidade:prom.cidade||slot.nome||'',operacao:slot.operacao||'PROMO',status_jornada:status,slot_id:slotId,slot_nome:slot.nome||slotId,inicio_real:jData[r][iIni]?new Date(jData[r][iIni]).toISOString():null,lat:pos.lat||null,lng:pos.lng||null,ultima_posicao:pos.ultima_posicao||null,location_trust_score:pos.location_trust_score||null});
+      const slotId=String(jData[r][iSlt]).trim(), prom=promMap[uid]||{}, slot=slotsMap[slotId]||{}, pos=posMap[uid]||{};
+      result.push({promotor_id:uid,user_id:uid,nome:prom.nome||uid,cargo_principal:prom.cargo_principal||'',tipo_vinculo:(prom.tipo_vinculo||'MEI').toUpperCase(),cidade:prom.cidade||slot.nome||'',operacao:slot.operacao||'PROMO',status_jornada:status,slot_id:slotId,slot_nome:slot.nome||slotId,inicio_real:jData[r][iIni]?new Date(jData[r][iIni]).toISOString():null,lat:pos.lat||null,lng:pos.lng||null,ultima_posicao:pos.ultima_posicao||null,location_trust_score:pos.location_trust_score||null,confirmacao_presenca:jData[r][jh.indexOf('confirmacao_presenca')]||''});
     }
   }
 
@@ -97,7 +123,6 @@ function getPromotoresAtivos_(token) {
       if (!['CONFIRMADO','EM_ANDAMENTO'].includes(status)) continue;
       const uid=String(tData[r][iUsr]).trim(); if(vistos.has(uid)) continue; vistos.add(uid);
       const prom=promMap[uid]||{}, pos=posMap[uid]||{};
-      if (!pos.lat || !pos.lng) continue; // Pula promotores sem localização recente
       result.push({promotor_id:uid,user_id:uid,nome:tData[r][iNom]||prom.nome||uid,cargo_principal:tData[r][iCar]||prom.cargo_principal||'',tipo_vinculo:'CLT',cidade:prom.cidade||tData[r][iZon]||'',operacao:'LOGISTICA',status_jornada:status,slot_id:'',slot_nome:tData[r][iZon]||'—',inicio_real:tData[r][iIni]?new Date(tData[r][iIni]).toISOString():null,lat:pos.lat||null,lng:pos.lng||null,ultima_posicao:pos.ultima_posicao||null,location_trust_score:pos.location_trust_score||null});
     }
   }
@@ -105,22 +130,63 @@ function getPromotoresAtivos_(token) {
   return{ok:true,data:result};
 }
 
-function getSlotsHoje_(token) {
+function getSlotsHoje_(token, params) {
   _assertGestor_(token);
-  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const slotsWs=ss.getSheetByName('SLOTS'); if(!slotsWs) return{ok:true,data:[]};
-  const data=slotsWs.getDataRange().getValues(), h=data[0].map(v=>String(v).toLowerCase().trim());
-  const promMap=_getPromotoresMap_(ss);
-  const statusValidos=['DISPONIVEL','ACEITO','EM_ATIVIDADE','PAUSADO'];
-  const result=[];
-  for (let r=1;r<data.length;r++) {
-    const status=String(data[r][h.indexOf('status')]).trim();
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const slotsWs = ss.getSheetByName('SLOTS');
+  if (!slotsWs) return { ok: true, data: [], stats: {} };
+
+  const data  = slotsWs.getDataRange().getValues();
+  const h     = data[0].map(v => String(v).toLowerCase().trim());
+  const promMap = _getPromotoresMap_(ss);
+
+  const dataFiltro = (params && params.data)
+    ? String(params.data).substring(0, 10)
+    : new Date().toISOString().split('T')[0];
+
+  const statusValidos = ['DISPONIVEL', 'ACEITO', 'EM_ATIVIDADE', 'PAUSADO', 'ENCERRADO', 'CANCELADO'];
+  const iSlotId  = h.indexOf('slot_id'), iStatus = h.indexOf('status'), iUserId = h.indexOf('user_id');
+  const iNome = h.indexOf('local_nome'), iLat = h.indexOf('lat'), iLng = h.indexOf('lng'), iRaio = h.indexOf('raio_metros');
+  const iCidade = h.indexOf('cidade'), iInicio = h.indexOf('inicio'), iFim = h.indexOf('fim'), iData = h.indexOf('data'), iMax = h.indexOf('max_promotores');
+
+  const locaisMap = {};
+
+  for (let r = 1; r < data.length; r++) {
+    const status = String(data[r][iStatus]).trim() || 'DISPONIVEL';
     if (!statusValidos.includes(status)) continue;
-    const userId=String(data[r][h.indexOf('user_id')]).trim(), prom=promMap[userId]||{};
-    const statusFront={DISPONIVEL:'DISPONIVEL',ACEITO:'OCUPADO',EM_ATIVIDADE:'OCUPADO',PAUSADO:'OCUPADO'}[status]||status;
-    result.push({slot_id:String(data[r][h.indexOf('slot_id')]).trim(),nome:data[r][h.indexOf('local_nome')]||'',endereco:'',lat:data[r][h.indexOf('lat')]||null,lng:data[r][h.indexOf('lng')]||null,raio_metros:data[r][h.indexOf('raio_metros')]||100,cidade:data[r][h.indexOf('cidade')]||'',status:statusFront,promotor_nome:prom.nome||'',inicio_slot:data[r][h.indexOf('inicio')]||'',fim_slot:data[r][h.indexOf('fim')]||'',checkin_hora:null});
+
+    const dataSlot = String(data[r][iData] || '').substring(0, 10);
+    if (dataSlot && dataSlot !== dataFiltro) continue;
+
+    const slotId = String(data[r][iSlotId]).trim(), userId = String(data[r][iUserId]).trim();
+    const nome = String(data[r][iNome] || '').trim(), inicio = String(data[r][iInicio] || '').substring(0, 5), fim = String(data[r][iFim] || '').substring(0, 5);
+    const lat = data[r][iLat] || null, lng = data[r][iLng] || null, raio = data[r][iRaio] || 100, cidade = String(data[r][iCidade] || ''), maxProm = parseInt(data[r][iMax] || '1') || 1;
+    const prom = promMap[userId] || {};
+
+    const statusFront = { DISPONIVEL:'DISPONIVEL', ACEITO:'OCUPADO', EM_ATIVIDADE:'ATIVO', PAUSADO:'PAUSADO', ENCERRADO:'ENCERRADO', CANCELADO:'CANCELADO' }[status] || status;
+    const chave = nome + '__' + inicio + '__' + fim + '__' + lat + '__' + lng;
+
+    if (!locaisMap[chave]) {
+      locaisMap[chave] = { slot_id:slotId, nome:nome, lat:lat, lng:lng, raio_metros:raio, cidade:cidade, inicio_slot:inicio, fim_slot:fim, data_slot:dataSlot, max_promotores:maxProm, slots:[], promotores:[], vagas_ocupadas:0, status_geral:'DISPONIVEL' };
+    }
+
+    const local = locaisMap[chave];
+    local.slots.push(slotId);
+    if (maxProm > local.max_promotores) local.max_promotores = maxProm;
+
+    if (userId && prom.nome) {
+      local.promotores.push({ user_id:userId, nome:prom.nome, status:statusFront, slot_id:slotId });
+      if (['OCUPADO', 'ATIVO', 'PAUSADO'].includes(statusFront)) local.vagas_ocupadas++;
+    }
+
+    const prioridade = { ATIVO:4, OCUPADO:3, PAUSADO:2, DISPONIVEL:1, ENCERRADO:0, CANCELADO:0 };
+    if ((prioridade[statusFront] || 0) > (prioridade[local.status_geral] || 0)) local.status_geral = statusFront;
   }
-  return{ok:true,data:result};
+
+  const result = Object.values(locaisMap).sort((a, b) => a.inicio_slot < b.inicio_slot ? -1 : 1);
+  const stats = { total:result.length, ocupados:result.filter(s => ['OCUPADO','ATIVO','PAUSADO'].includes(s.status_geral)).length, disponiveis:result.filter(s => s.status_geral === 'DISPONIVEL').length, encerrados:result.filter(s => s.status_geral === 'ENCERRADO').length };
+
+  return { ok: true, data: result, stats: stats };
 }
 
 function criarSlot_(token, params) {
@@ -187,24 +253,13 @@ function responderSolicitacao_(token, params) {
 
     registrarAuditoria_({tabela:'SOLICITACOES_OPERACIONAIS',registro_id:solicitacao_id,campo:'status',valor_anterior:'ABERTA',valor_novo:decisao,alterado_por:gestor.user_id||'',origem:'painel_gestor'});
 
-    // Notificação Telegram para o promotor (private_message)
-    const userId=String(data[r][h.indexOf('user_id')]).trim();
-    const promMap=_getPromotoresMap_(ss), prom=promMap[userId]||{};
-    const telegramUserId=prom.telegram_user_id||'';
-    const tipo=data[r][h.indexOf('tipo')]||'';
-    const tipoLabel={REFORCO_PATINETES:'Reforço de Patinetes',TROCA_BATERIA:'Troca de Bateria',REALOCACAO:'Realocação',OCORRENCIA:'Ocorrência'}[tipo]||tipo;
-    const emoji=novoStatus==='ATENDIDA'?'✅':'❌';
+    const userId=String(data[r][h.indexOf('user_id')]).trim(), promMap=_getPromotoresMap_(ss), prom=promMap[userId]||{}, telegramUserId=prom.telegram_user_id||'';
+    const tipo=data[r][h.indexOf('tipo')]||'', tipoLabel={REFORCO_PATINETES:'Reforço de Patinetes',TROCA_BATERIA:'Troca de Bateria',REALOCACAO:'Realocação',OCORRENCIA:'Ocorrência'}[tipo]||tipo, emoji=novoStatus==='ATENDIDA'?'✅':'❌';
 
     const integracoes=[];
     if (telegramUserId) {
-      integracoes.push({
-        canal:'telegram', tipo:'private_message',
-        telegram_user_id:String(telegramUserId),
-        parse_mode:'HTML',
-        text_html:`${emoji} <b>Solicitação ${novoStatus==='ATENDIDA'?'Aprovada':'Negada'}</b>\n\nTipo: ${tipoLabel}${observacao?'\nObs: '+observacao:''}`,
-      });
+      integracoes.push({ canal:'telegram', tipo:'private_message', telegram_user_id:String(telegramUserId), parse_mode:'HTML', text_html:`${emoji} <b>Solicitação ${novoStatus==='ATENDIDA'?'Aprovada':'Negada'}</b>\n\nTipo: ${tipoLabel}${observacao?'\nObs: '+observacao:''}` });
     }
-
     return{ok:true,mensagem:'Solicitação '+decisao+' com sucesso.',integracoes};
   }
   throw new Error('Solicitação não encontrada: '+solicitacao_id);
@@ -212,14 +267,12 @@ function responderSolicitacao_(token, params) {
 
 function getKpisDia_(token) {
   _assertGestor_(token);
-  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const hoje=new Date(); hoje.setHours(0,0,0,0);
+  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), hoje=new Date(); hoje.setHours(0,0,0,0);
   let promotores_ativos=0,em_operacao=0,slots_ocupados=0,slots_disponiveis=0,checkins_hoje=0,solicitacoes_abertas=0;
   const jWs=ss.getSheetByName('JORNADAS');
   if (jWs) {
     const jData=jWs.getDataRange().getValues(), jh=jData[0].map(v=>String(v).toLowerCase().trim());
-    const iCri=jh.indexOf('criado_em'), iStt=jh.indexOf('status'), iIni=jh.indexOf('inicio_real');
-    const ativos=['ACEITO','EM_ATIVIDADE','PAUSADO','EM_TURNO'];
+    const iCri=jh.indexOf('criado_em'), iStt=jh.indexOf('status'), iIni=jh.indexOf('inicio_real'), ativos=['ACEITO','EM_ATIVIDADE','PAUSADO','EM_TURNO'];
     for (let r=1;r<jData.length;r++) {
       const criadoEm=new Date(jData[r][iCri]); criadoEm.setHours(0,0,0,0);
       if(criadoEm.getTime()!==hoje.getTime()) continue;
@@ -239,12 +292,9 @@ function getKpisDia_(token) {
 function getHistoricoLocalizacao_(token,params) {
   _assertGestor_(token);
   const{promotor_id,data}=params; if(!promotor_id||!data) throw new Error('promotor_id e data obrigatórios.');
-  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const sheet=ss.getSheetByName('LOCALIZACAO_TEMPO_REAL'); if(!sheet) return{ok:true,data:[]};
+  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), sheet=ss.getSheetByName('LOCALIZACAO_TEMPO_REAL'); if(!sheet) return{ok:true,data:[]};
   const rows=sheet.getDataRange().getValues(), h=rows[0].map(v=>String(v).toLowerCase().trim());
-  const iUsr=h.indexOf('user_id'), iLat=h.indexOf('lat'), iLng=h.indexOf('lng');
-  const iTs=h.indexOf('horario_servidor'), iScore=h.indexOf('location_trust_score');
-  const filtroData=new Date(data); filtroData.setHours(0,0,0,0);
+  const iUsr=h.indexOf('user_id'), iLat=h.indexOf('lat'), iLng=h.indexOf('lng'), iTs=h.indexOf('horario_servidor'), iScore=h.indexOf('location_trust_score'), filtroData=new Date(data); filtroData.setHours(0,0,0,0);
   const result=[];
   for (let r=1;r<rows.length;r++) {
     if(String(rows[r][iUsr]).trim()!==promotor_id) continue;
@@ -258,15 +308,11 @@ function getHistoricoLocalizacao_(token,params) {
 
 function getEscalaDrafts_(token) {
   _assertGestor_(token);
-  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const sheet=ss.getSheetByName('ESCALAS_DRAFT'); if(!sheet) return{ok:true,data:[]};
-  const data=sheet.getDataRange().getValues(), h=data[0].map(v=>String(v).toLowerCase().trim());
-  const promMap=_getPromotoresMap_(ss), slotsMap=_getSlotsMap_(ss);
-  const result=[];
+  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), sheet=ss.getSheetByName('ESCALAS_DRAFT'); if(!sheet) return{ok:true,data:[]};
+  const data=sheet.getDataRange().getValues(), h=data[0].map(v=>String(v).toLowerCase().trim()), promMap=_getPromotoresMap_(ss), slotsMap=_getSlotsMap_(ss), result=[];
   for (let r=1;r<data.length;r++) {
     const id=String(data[r][h.indexOf('escala_draft_id')]).trim(); if(!id) continue;
-    const uid=String(data[r][h.indexOf('user_id')]).trim(), slotId=String(data[r][h.indexOf('slot_id')]||'').trim();
-    const prom=promMap[uid]||{}, slot=slotsMap[slotId]||{};
+    const uid=String(data[r][h.indexOf('user_id')]).trim(), slotId=String(data[r][h.indexOf('slot_id')]||'').trim(), prom=promMap[uid]||{}, slot=slotsMap[slotId]||{};
     result.push({escala_draft_id:id,user_id:uid,slot_id:slotId,promotor_nome:prom.nome||uid,slot_nome:slot.nome||slotId,data:data[r][h.indexOf('data')]||'',inicio:data[r][h.indexOf('inicio')]||'',fim:data[r][h.indexOf('fim')]||'',funcao_prevista:data[r][h.indexOf('funcao_prevista')]||'',cargo_principal:data[r][h.indexOf('cargo_principal')]||'',tipo_jornada:data[r][h.indexOf('tipo_jornada')]||'SLOT',status_draft:data[r][h.indexOf('status_draft')]||'RASCUNHO'});
   }
   return{ok:true,data:result};
@@ -274,10 +320,8 @@ function getEscalaDrafts_(token) {
 
 function criarEscalaDraft_(token,params) {
   _assertGestor_(token);
-  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const sheet=ss.getSheetByName('ESCALAS_DRAFT'); if(!sheet) throw new Error('Aba ESCALAS_DRAFT não encontrada.');
-  const draftId='DRAFT_'+new Date().getTime(), agora=new Date().toISOString();
-  const gestor=validarToken_(token), gestorId=gestor.user?.user_id||'';
+  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), sheet=ss.getSheetByName('ESCALAS_DRAFT'); if(!sheet) throw new Error('Aba ESCALAS_DRAFT não encontrada.');
+  const draftId='DRAFT_'+new Date().getTime(), agora=new Date().toISOString(), gestor=validarToken_(token), gestorId=gestor.user?.user_id||'';
   sheet.appendRow([draftId,gestorId,'',params.user_id||'',params.cidade||'',params.operacao||'PROMO',params.cargo_principal||'PROMOTOR',params.funcao_prevista||params.cargo_principal||'PROMOTOR',params.tipo_jornada||'SLOT',params.data||'',params.inicio||'',params.fim||'','RASCUNHO',params.slot_id||'',agora,agora]);
   return{ok:true,escala_draft_id:draftId};
 }
@@ -285,9 +329,56 @@ function criarEscalaDraft_(token,params) {
 function excluirEscalaDraft_(token,params) {
   _assertGestor_(token);
   const{escala_draft_id}=params; if(!escala_draft_id) throw new Error('escala_draft_id obrigatório.');
-  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const sheet=ss.getSheetByName('ESCALAS_DRAFT');
+  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), sheet=ss.getSheetByName('ESCALAS_DRAFT');
   const data=sheet.getDataRange().getValues(), h=data[0].map(v=>String(v).toLowerCase().trim()), iId=h.indexOf('escala_draft_id');
   for (let r=1;r<data.length;r++) { if(String(data[r][iId]).trim()===escala_draft_id){sheet.deleteRow(r+1);return{ok:true};} }
   throw new Error('Draft não encontrado.');
+}
+
+function getHistoricoJornadasGestor_(token, params) {
+  _assertGestor_(token);
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws = ss.getSheetByName('JORNADAS'), data = ws.getDataRange().getValues(), h = data[0].map(v => String(v).toLowerCase().trim()), promMap = _getPromotoresMap_(ss), slotsMap = _getSlotsMap_(ss);
+  const de = params.de ? new Date(params.de) : new Date(Date.now() - 30*86400000), ate = params.ate ? new Date(params.ate + 'T23:59:59') : new Date(), resultado = [];
+  for (let r = 1; r < data.length; r++) {
+    const row = rowToObj_(h, data[r]); if (!row.criado_em) continue;
+    const d = new Date(row.criado_em); if (d < de || d > ate) continue;
+    const prom = promMap[row.user_id] || {}, slot = slotsMap[row.slot_id] || {};
+    row.nome = prom.nome || row.user_id; row.local_nome = slot.nome || row.slot_id; row.local = slot.nome || '';
+    resultado.push(row);
+  }
+  resultado.sort((a,b) => new Date(b.criado_em) - new Date(a.criado_em));
+  return { ok: true, historico: resultado };
+}
+
+function getPromotoresSemSlot_(token, params) {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), cidade = params.cidade || '', promMap = _getPromotoresMap_(ss), ativos = new Set(), jWs = ss.getSheetByName('JORNADAS');
+  if (jWs) {
+    const jData = jWs.getDataRange().getValues(), jh = jData[0].map(v => String(v).toLowerCase().trim()), iUsr = jh.indexOf('user_id'), iStt = jh.indexOf('status');
+    for (let r = 1; r < jData.length; r++) { if (['ACEITO','EM_ATIVIDADE','PAUSADO'].includes(String(jData[r][iStt]).trim())) ativos.add(String(jData[r][iUsr]).trim()); }
+  }
+  const result = [];
+  for (const [uid, prom] of Object.entries(promMap)) {
+    if (ativos.has(uid)) continue;
+    if (cidade && String(prom.cidade || '').toLowerCase() !== cidade.toLowerCase()) continue;
+    if ((prom.tipo_vinculo || '').toUpperCase() !== 'MEI') continue;
+    if (!prom.telegram_user_id) continue;
+    result.push({ user_id: uid, nome: prom.nome || uid, telegram_user_id: prom.telegram_user_id });
+  }
+  return { ok: true, data: result };
+}
+
+function invalidarCache_() {
+  const cache = CacheService.getScriptCache();
+  cache.remove('promotores_map');
+  cache.remove('slots_map');
+}
+
+function registrarIndicacao_(body) {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws = ss.getSheetByName('INDICACOES'); if (!ws) return { ok: false, erro: 'Aba INDICACOES nao encontrada' };
+  const agora = new Date().toISOString(), id = gerarId_('IND');
+  ws.appendRow([id, body.nome||'', body.cpf||'', body.telefone||'', body.cidade||'', body.email||'', body.indicado_por||'', 'PENDENTE', agora]);
+  if (body.indicado_por) {
+    try { registrarScore_(ss, body.indicado_por, 'INDICACAO', 15, 'Indicacao de promotor', id); verificarBadges_(ss, body.indicado_por, { evento: 'INDICACAO' }); } catch(_) {}
+  }
+  return { ok: true, indicacao_id: id };
 }
