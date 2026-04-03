@@ -28,7 +28,7 @@ function doGet(e) {
     switch (evento) {
       // ── Promotor / MEI ──────────────────────────────────────
       case 'GET_ME':                  return jsonResp_(getMe_(user));
-      case 'GET_SLOT_ATUAL':          return jsonResp_(getSlotAtual_(user));
+      case 'GET_SLOT_ATUAL':          return jsonResp_(getSlotAtual_(user, params.slot_id));
       case 'GET_SLOTS_DISPONIVEIS':   return jsonResp_(getSlotsDisponiveis_(params, user));
       case 'GET_MINHAS_SOLICITACOES': return jsonResp_(getMinhasSolicitacoes_(user));
       case 'GET_HISTORICO':           return jsonResp_(getHistorico_(user, params));

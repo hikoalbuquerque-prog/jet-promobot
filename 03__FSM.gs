@@ -419,12 +419,12 @@ function getSlotsDisponiveis_(params,user) {
   return{ok:true,slots};
 }
 
-function getSlotAtual_(user) {
+function getSlotAtual_(user, slotIdSolicitado) {
   const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   const ws=ss.getSheetByName('JORNADAS');
   if (!ws) return { ok:true, jornada:null, slot:null, jornadas:[] };
   const data=ws.getDataRange().getValues();
-  const h=data[0].map(v=>String(v).toLowerCase().trim()), iUsr=h.indexOf('user_id'), iStt=h.indexOf('status');
+  const h=data[0].map(v=>String(v).toLowerCase().trim()), iUsr=h.indexOf('user_id'), iStt=h.indexOf('status'), iSlt=h.indexOf('slot_id');
   
   const results = [];
   const statusValidos = ['ACEITO','EM_ATIVIDADE','PAUSADO','AGUARDANDO_RASTREIO','EM_TURNO','SEM_SINAL','MAPEAMENTO_INTERROMPIDO'];
@@ -440,20 +440,26 @@ function getSlotAtual_(user) {
   }
 
   if (results.length > 0) {
-    // Ordenação: EM_ATIVIDADE primeiro, depois PAUSADO, depois ACEITO (ordem cronológica de início_previsto)
+    // Se solicitou um slot_id específico, procura na lista
+    let selecionado = results[0];
+    if (slotIdSolicitado) {
+      const found = results.find(r => r.slot?.slot_id === slotIdSolicitado);
+      if (found) selecionado = found;
+    }
+
+    // Ordenação (apenas para a lista completa): EM_ATIVIDADE primeiro...
     results.sort((a,b) => {
       const order = { 'EM_ATIVIDADE': 1, 'PAUSADO': 2, 'EM_TURNO': 3, 'ACEITO': 4 };
       const valA = order[a.jornada.status.toUpperCase()] || 99;
       const valB = order[b.jornada.status.toUpperCase()] || 99;
       if (valA !== valB) return valA - valB;
-      // Se mesmo status, ordena pelo início previsto
       return new Date(a.jornada.inicio_previsto) - new Date(b.jornada.inicio_previsto);
     });
 
     return { 
       ok: true, 
-      jornada: results[0].jornada, 
-      slot: results[0].slot,
+      jornada: selecionado.jornada, 
+      slot: selecionado.slot,
       jornadas: results 
     };
   }
