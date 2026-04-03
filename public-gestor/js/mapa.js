@@ -336,13 +336,17 @@ const mapaScreen = (() => {
       if (!res.ok) throw new Error(res.erro);
       
       const visitasHtml = (res.visitas || []).map(v => {
-        const isLonga = v.duracao_min > 45;
+        const isLonga = v.duracao_min > 45 && !v.is_cobertura;
+        const bg = v.is_cobertura ? 'rgba(159,122,234,0.1)' : (isLonga ? 'rgba(252,129,129,0.05)' : 'transparent');
         return `
-          <div style="padding:10px;border-bottom:1px solid rgba(99,179,237,0.1);background:${isLonga ? 'rgba(252,129,129,0.05)' : 'transparent'}">
-            <div style="font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:4px">📍 ${v.local}</div>
+          <div style="padding:10px;border-bottom:1px solid rgba(99,179,237,0.1);background:${bg}">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+              <div style="font-size:13px;font-weight:700;color:#e2e8f0">📍 ${v.local}</div>
+              ${v.is_cobertura ? '<span style="font-size:9px;font-weight:800;background:#9f7aea;color:#fff;padding:2px 5px;border-radius:4px;letter-spacing:0.5px">COBERTURA</span>' : ''}
+            </div>
             <div style="display:flex;justify-content:space-between;font-size:11px">
               <span>⏰ ${new Date(v.inicio).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})} - ${new Date(v.fim).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</span>
-              <span style="font-weight:800;color:${isLonga ? '#fc8181' : '#68d391'}">⏱️ ${v.duracao_min} min</span>
+              <span style="font-weight:800;color:${v.is_cobertura ? '#9f7aea' : (isLonga ? '#fc8181' : '#68d391')}">⏱️ ${v.duracao_min} min</span>
             </div>
             ${isLonga ? '<div style="font-size:9px;color:#fc8181;margin-top:4px;font-weight:700">⚠️ PERMANÊNCIA LONGA</div>' : ''}
           </div>`;

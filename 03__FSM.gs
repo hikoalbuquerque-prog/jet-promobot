@@ -749,6 +749,10 @@ function getSlotsDisponiveis_(params, user) {
       if (cidadeSlot && normStr_(cidadeSlot) !== normStr_(cidadeUser)) continue;
     }
 
+    // Permite MEI e FISCAL verem slots
+    const vinc = (user?.tipo_vinculo || '').toUpperCase();
+    if (vinc !== 'MEI' && vinc !== 'FISCAL') continue;
+
     const dataSlot = String(data[r][iDt] || '').substring(0, 10);
     if (dataSlot && dataSlot !== hojeStr && dataSlot !== amanhaStr) continue;
 

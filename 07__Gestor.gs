@@ -418,6 +418,7 @@ function getRelatorioSupervisao_(token, params) {
 
   const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   const locWs = ss.getSheetByName('LOCALIZACAO_TEMPO_REAL');
+  const jornWs = ss.getSheetByName('JORNADAS');
   const slotsMap = _getSlotsMap_(ss);
   
   const rows = locWs.getDataRange().getValues();
@@ -425,27 +426,34 @@ function getRelatorioSupervisao_(token, params) {
   const iUsr = h.indexOf('user_id'), iLat = h.indexOf('lat'), iLng = h.indexOf('lng'), iTs = h.indexOf('horario_servidor');
 
   const filtroData = data.substring(0, 10);
-  const trajetos = [];
+  
+  // 0. Buscar quais slots o fiscal cobriu oficialmente neste dia
+  const slotsCobertos = new Set();
+  if (jornWs) {
+    const jData = jornWs.getDataRange().getValues(), jh = jData[0].map(v => String(v).toLowerCase().trim());
+    for (let r = 1; r < jData.length; r++) {
+      if (String(jData[r][jh.indexOf('user_id')]).trim() === fiscal_id && String(jData[r][jh.indexOf('criado_em')]).substring(0, 10) === filtroData) {
+        slotsCobertos.add(String(jData[r][jh.indexOf('slot_id')]).trim());
+      }
+    }
+  }
 
-  // 1. Filtrar localizações do fiscal no dia
+  const trajetos = [];
   for (let r = 1; r < rows.length; r++) {
     if (String(rows[r][iUsr]).trim() !== fiscal_id) continue;
     if (String(rows[r][iTs]).substring(0, 10) !== filtroData) continue;
     trajetos.push({ lat: rows[r][iLat], lng: rows[r][iLng], ts: new Date(rows[r][iTs]).getTime() });
   }
 
-  // 2. Analisar permanência em slots
   const visitas = [];
   let visitaAtual = null;
 
   trajetos.forEach(ponto => {
     let localEncontrado = null;
-    
-    // Verifica se está em algum slot
     for (const sid in slotsMap) {
       const s = slotsMap[sid];
       const dist = haversineMetros_(ponto.lat, ponto.lng, s.lat, s.lng);
-      if (dist <= 150) { // Raio de 150m para considerar "no local"
+      if (dist <= 150) {
         localEncontrado = { id: sid, nome: s.nome };
         break;
       }
@@ -456,6 +464,7 @@ function getRelatorioSupervisao_(token, params) {
         if (visitaAtual) {
           visitaAtual.fim = ponto.ts;
           visitaAtual.duracao_min = Math.round((visitaAtual.fim - visitaAtual.inicio) / 60000);
+          visitaAtual.is_cobertura = slotsCobertos.has(visitaAtual.slot_id);
           if (visitaAtual.duracao_min >= 5) visitas.push(visitaAtual);
         }
         visitaAtual = { slot_id: localEncontrado.id, local: localEncontrado.nome, inicio: ponto.ts };
@@ -463,6 +472,7 @@ function getRelatorioSupervisao_(token, params) {
     } else if (visitaAtual) {
       visitaAtual.fim = ponto.ts;
       visitaAtual.duracao_min = Math.round((visitaAtual.fim - visitaAtual.inicio) / 60000);
+      visitaAtual.is_cobertura = slotsCobertos.has(visitaAtual.slot_id);
       if (visitaAtual.duracao_min >= 5) visitas.push(visitaAtual);
       visitaAtual = null;
     }
