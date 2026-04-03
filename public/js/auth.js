@@ -304,7 +304,7 @@ const homeScreen = {
               <span style="font-size:20px">🏆</span>Ranking
             </button>
             <button onclick="router.go('calculadora')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px 8px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:600">
-              <span style="font-size:20px">💰</span>Ganhos
+              <span style="font-size:20px">🧮</span>Calculadora
             </button>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">

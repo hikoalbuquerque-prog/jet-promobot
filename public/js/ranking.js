@@ -117,7 +117,18 @@ const ranking = {
       html += '<div id="rank-list-nacional">' + this._renderLista(rankRes.nacional, eu) + '</div>';
       html += '<div id="rank-list-regional" style="display:none">' + this._renderLista(rankRes.regional, eu, rankRes.cidade) + '</div>';
 
-      html += '<div style="height:24px"></div>';
+      // Pontos
+      html += '<div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;margin-top:24px;margin-bottom:24px">'
+        + '<div style="font-size:12px;font-weight:700;color:#a0aec0;letter-spacing:1px;margin-bottom:12px">COMO GANHAR PONTOS</div>';
+      [['✅ Check-in pontual','+ 10'],['✅ Check-in com atraso','+ 5'],['🏁 Checkout','+ 5'],
+       ['🔥 Streak bonus (a cada 5 dias)','+ 25'],['❌ Cancelamento','- 20'],['📵 Checkout sem GPS','- 5']
+      ].forEach(function(row) {
+        html += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #2a3a55">'
+          + '<span style="font-size:13px;color:#eaf0fb">' + row[0] + '</span>'
+          + '<span style="font-size:13px;font-weight:700;color:' + (row[1].includes('-')?'#fc8181':'#68d391') + '">' + row[1] + '</span></div>';
+      });
+      html += '</div>';
+
       html += '<div style="font-size:11px;color:#a0aec0;font-weight:700;letter-spacing:1px;margin-bottom:10px">MINHAS CONQUISTAS</div>';
       
       self._BADGES_DEF.forEach(function(def) {

@@ -159,7 +159,7 @@ const mapa = {
 
         L.marker([parseFloat(p.lat), parseFloat(p.lng)], { icon })
           .addTo(this._map)
-          .bindPopup(`<b>🟢 Promotor ativo</b><br>${p.user_id || ''}`);
+          .bindPopup(`<b>🟢 ${p.nome_completo ? p.nome_completo.split(' ')[0] : (p.user_id || 'Promotor')}</b><br>Em atividade`);
       });
     } catch(_) {}
   },
