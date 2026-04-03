@@ -671,6 +671,15 @@ function atualizarSlotStatus_(ss,slotId,status,horarioServidor) {
 
 function getSlotsDisponiveis_(params, user) {
   const ss    = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  
+  // ── Verificação de Bloqueio Preventiva ──────────────────────
+  if (user?.user_id) {
+    const bloqueio = verificarBloqueiosPromotores_(ss, user.user_id);
+    if (bloqueio.bloqueado) {
+      return { ok: false, erro: bloqueio.motivo, bloqueado: true };
+    }
+  }
+
   const ws    = ss.getSheetByName('SLOTS');
   const data  = ws.getDataRange().getValues();
   const h     = data[0].map(v => String(v).toLowerCase().trim());
