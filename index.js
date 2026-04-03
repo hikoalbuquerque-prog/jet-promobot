@@ -177,6 +177,8 @@ app.post('/internal/send-jornada-status', async (req, res) => {
       ], [
         { text: '🌐 Abrir app', url: 'https://hikoalbuquerque-prog.github.io/jet-promobot' }
       ]];
+      // Salva estado para processar a localização quando o usuário enviar
+      await botSetSessionCloudRun(telegram_user_id, 'AWAITING_CHECKIN_LOCATION', { slot_id, jornada_id, user_id: req.body.user_id });
     } else if (tipo === 'EM_ATIVIDADE') {
       texto = `✅ <b>Você está em atividade!</b>\n\n📍 ${local_nome}\n🕐 ${inicio} – ${fim}\n\nO que deseja fazer?`;
       botoes = [[
@@ -494,6 +496,23 @@ async function handleLocationMessage(message) {
     horario_dispositivo: new Date().toISOString()
   });
 
+  if (!result.ok && result.fora_do_raio) {
+    // Se estiver fora do raio, oferece opção de forçar
+    const ref = slot_id + ':' + (jornada_id || '') + ':' + latitude + ':' + longitude + ':' + user_id;
+    await telegramApi('sendMessage', {
+      chat_id: message.chat.id,
+      text: `📍 <b>Você está fora do raio!</b>\n\nDistância: ${result.distancia}m\n\nDeseja forçar o check-in mesmo assim? A gestão será notificada.`,
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [[
+          { text: '✅ Sim, forçar check-in', callback_data: 'CHECKIN_FORCAR:' + ref },
+          { text: '❌ Não', callback_data: 'bot_clear_session' }
+        ]]
+      }
+    });
+    return;
+  }
+
   await botClearSessionCloudRun(telegramUserId);
 
   // Remove teclado de localização
@@ -547,6 +566,42 @@ async function handleCallbackQuery(callbackQuery) {
     await botSetSessionCloudRun(telegramUserId, 'AWAITING_NOME', { ...payload, cidade });
     await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Cidade selecionada!' });
     await telegramApi('sendMessage', { chat_id: chat.id, text: 'Agora digite seu nome completo:' });
+    return;
+  }
+
+  if (data === 'bot_clear_session') {
+    await botClearSessionCloudRun(telegramUserId);
+    await telegramApi('editMessageText', { chat_id: chat.id, message_id: callbackQuery.message?.message_id, text: 'Operação cancelada.' });
+    await telegramApi('answerCallbackQuery', { callback_query_id: callbackId });
+    return;
+  }
+
+  if (data.startsWith('CHECKIN_FORCAR:')) {
+    const [_, slotId, jornadaId, lat, lng, userId] = data.split(':');
+    try {
+      const result = await callAppsScriptPost({
+        evento: 'CHECKIN',
+        integration_secret: CFG.appsScriptSharedSecret,
+        user_id: userId,
+        slot_id: slotId,
+        jornada_id: jornadaId,
+        lat: parseFloat(lat),
+        lng: parseFloat(lng),
+        accuracy: 50,
+        forcar: true,
+        horario_dispositivo: new Date().toISOString()
+      });
+      await botClearSessionCloudRun(telegramUserId);
+      await telegramApi('editMessageText', {
+        chat_id: chat.id,
+        message_id: callbackQuery.message?.message_id,
+        text: result.ok ? '✅ <b>Check-in forçado com sucesso!</b>' : '❌ Erro: ' + (result.erro || 'tente pelo app'),
+        parse_mode: 'HTML'
+      });
+      await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: result.ok ? 'Check-in realizado!' : 'Erro' });
+    } catch(e) {
+      await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Erro na conexão.', show_alert: true });
+    }
     return;
   }
 

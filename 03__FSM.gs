@@ -182,17 +182,22 @@ function cancelarSlot_(user, body) {
 function executarCheckin_(ss, jornada, user, body, horarioServidor) {
   const lat = parseFloat(body.lat || 0);
   const lng = parseFloat(body.lng || 0);
+  const forcar = body.forcar === true || body.ignore_radius === true;
 
   const slot  = getSlot_(ss, jornada.slot_id);
   const raio  = parseFloat(slot ? slot.raio_metros : getConfig_('raio_checkin_metros') || 200);
   const distM = haversineMetros_(lat, lng, parseFloat(slot.lat), parseFloat(slot.lng));
-  if (distM > raio) return { ok: false, erro: `Fora do raio: ${Math.round(distM)}m (máx ${raio}m)` };
+  
+  if (distM > raio && !forcar) {
+    return { ok: false, erro: `Fora do raio: ${Math.round(distM)}m (máx ${raio}m)`, fora_do_raio: true, distancia: Math.round(distM) };
+  }
 
   const score = calcularLocationTrustScore_({ lat, lng, isMock: body.is_mock === true, accuracy: body.accuracy || 999 });
   atualizarJornada_(ss, jornada.jornada_id, {
     status: 'EM_ATIVIDADE', inicio_real: horarioServidor,
     checkin_lat: lat, checkin_lng: lng, location_trust_score: score,
-    horario_servidor_checkin: horarioServidor, evidencia_checkin: body.foto_url || '', atualizado_em: horarioServidor
+    horario_servidor_checkin: horarioServidor, evidencia_checkin: body.foto_url || '', atualizado_em: horarioServidor,
+    checkin_fora_raio: distM > raio
   });
 
   consolidarPromocode_(ss, jornada.slot_id, user.user_id);
