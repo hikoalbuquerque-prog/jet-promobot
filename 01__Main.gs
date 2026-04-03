@@ -88,6 +88,7 @@ function doPost(e) {
         case 'INTERNAL_PUBLICAR_ESCALA':              return jsonResp_(publicarEscala_(body));
         case 'CRIAR_ESCALA_DRAFT':                    return jsonResp_(criarEscalaDraft_(body.token, body));
         case 'EXCLUIR_ESCALA_DRAFT':                  return jsonResp_(excluirEscalaDraft_(body.token, body));
+        case 'INTERNAL_VERIFICAR_SLOTS_FANTASMA':     return jsonResp_(verificarSlotsFantasma_());
         default: return jsonResp_({ ok: false, erro: 'evento interno POST não reconhecido' }, 400);
       }
     }
@@ -165,4 +166,93 @@ function logErro_(origem, err) {
       new Date().toISOString(), '', ''
     ]);
   } catch (_) {}
+}
+
+/**
+ * Verifica slots que já deveriam ter sido encerrados (30min após o fim previsto)
+ * e envia notificação para o Cloud Run ou encerra automaticamente.
+ */
+function verificarSlotsFantasma_() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws = ss.getSheetByName('JORNADAS');
+  if (!ws) return { ok: false, erro: 'Aba JORNADAS não encontrada' };
+  
+  const data = ws.getDataRange().getValues();
+  const h = data[0].map(v => String(v).toLowerCase().trim());
+  const iStt = h.indexOf('status'), iFimP = h.indexOf('fim_previsto'), iSlt = h.indexOf('slot_id'), iUsr = h.indexOf('user_id');
+  const iJrn = h.indexOf('jornada_id');
+  
+  const agora = new Date();
+  const resultados = [];
+  
+  for (let r = 1; r < data.length; r++) {
+    const status = String(data[r][iStt]).toUpperCase();
+    if (!['ACEITO', 'EM_ATIVIDADE', 'PAUSADO'].includes(status)) continue;
+    
+    const fimPrevisto = data[r][iFimP];
+    if (!fimPrevisto) continue;
+    
+    const dataFim = new Date(fimPrevisto);
+    // Se o fim previsto foi há mais de 30 minutos
+    if (agora.getTime() > (dataFim.getTime() + 30 * 60000)) {
+      const jornId = data[r][iJrn];
+      const userId = data[r][iUsr];
+      const slotId = data[r][iSlt];
+      
+      // Tenta enviar notificação de fim de turno via Cloud Run
+      try {
+        const user = getPromotorById_(ss, userId);
+        const slot = getSlot_(ss, slotId);
+        
+        if (user && user.telegram_user_id) {
+          notificarFimTurnoCloudRun_(user, slot);
+          resultados.push({ jornada_id: jornId, acao: 'notificacao_enviada' });
+        } else {
+          // Se não tem telegram, encerra exepcionalmente
+          processarFSM_(user, { jornada_id: jornId, slot_id: slotId, token: 'SYSTEM' }, 'CHECKOUT_EXCEPCIONAL');
+          resultados.push({ jornada_id: jornId, acao: 'checkout_automatico' });
+        }
+      } catch (e) {
+        resultados.push({ jornada_id: jornId, acao: 'erro', erro: e.message });
+      }
+    }
+  }
+  
+  return { ok: true, processados: resultados.length, detalhes: resultados };
+}
+
+function notificarFimTurnoCloudRun_(user, slot) {
+  const url = getConfig_('cloud_run_url') + '/internal/send-fim-turno';
+  const payload = {
+    integration_secret: getConfig_('cloud_run_shared_secret'),
+    telegram_user_id: String(user.telegram_user_id),
+    slot_id: slot.slot_id,
+    user_id: user.user_id,
+    local_nome: slot.local_nome || slot.local || slot.slot_id,
+    fim: slot.fim
+  };
+  
+  UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+}
+
+function getPromotorById_(ss, userId) {
+  const ws = ss.getSheetByName('PROMOTORES');
+  const data = ws.getDataRange().getValues();
+  const h = data[0].map(v => String(v).toLowerCase().trim());
+  const iId = h.indexOf('user_id');
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][iId]).trim() === userId) return rowToObj_(h, data[r]);
+  }
+  return null;
+}
+
+function rowToObj_(headers, row) {
+  const obj = {};
+  headers.forEach((h, i) => { obj[h] = row[i]; });
+  return obj;
 }
