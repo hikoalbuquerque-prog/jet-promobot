@@ -7,7 +7,7 @@ const academy = {
     document.getElementById('app').innerHTML =
       '<div style="min-height:100dvh;background:#1a1a2e;color:#eaf0fb;font-family:-apple-system,sans-serif;padding-bottom:80px">'
       + '<div style="background:#16213e;border-bottom:1px solid #2a3a55;padding:14px 16px;position:sticky;top:0;z-index:50">'
-      + '<div style="font-size:17px;font-weight:700">\u{1F393} JET Academy</div>'
+      + '<div style="font-size:17px;font-weight:700">&#127891; JET Academy</div>'
       + '</div>'
       + '<div style="padding:16px" id="academy-content">'
       + '<div style="text-align:center;padding:40px;color:#a0aec0">Carregando trilha...</div>'
@@ -25,8 +25,8 @@ const academy = {
 
   _renderTrilha() {
     var modulos = academy._modulos;
-    var nivelNomes = { BASICO: 'Basico', INTERMEDIARIO: 'Intermediario', AVANCADO: 'Avancado' };
-    var nivelCores = { BASICO: '#63b3ed', INTERMEDIARIO: '#f6ad55', AVANCADO: '#68d391' };
+    var nivelNomes = { BASICO: 'Basico', INTERMEDIARIO: 'Intermediario', AVANCADO: 'Avancado', ESPECIALISTA: 'Especialista', MASTER: 'Master' };
+    var nivelCores = { BASICO: '#63b3ed', INTERMEDIARIO: '#f6ad55', AVANCADO: '#68d391', ESPECIALISTA: '#b794f4', MASTER: '#ffd700' };
     var total = modulos.length;
     var conc = modulos.filter(function(m){ return m.concluido; }).length;
     var pct = total > 0 ? Math.round(conc/total*100) : 0;
@@ -41,7 +41,7 @@ const academy = {
       + '<div style="background:linear-gradient(90deg,#63b3ed,#68d391);height:100%;width:' + pct + '%;border-radius:20px"></div>'
       + '</div></div>';
 
-    ['BASICO','INTERMEDIARIO','AVANCADO'].forEach(function(nivel) {
+    ['BASICO','INTERMEDIARIO','AVANCADO','ESPECIALISTA','MASTER'].forEach(function(nivel) {
       var mods = modulos.filter(function(m){ return m.nivel === nivel; });
       if (!mods.length) return;
       var cor = nivelCores[nivel];
@@ -214,9 +214,13 @@ const academy = {
     api.post({ evento: 'CONCLUIR_MODULO', modulo_id: moduloId, score_quiz: scoreMin, pontos: pontos }).then(function(res) {
       if (res.ok) {
         ui.toast('+' + pontos + ' pts! Modulo concluido!', 'success');
-        var mod = academy._modulos.find(function(m){ return m.modulo_id === moduloId; });
-        if (mod) mod.concluido = true;
-        setTimeout(function(){ academy._renderTrilha(); }, 1500);
+        // Recarrega trilha do servidor para pegar desbloqueios atualizados
+        setTimeout(function(){
+          api.get('GET_ACADEMY_TRILHA').then(function(r){
+            academy._modulos = r.modulos || [];
+            academy._renderTrilha();
+          }).catch(function(){ academy._renderTrilha(); });
+        }, 1500);
       } else {
         ui.toast(res.erro || 'Erro', 'error');
         btn.disabled = false;
