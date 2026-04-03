@@ -1,6 +1,6 @@
 // ============================================================
 //  01.Main.gs  — Roteamento principal doGet / doPost
-//  Versão: 4.0  |  Fase 3 — CLT completo
+//  Versão: 4.1  |  Fase 3 — CLT completo + Multi-slots
 // ============================================================
 
 function doGet(e) {
@@ -16,6 +16,8 @@ function doGet(e) {
       if (evento === 'INTERNAL_LISTAR_SLOTS_DISPONIVEIS') return jsonResp_(internalListarSlotsDisponiveis_(params));
       if (evento === 'INTERNAL_GET_SLOT')                 return jsonResp_(internalGetSlot_(params));
       if (evento === 'BOT_GET_SESSION')                   return jsonResp_(botGetSession_(params));
+      if (evento === 'BOT_SET_SESSION')                   return jsonResp_(botSetSession_({ telegram_user_id: params.telegram_user_id, estado: params.estado, payload_json: params.payload_json }));
+      if (evento === 'BOT_CLEAR_SESSION')                 return jsonResp_(botClearSession_({ telegram_user_id: params.telegram_user_id }));
       return jsonResp_({ ok: false, erro: 'evento interno GET não reconhecido' }, 400);
     }
 
@@ -33,7 +35,14 @@ function doGet(e) {
       case 'GET_MINHAS_SOLICITACOES': return jsonResp_(getMinhasSolicitacoes_(user));
       case 'GET_HISTORICO':           return jsonResp_(getHistorico_(user, params));
       case 'GET_MAPA_PROMOTOR':       return jsonResp_(getMapaPromotor_(user, params));
-
+      case 'GET_PROMOTORES_SEM_SLOT': return jsonResp_(getPromotoresSemSlot_(token, params));
+      case 'GET_RANKING_SEMANAL':     return jsonResp_(getRankingSemanal_());
+      case 'GET_BADGES':              return jsonResp_(getBadges_(user.user_id));
+      case 'GET_ACADEMY_TRILHA':      return jsonResp_(getAcademyTrilha_(user));
+      case 'GET_ACADEMY_MODULO':      return jsonResp_(getAcademyModulo_(params, user));
+      case 'GET_ACADEMY_PROGRESSO':   return jsonResp_(getAcademyProgresso_(user));
+      case 'GET_PILULA_HOJE':         return jsonResp_(getPilulaHoje_(user));
+      
       // ── CLT (próprio) ────────────────────────────────────────
       case 'GET_MEUS_TURNOS_CLT':               return jsonResp_(getMeusTurnosCLT_(user));
       case 'GET_MEU_BANCO_HORAS':               return jsonResp_(getMeuBancoHoras_(user));
@@ -43,12 +52,14 @@ function doGet(e) {
       case 'GET_HISTORICO_TURNOS_CLT':          return jsonResp_(getHistoricoTurnosCLT_(token, params));
 
       // ── Gestor ───────────────────────────────────────────────
-      case 'GET_PROMOTORES_ATIVOS':       return jsonResp_(getPromotoresAtivos_(token));
-      case 'GET_SLOTS_HOJE':              return jsonResp_(getSlotsHoje_(token));
-      case 'GET_SOLICITACOES_ABERTAS':    return jsonResp_(getSolicitacoesAbertas_(token));
-      case 'GET_KPIS_DIA':               return jsonResp_(getKpisDia_(token));
-      case 'GET_HISTORICO_LOCALIZACAO':   return jsonResp_(getHistoricoLocalizacao_(token, { promotor_id: params.promotor_id, data: params.data }));
-      case 'GET_ESCALA_DRAFTS':          return jsonResp_(getEscalaDrafts_(token));
+      case 'GET_PROMOTORES_ATIVOS':         return jsonResp_(getPromotoresAtivos_(token));
+      case 'GET_SLOTS_HOJE':                return jsonResp_(getSlotsHoje_(token, params));
+      case 'GET_SOLICITACOES_ABERTAS':      return jsonResp_(getSolicitacoesAbertas_(token));
+      case 'GET_KPIS_DIA':                  return jsonResp_(getKpisDia_(token));
+      case 'GET_HISTORICO_LOCALIZACAO':     return jsonResp_(getHistoricoLocalizacao_(token, { promotor_id: params.promotor_id, data: params.data }));
+      case 'GET_HISTORICO_JORNADAS_GESTOR': return jsonResp_(getHistoricoJornadasGestor_(token, params));
+      case 'GET_ESCALA_DRAFTS':             return jsonResp_(getEscalaDrafts_(token));
+      case 'GET_CADASTROS_PENDENTES':       return jsonResp_(getCadastrosPendentes_(token));
 
       // ── Gestor CLT ───────────────────────────────────────────
       case 'GET_SUGESTOES_ESCALA':        return jsonResp_(getSugestoesEscala_(token, params));
@@ -82,13 +93,22 @@ function doPost(e) {
         case 'ACEITAR_SLOT_TELEGRAM':                 return jsonResp_(aceitarSlotTelegram_(body));
         case 'BOT_SET_SESSION':                       return jsonResp_(botSetSession_(body));
         case 'BOT_CLEAR_SESSION':                     return jsonResp_(botClearSession_(body));
+        case 'BOT_PRECADASTRO':                       return jsonResp_(botPrecadastro_(body));
         case 'BOT_VINCULAR_PROMOTOR':                 return jsonResp_(botVincularPromotor_(body));
         case 'BOT_UPDATE_PROMOTOR':                   return jsonResp_(botUpdatePromotor_(body));
         case 'INTERNAL_CONFIRMAR_PRE_JORNADA':        return jsonResp_(confirmarPreJornada_(body));
         case 'INTERNAL_PUBLICAR_ESCALA':              return jsonResp_(publicarEscala_(body));
         case 'CRIAR_ESCALA_DRAFT':                    return jsonResp_(criarEscalaDraft_(body.token, body));
         case 'EXCLUIR_ESCALA_DRAFT':                  return jsonResp_(excluirEscalaDraft_(body.token, body));
-        case 'INTERNAL_VERIFICAR_SLOTS_FANTASMA':     return jsonResp_(verificarSlotsFantasma_());
+        case 'CHECKIN':                               return jsonResp_(processarFSMInterno_(body, 'CHECKIN'));
+        case 'PAUSE':                                 return jsonResp_(processarFSMInterno_(body, 'PAUSE'));
+        case 'RESUME':                                return jsonResp_(processarFSMInterno_(body, 'RESUME'));
+        case 'CHECKOUT':                              return jsonResp_(processarFSMInterno_(body, 'CHECKOUT'));
+        case 'CANCELAR_SLOT_PRE_JORNADA':             return jsonResp_(cancelarSlotPreJornada_(body));
+        case 'CANCELAR_SLOT_HORARIO':                 return jsonResp_(cancelarSlotHorario_(body));
+        case 'REGISTRAR_INDICACAO':                   return jsonResp_(registrarIndicacao_(body));
+        case 'PILULA_RESPOSTA':                       return jsonResp_(processarPilulaResposta_(body));
+        case 'BROADCAST_PROMOTORES':                  return jsonResp_(broadcastPromotor_(body));
         default: return jsonResp_({ ok: false, erro: 'evento interno POST não reconhecido' }, 400);
       }
     }
@@ -110,6 +130,8 @@ function doPost(e) {
       case 'CHECKOUT':                    return jsonResp_(processarFSM_(user, body, 'CHECKOUT'));
       case 'CHECKOUT_EXCEPCIONAL':        return jsonResp_(processarFSM_(user, body, 'CHECKOUT_EXCEPCIONAL'));
       case 'CANCELAR_SLOT':               return jsonResp_(cancelarSlot_(user, body));
+      case 'CONCLUIR_MODULO':             return jsonResp_(concluirModulo_(user, body));
+
 
       // ── Solicitações ─────────────────────────────────────────
       case 'SOLICITAR_REALOCACAO':        return jsonResp_(abrirSolicitacao_(user, body, 'REALOCACAO'));
@@ -137,6 +159,7 @@ function doPost(e) {
       
       // ── Gestor ───────────────────────────────────────────────
       case 'RESPONDER_SOLICITACAO':       return jsonResp_(responderSolicitacao_(body.token, body));
+      case 'APROVAR_CADASTRO':            return jsonResp_(aprovarCadastro_(body.token, body));
       case 'CRIAR_TURNO_CLT':             return jsonResp_(criarTurnoCLT_(body.token, body));
 
       default:
@@ -170,7 +193,6 @@ function logErro_(origem, err) {
 
 /**
  * Verifica jornadas que ficaram abertas (fantasmas) e as encerra automaticamente.
- * Identifica slots de dias passados ou slots que já foram encerrados/cancelados na aba SLOTS.
  */
 function encerrarJornadasFantasma() {
   const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
@@ -186,7 +208,6 @@ function encerrarJornadasFantasma() {
   const hS = dataS[0].map(v => String(v).toLowerCase().trim());
   const iSSlt = hS.indexOf('slot_id'), iSStt = hS.indexOf('status'), iSData = hS.indexOf('data'), iSFim = hS.indexOf('fim');
 
-  // Mapa de slots para consulta rápida
   const slotsMap = {};
   for (let r = 1; r < dataS.length; r++) {
     const sid = String(dataS[r][iSSlt]).trim();
@@ -225,7 +246,6 @@ function encerrarJornadasFantasma() {
       deveEncerrar = true;
       motivo = 'Slot de dia passado';
     } else {
-      // Verificação extra: se está em atividade mas não manda sinal há mais de 1 hora
       const ultimaAtu = dataJ[r][iJUpd] ? new Date(dataJ[r][iJUpd]).getTime() : 0;
       if (status === 'EM_ATIVIDADE' && (agora.getTime() - ultimaAtu > 60 * 60 * 1000)) {
         deveEncerrar = true;
@@ -234,11 +254,9 @@ function encerrarJornadasFantasma() {
     }
 
     if (deveEncerrar) {
-      // 1. Atualiza o status na aba JORNADAS
       wsJ.getRange(r + 1, iJStt + 1).setValue('ENCERRADO');
       wsJ.getRange(r + 1, iJUpd + 1).setValue(agoraISO);
 
-      // 2. Se o slot ainda estiver 'ACEITO' ou 'OCUPADO' na aba SLOTS, libera ele
       if (slot && slot.status !== 'ENCERRADO' && slot.status !== 'CANCELADO') {
         wsS.getRange(slot.row, iSStt + 1).setValue('ENCERRADO');
         const iSUpd = hS.indexOf('atualizado_em');
@@ -246,14 +264,12 @@ function encerrarJornadasFantasma() {
       }
       
       encerradas++;
-      console.log(`[Fantasma] Jornada ${dataJ[r][hJ.indexOf('jornada_id')]} encerrada. Motivo: ${motivo}`);
     }
   }
 
   return { ok: true, encerradas: encerradas };
 }
 
-// Mantendo o nome antigo para compatibilidade com acionadores existentes
 function verificarSlotsFantasma_() {
   return encerrarJornadasFantasma();
 }

@@ -1,6 +1,6 @@
 // ============================================================
 //  03.FSM.gs  — Motor FSM + Jornadas + Sequenciamento de Slots
-//  Versão: 3.0  |  Fase 3 — Notificações Telegram MEI
+//  Versão: 3.1  |  Fase 3 — Consolidação Multi-slots + iOS Checkin
 // ============================================================
 
 function processarFSM_(user, body, evento) {
@@ -133,22 +133,120 @@ function aceitarSlot_(ss, user, body, horarioServidor) {
   return { ok: false, erro: 'slot_id não encontrado' };
 }
 
-function cancelarSlot_(user, body) {
-  const ss       = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const jornId   = body.jornada_id || '';
-  const slotId   = body.slot_id    || '';
-  const agora    = new Date().toISOString();
 
-  // Só permite cancelar se status for ACEITO (não iniciado)
+function executarCheckin_(ss, jornada, user, body, horarioServidor) {
+  const lat = parseFloat(body.lat || 0);
+  const lng = parseFloat(body.lng || 0);
+  const forcar = body.forcar === true || body.ignore_radius === true;
+
+  const slot  = getSlot_(ss, jornada.slot_id);
+  const raio  = parseFloat(slot ? slot.raio_metros : getConfig_('raio_checkin_metros') || 200);
+  const distM = haversineMetros_(lat, lng, parseFloat(slot.lat), parseFloat(slot.lng));
+  
+  if (distM > raio && !forcar) {
+    return { ok: false, erro: `Fora do raio: ${Math.round(distM)}m (máx ${raio}m)`, fora_do_raio: true, distancia: Math.round(distM) };
+  }
+
+  // ── Validação de horário ────────────────────────────────────
+  const dataSlot  = String(slot?.data || '').substring(0, 10);
+  const inicioStr = String(slot?.inicio || '').substring(0, 5);
+  if (dataSlot && inicioStr) {
+    const agora    = new Date(horarioServidor);
+    const slotDt   = new Date(dataSlot + 'T' + inicioStr + ':00');
+    const diffMin  = (slotDt - agora) / 60000; // positivo = falta X min para começar
+    if (diffMin > 60) return { ok: false, erro: `Check-in disponível apenas 1h antes do início. Faltam ${Math.round(diffMin)} minutos.` };
+    if (diffMin < -120) return { ok: false, erro: 'Este slot já encerrou.' };
+  }
+
+  const score = calcularLocationTrustScore_({ lat, lng, isMock: body.is_mock === true, accuracy: body.accuracy || 999 });
+  atualizarJornada_(ss, jornada.jornada_id, {
+    status: 'EM_ATIVIDADE', inicio_real: horarioServidor,
+    checkin_lat: lat, checkin_lng: lng, location_trust_score: score,
+    horario_servidor_checkin: horarioServidor, evidencia_checkin: body.foto_url || '', atualizado_em: horarioServidor,
+    checkin_fora_raio: distM > raio
+  });
+
+  consolidarPromocode_(ss, jornada.slot_id, user.user_id);
+
+  // ── Calcula atraso ──────────────────────────────────────────
+  const slotDt    = slot?.data && slot?.inicio ? new Date(String(slot.data).substring(0,10) + 'T' + String(slot.inicio).substring(0,5) + ':00') : null;
+  const atrasoMin = slotDt ? Math.floor((new Date(horarioServidor) - slotDt) / 60000) : 999;
+  const pontual   = atrasoMin <= 5;
+
+  // ── Score ───────────────────────────────────────────────────
+  try {
+    registrarScore_(ss, user.user_id, pontual ? 'CHECKIN_PONTUAL' : 'CHECKIN_ATRASADO', pontual ? 10 : 5, pontual ? 'Check-in pontual' : `Check-in com ${atrasoMin}min de atraso`, jornada.jornada_id);
+  } catch(_) {}
+
+  // ── Badges ──────────────────────────────────────────────────
+  try {
+    verificarBadges_(ss, user.user_id, {
+      evento: 'CHECKIN',
+      pontual,
+      streak: getScore_(user.user_id).streak
+    });
+  } catch(_) {}
+
+  return { ok: true, jornada_id: jornada.jornada_id, slot, distancia_metros: Math.round(distM), location_trust_score: score };
+}
+
+function executarCheckout_(ss, jornada, user, body, horarioServidor, excepcional) {
+  const lat = parseFloat(body.lat || 0);
+  const lng = parseFloat(body.lng || 0);
+  const campos = { status:'ENCERRADO', fim_real:horarioServidor, horario_servidor_checkout:horarioServidor, evidencia_checkout:body.foto_url||'', atualizado_em:horarioServidor };
+  if (lat && lng) { campos.checkout_lat=lat; campos.checkout_lng=lng; }
+
+  atualizarJornada_(ss, jornada.jornada_id, campos);
+  atualizarSlotStatus_(ss, jornada.slot_id, 'ENCERRADO', horarioServidor);
+
+  const slot = getSlot_(ss, jornada.slot_id);
+  let duracao = '—';
+  const inicioReal = jornada.inicio_real || '';
+  if (inicioReal) {
+    try {
+      const diffMs = new Date(horarioServidor) - new Date(inicioReal);
+      if (diffMs > 0) {
+        const hh = Math.floor(diffMs/3600000), mm = Math.floor((diffMs%3600000)/60000);
+        duracao = hh + 'h' + String(mm).padStart(2,'0');
+      }
+    } catch(_) {}
+  }
+
+  // ── Score: checkout +5 ──────────────────────────────────────
+  try {
+    registrarScore_(ss, user.user_id, 'CHECKOUT', 5, 'Jornada encerrada — ' + duracao, jornada.jornada_id);
+    atualizarStreak_(ss, user.user_id, horarioServidor);
+  } catch(_) {}
+
+  try {
+    verificarBadges_(ss, user.user_id, {
+      evento: 'CHECKOUT',
+      streak: getScore_(user.user_id).streak
+    });
+  } catch(_) {}
+
+
+  if (excepcional) {
+    registrarScore_(ss, user.user_id, 'CHECKOUT_SEM_GPS', -5, 'Checkout sem GPS', jornada.jornada_id);
+  }
+
+
+  return { ok: true, jornada_id: jornada.jornada_id, slot, duracao, excepcional };
+}
+
+function cancelarSlot_(user, body) {
+  const ss     = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const jornId = body.jornada_id || '';
+  const slotId = body.slot_id    || '';
+  const agora  = new Date().toISOString();
+
   const jornada = getJornada_(ss, jornId);
   if (!jornada) return { ok: false, erro: 'Jornada não encontrada' };
   if (jornada.status !== 'ACEITO') return { ok: false, erro: 'Só é possível cancelar slot no status ACEITO' };
   if (jornada.user_id !== user.user_id) return { ok: false, erro: 'Sem permissão' };
 
-  // Atualiza jornada → CANCELADO
   atualizarJornada_(ss, jornId, { status: 'CANCELADO', atualizado_em: agora });
 
-  // Libera slot → DISPONIVEL
   const wsSlots = ss.getSheetByName('SLOTS');
   if (wsSlots && slotId) {
     const data = wsSlots.getDataRange().getValues();
@@ -165,7 +263,11 @@ function cancelarSlot_(user, body) {
     }
   }
 
-  // Notificação Telegram
+  // ── Score: cancelamento -20 ─────────────────────────────────
+  try {
+    registrarScore_(ss, user.user_id, 'CANCELAMENTO', -20, 'Slot cancelado antecipadamente', jornId);
+  } catch(_) {}
+
   const slot = getSlot_(ss, slotId);
   const hora = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
   const integracoes = [{
@@ -177,58 +279,6 @@ function cancelarSlot_(user, body) {
   }];
 
   return { ok: true, integracoes };
-}
-
-function executarCheckin_(ss, jornada, user, body, horarioServidor) {
-  const lat = parseFloat(body.lat || 0);
-  const lng = parseFloat(body.lng || 0);
-  const forcar = body.forcar === true || body.ignore_radius === true;
-
-  const slot  = getSlot_(ss, jornada.slot_id);
-  const raio  = parseFloat(slot ? slot.raio_metros : getConfig_('raio_checkin_metros') || 200);
-  const distM = haversineMetros_(lat, lng, parseFloat(slot.lat), parseFloat(slot.lng));
-  
-  if (distM > raio && !forcar) {
-    return { ok: false, erro: `Fora do raio: ${Math.round(distM)}m (máx ${raio}m)`, fora_do_raio: true, distancia: Math.round(distM) };
-  }
-
-  const score = calcularLocationTrustScore_({ lat, lng, isMock: body.is_mock === true, accuracy: body.accuracy || 999 });
-  atualizarJornada_(ss, jornada.jornada_id, {
-    status: 'EM_ATIVIDADE', inicio_real: horarioServidor,
-    checkin_lat: lat, checkin_lng: lng, location_trust_score: score,
-    horario_servidor_checkin: horarioServidor, evidencia_checkin: body.foto_url || '', atualizado_em: horarioServidor,
-    checkin_fora_raio: distM > raio
-  });
-
-  consolidarPromocode_(ss, jornada.slot_id, user.user_id);
-
-  return { ok: true, jornada_id: jornada.jornada_id, slot, distancia_metros: Math.round(distM), location_trust_score: score };
-}
-
-function executarCheckout_(ss, jornada, user, body, horarioServidor, excepcional) {
-  const lat = parseFloat(body.lat || 0);
-  const lng = parseFloat(body.lng || 0);
-  const campos = { status:'ENCERRADO', fim_real:horarioServidor, horario_servidor_checkout:horarioServidor, evidencia_checkout:body.foto_url||'', atualizado_em:horarioServidor };
-  if (lat && lng) { campos.checkout_lat=lat; campos.checkout_lng=lng; }
-
-  atualizarJornada_(ss, jornada.jornada_id, campos);
-  atualizarSlotStatus_(ss, jornada.slot_id, 'ENCERRADO', horarioServidor);
-
-  // Calcular duração — usa jornada passada como parâmetro (evita leitura extra da planilha)
-  const slot = getSlot_(ss, jornada.slot_id);
-  let duracao = '—';
-  const inicioReal = jornada.inicio_real || '';
-  if (inicioReal) {
-    try {
-      const diffMs = new Date(horarioServidor) - new Date(inicioReal);
-      if (diffMs > 0) {
-        const hh = Math.floor(diffMs/3600000), mm = Math.floor((diffMs%3600000)/60000);
-        duracao = hh + 'h' + String(mm).padStart(2,'0');
-      }
-    } catch(_) {}
-  }
-
-  return { ok: true, jornada_id: jornada.jornada_id, slot, duracao, excepcional };
 }
 
 function mudarStatus_(ss, jornada, novoStatus, horarioServidor) {
@@ -265,11 +315,6 @@ function montarIntegracoes_(evento, resultado, user, body, jornadaAnterior) {
   const integracoes = [];
   const cidade = user.cidade_base || resultado.slot?.cidade || '';
   const operacao = (user.operacao || resultado.slot?.operacao || 'PROMO').toUpperCase();
-
-  // Roteamento por operação:
-  // PROMO → topic_key CHECKIN_PRESENCA / ENCERRAMENTOS
-  // LOGISTICA → topic_key CHECKIN_PRESENCA / ENCERRAMENTOS (mesmo topic, grupo diferente por cidade)
-  // O Cloud Run já resolve o grupo certo pela cidade + CITY_GROUPS_JSON
 
   if (evento === 'ACEITAR_SLOT') {
     const slotNome = resultado.slot?.local_nome || resultado.slot?.local || body.slot_id || '';
@@ -322,47 +367,118 @@ function montarIntegracoes_(evento, resultado, user, body, jornadaAnterior) {
   return integracoes;
 }
 
+function atualizarStreak_(ss, userId, horarioServidor) {
+  const wsProm = ss.getSheetByName('PROMOTORES');
+  const data   = wsProm.getDataRange().getValues();
+  const h      = data[0].map(v => String(v).toLowerCase().trim());
+  const iId    = h.indexOf('user_id');
+  const iStreak = h.indexOf('streak_dias');
+  const iUltimo = h.indexOf('ultimo_checkout_em');
+  if (iStreak < 0) return;
+
+  const hoje = horarioServidor.substring(0, 10);
+
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][iId]).trim() !== userId) continue;
+    const ultimoCheckout = String(data[r][iUltimo] || '').substring(0, 10);
+    const streakAtual    = parseInt(data[r][iStreak] || '0') || 0;
+
+    const diffDias = ultimoCheckout
+      ? Math.round((new Date(hoje) - new Date(ultimoCheckout)) / 86400000)
+      : 0;
+
+    let novoStreak = 1;
+    if (diffDias === 1) {
+      novoStreak = streakAtual + 1;
+      if (novoStreak % 5 === 0) {
+        registrarScore_(ss, userId, 'STREAK_BONUS', 25, `Streak de ${novoStreak} dias consecutivos! 🔥`, '');
+      }
+    } else if (diffDias > 1) {
+      novoStreak = 1;
+    }
+
+    wsProm.getRange(r+1, iStreak+1).setValue(novoStreak);
+    if (iUltimo > -1) wsProm.getRange(r+1, iUltimo+1).setValue(hoje);
+    break;
+  }
+}
+
 // ── Sequenciamento ───────────────────────────────────────────────────────────
 function verificarSequenciamento_(ss, userId, slotRow, headers) {
-  const iData=headers.indexOf('data'), iInicio=headers.indexOf('inicio');
-  const iLat=headers.indexOf('lat'), iLng=headers.indexOf('lng');
-  const dataSlot=slotRow[iData], inicioSlot=slotRow[iInicio];
-  const latNovo=parseFloat(slotRow[iLat]), lngNovo=parseFloat(slotRow[iLng]);
-
-  const wsSlots=ss.getSheetByName('SLOTS');
-  const data=wsSlots.getDataRange().getValues();
-  const h2=data[0].map(v=>String(v).toLowerCase().trim());
-  const iUsr=h2.indexOf('user_id'), iStatus=h2.indexOf('status'), iDt=h2.indexOf('data');
-  const iFim=h2.indexOf('fim'), iLat2=h2.indexOf('lat'), iLng2=h2.indexOf('lng'), iSlotId=h2.indexOf('slot_id');
-  const bufferMin=parseInt(getConfig_('buffer_pre_aprovado_min')||'30');
-
-  for (let r=1;r<data.length;r++) {
-    const row=data[r];
-    if (String(row[iUsr]).trim()!==userId) continue;
-    if (!['ACEITO','EM_ATIVIDADE','PAUSADO'].includes(row[iStatus])) continue;
-    if (String(row[iDt])!==String(dataSlot)) continue;
-    const gapMin=calcularGapMinutos_(String(row[iFim]),String(inicioSlot));
-    const distM=haversineMetros_(parseFloat(row[iLat2]),parseFloat(row[iLng2]),latNovo,lngNovo);
-    const tempoDeslocMin=Math.ceil(distM/250);
-    if (gapMin<0) return{conflito:true,mensagem:'Slots sobrepostos'};
-    if (tempoDeslocMin>bufferMin) return{conflito:false,tipo_transicao:'REQUER_APROVACAO',slot_anterior_id:row[iSlotId],tempo_estimado_min:tempoDeslocMin,pre_aprovado:false};
-    const tipo=distM<100?'MESMO_LOCAL':tempoDeslocMin<=bufferMin?'PRE_APROVADO_COM_DESLOCAMENTO':'SEQUENCIAL_OK';
-    return{conflito:false,tipo_transicao:tipo,slot_anterior_id:row[iSlotId],tempo_estimado_min:tempoDeslocMin,pre_aprovado:true};
+  const iData    = headers.indexOf('data');
+  const iInicio  = headers.indexOf('inicio');
+  const iFimNovo = headers.indexOf('fim');
+  const iLat     = headers.indexOf('lat');
+  const iLng     = headers.indexOf('lng');
+ 
+  const dataSlot   = String(slotRow[iData]).substring(0, 10);
+  const inicioSlot = String(slotRow[iInicio]).substring(0, 5);
+  const fimSlot    = String(slotRow[iFimNovo]).substring(0, 5);
+  const latNovo    = parseFloat(slotRow[iLat]);
+  const lngNovo    = parseFloat(slotRow[iLng]);
+ 
+  const wsSlots = ss.getSheetByName('SLOTS');
+  const data    = wsSlots.getDataRange().getValues();
+  const h2      = data[0].map(v => String(v).toLowerCase().trim());
+  const iUsr    = h2.indexOf('user_id');
+  const iStatus = h2.indexOf('status');
+  const iDt     = h2.indexOf('data');
+  const iIni    = h2.indexOf('inicio');
+  const iFim    = h2.indexOf('fim');
+  const iLat2   = h2.indexOf('lat');
+  const iLng2   = h2.indexOf('lng');
+  const iSlotId = h2.indexOf('slot_id');
+  const bufferMin = parseInt(getConfig_('buffer_pre_aprovado_min') || '30');
+ 
+  for (let r = 1; r < data.length; r++) {
+    const row = data[r];
+    if (String(row[iUsr]).trim() !== userId) continue;
+    if (!['ACEITO', 'EM_ATIVIDADE', 'PAUSADO'].includes(String(row[iStatus]).trim())) continue;
+    if (String(row[iDt]).substring(0, 10) !== dataSlot) continue;
+ 
+    const fimExist   = String(row[iFim]).substring(0, 5);
+    const iniExist   = String(row[iIni]).substring(0, 5);
+ 
+    if (slotsConflitam_(fimExist, inicioSlot, fimSlot, iniExist)) {
+      return { conflito: true, mensagem: 'Slots sobrepostos: horários se sobrepõem' };
+    }
+ 
+    const distM          = haversineMetros_(parseFloat(row[iLat2]), parseFloat(row[iLng2]), latNovo, lngNovo);
+    const tempoDeslocMin = Math.ceil(distM / 250);
+ 
+    if (tempoDeslocMin > bufferMin) {
+      return { conflito: false, tipo_transicao: 'REQUER_APROVACAO', slot_anterior_id: row[iSlotId], tempo_estimado_min: tempoDeslocMin, pre_aprovado: false };
+    }
+    const tipo = distM < 100 ? 'MESMO_LOCAL' : 'PRE_APROVADO_COM_DESLOCAMENTO';
+    return { conflito: false, tipo_transicao: tipo, slot_anterior_id: row[iSlotId], tempo_estimado_min: tempoDeslocMin, pre_aprovado: true };
   }
-  return{conflito:false,tipo_transicao:'MESMO_LOCAL',pre_aprovado:false};
+  return { conflito: false, tipo_transicao: 'MESMO_LOCAL', pre_aprovado: false };
 }
+
 
 function calcularGapMinutos_(horaFim, horaInicio) {
-  const [fH,fM]=horaFim.split(':').map(Number), [iH,iM]=horaInicio.split(':').map(Number);
-  return (iH*60+iM)-(fH*60+fM);
+  const partsF = String(horaFim).split(':').map(Number);
+  const partsI = String(horaInicio).split(':').map(Number);
+  const fMin = (partsF[0] || 0) * 60 + (partsF[1] || 0);
+  const iMin = (partsI[0] || 0) * 60 + (partsI[1] || 0);
+  let gap = iMin - fMin;
+  if (gap < -720) gap += 1440;
+  return gap;
 }
 
+
 function criarJornada_(ss,{jornada_id,user,slot,horarioServidor}) {
-  const ws=ss.getSheetByName('JORNADAS'); if(!ws) return;
-  const dataSlot=slot.data?String(slot.data).substring(0,10):'';
-  const inicioPrevisto=dataSlot&&slot.inicio?dataSlot+'T'+String(slot.inicio)+':00':String(slot.inicio||'');
-  const fimPrevisto=dataSlot&&slot.fim?dataSlot+'T'+String(slot.fim)+':00':String(slot.fim||'');
-  ws.appendRow([jornada_id,user.user_id,slot.slot_id,'',slot.cidade,slot.operacao,user.modo_jornada_padrao||'SLOT',user.tipo_vinculo,user.cargo_principal,user.cargo_principal,'ACEITO',inicioPrevisto,fimPrevisto,'','','','','','','','','','','','',horarioServidor,horarioServidor]);
+  const ws=ss.getSheetByName('JORNADAS'); 
+  if(!ws) { console.log('ERRO: aba JORNADAS não encontrada'); return; }
+  try {
+    const dataSlot=slot.data?String(slot.data).substring(0,10):'';
+    const inicioPrevisto=dataSlot&&slot.inicio?dataSlot+'T'+String(slot.inicio)+':00':String(slot.inicio||'');
+    const fimPrevisto=dataSlot&&slot.fim?dataSlot+'T'+String(slot.fim)+':00':String(slot.fim||'');
+    ws.appendRow([jornada_id,user.user_id,slot.slot_id,'',slot.cidade,slot.operacao,user.modo_jornada_padrao||'SLOT',user.tipo_vinculo,user.cargo_principal,user.cargo_principal,'ACEITO',inicioPrevisto,fimPrevisto,'','','','','','','','','','','',horarioServidor,horarioServidor]);
+    console.log('criarJornada_ OK:', jornada_id);
+  } catch(e) {
+    console.log('criarJornada_ ERRO:', e.message);
+  }
 }
 
 function getJornada_(ss,jornadaId) {
@@ -411,48 +527,94 @@ function atualizarSlotStatus_(ss,slotId,status,horarioServidor) {
   const iId=h.indexOf('slot_id'), iSt=h.indexOf('status'), iUpd=h.indexOf('atualizado_em');
   for (let r=1;r<data.length;r++) {
     if (String(data[r][iId]).trim()!==slotId) continue;
-    ws.getRange(r+1,iSt+1).setValue(status); ws.getRange(r+1,iUpd+1).setValue(horarioServidor); return;
+    ws.getRange(r+1,iSt+1).setValue(status);
+    ws.getRange(r+1,iUpd+1).setValue(horarioServidor);
+    if (typeof invalidarCache_ === 'function') invalidarCache_();
+    return;
   }
 }
 
-function getSlotsDisponiveis_(params,user) {
-  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const ws=ss.getSheetByName('SLOTS'), data=ws.getDataRange().getValues();
-  const h=data[0].map(v=>String(v).toLowerCase().trim()), iSt=h.indexOf('status');
-  const slots=[];
-  for (let r=1;r<data.length;r++) { if(data[r][iSt]==='DISPONIVEL') slots.push(rowToObj_(h,data[r])); }
-  return{ok:true,slots};
+function getSlotsDisponiveis_(params, user) {
+  const ss    = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws    = ss.getSheetByName('SLOTS');
+  const data  = ws.getDataRange().getValues();
+  const h     = data[0].map(v => String(v).toLowerCase().trim());
+  const iSt   = h.indexOf('status');
+  const iCid  = h.indexOf('cidade');
+  const iDt   = h.indexOf('data');
+  const iFim  = h.indexOf('fim');
+
+  const cidadeUser = (user && user.cidade_base) ? String(user.cidade_base).trim() : '';
+
+  const agora     = new Date();
+  const hojeStr   = agora.toISOString().split('T')[0];
+  const amanha    = new Date(agora); amanha.setDate(amanha.getDate() + 1);
+  const amanhaStr = amanha.toISOString().split('T')[0];
+  const agoraMin  = agora.getHours() * 60 + agora.getMinutes();
+
+  const slots = [];
+  for (let r = 1; r < data.length; r++) {
+    if (data[r][iSt] !== 'DISPONIVEL') continue;
+
+    if (cidadeUser) {
+      const cidadeSlot = String(data[r][iCid] || '').trim();
+      if (cidadeSlot && cidadeSlot !== cidadeUser) continue;
+    }
+
+    const dataSlot = String(data[r][iDt] || '').substring(0, 10);
+    if (dataSlot && dataSlot !== hojeStr && dataSlot !== amanhaStr) continue;
+
+    if (dataSlot === hojeStr && iFim > -1) {
+      const fimStr = String(data[r][iFim] || '').substring(0, 5);
+      if (fimStr) {
+        const parts  = fimStr.split(':');
+        const fimMin = parseInt(parts[0] || 0) * 60 + parseInt(parts[1] || 0);
+        if (fimMin < agoraMin) continue;
+      }
+    }
+
+    slots.push(rowToObj_(h, data[r]));
+  }
+
+  slots.sort((a, b) => {
+    const dA = String(a.data || '').substring(0, 10);
+    const dB = String(b.data || '').substring(0, 10);
+    if (dA !== dB) return dA < dB ? -1 : 1;
+    return String(a.inicio || '') < String(b.inicio || '') ? -1 : 1;
+  });
+
+  return { ok: true, slots };
 }
 
+
 function getSlotAtual_(user, slotIdSolicitado) {
-  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const ws=ss.getSheetByName('JORNADAS');
+  const ss   = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws   = ss.getSheetByName('JORNADAS');
   if (!ws) return { ok:true, jornada:null, slot:null, jornadas:[] };
-  const data=ws.getDataRange().getValues();
-  const h=data[0].map(v=>String(v).toLowerCase().trim()), iUsr=h.indexOf('user_id'), iStt=h.indexOf('status'), iSlt=h.indexOf('slot_id');
-  
+  const data = ws.getDataRange().getValues();
+  const h    = data[0].map(v => String(v).toLowerCase().trim());
+  const iUsr = h.indexOf('user_id'), iStt = h.indexOf('status');
+ 
   const results = [];
-  const statusValidos = ['ACEITO','EM_ATIVIDADE','PAUSADO','AGUARDANDO_RASTREIO','EM_TURNO','SEM_SINAL','MAPEAMENTO_INTERROMPIDO'];
+  const statusValidos = ['ACEITO', 'EM_ATIVIDADE', 'PAUSADO', 'AGUARDANDO_RASTREIO', 'EM_TURNO', 'SEM_SINAL', 'MAPEAMENTO_INTERROMPIDO'];
   
-  for (let r=1;r<data.length;r++) {
-    if (String(data[r][iUsr]).trim()!==user.user_id) continue;
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][iUsr]).trim() !== user.user_id) continue;
     const status = String(data[r][iStt]).trim().toUpperCase();
     if (statusValidos.includes(status)) {
-      const jornada=rowToObj_(h,data[r]); 
-      const slot=getSlot_(ss,jornada.slot_id);
-      results.push({jornada, slot});
+      const jornada = rowToObj_(h, data[r]);
+      const slot    = getSlot_(ss, jornada.slot_id);
+      results.push({ jornada, slot });
     }
   }
 
   if (results.length > 0) {
-    // Se solicitou um slot_id específico, procura na lista
     let selecionado = results[0];
     if (slotIdSolicitado) {
       const found = results.find(r => r.slot?.slot_id === slotIdSolicitado);
       if (found) selecionado = found;
     }
 
-    // Ordenação (apenas para a lista completa): EM_ATIVIDADE primeiro...
     results.sort((a,b) => {
       const order = { 'EM_ATIVIDADE': 1, 'PAUSADO': 2, 'EM_TURNO': 3, 'ACEITO': 4 };
       const valA = order[a.jornada.status.toUpperCase()] || 99;
@@ -461,16 +623,12 @@ function getSlotAtual_(user, slotIdSolicitado) {
       return new Date(a.jornada.inicio_previsto) - new Date(b.jornada.inicio_previsto);
     });
 
-    return { 
-      ok: true, 
-      jornada: selecionado.jornada, 
-      slot: selecionado.slot,
-      jornadas: results 
-    };
+    return { ok: true, jornada: selecionado.jornada, slot: selecionado.slot, jornadas: results };
   }
 
-  return{ok:true,jornada:null,slot:null,jornadas:[]};
+  return { ok: true, jornada: null, slot: null, jornadas: [] };
 }
+
 
 function internalListarSlotsDisponiveis_(params) {
   const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
@@ -535,4 +693,87 @@ function consolidarPromocode_(ss,slotId,userId) {
     ws.getRange(r+1,iStt+1).setValue('CONSOLIDADO');
     ws.getRange(r+1,iCon+1).setValue(agora);
   }
+}
+
+function triggerFimTurno() {
+  const ss    = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws    = ss.getSheetByName('SLOTS');
+  if (!ws) return;
+  const data  = ws.getDataRange().getValues();
+  const h     = data[0].map(v => String(v).toLowerCase().trim());
+  const iId   = h.indexOf('slot_id'), iUsr = h.indexOf('user_id'), iStt = h.indexOf('status'), iData = h.indexOf('data'), iFim = h.indexOf('fim'), iNome = h.indexOf('local_nome');
+  const agora = new Date();
+
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][iStt]).trim() !== 'EM_ATIVIDADE') continue;
+    const userId = String(data[r][iUsr]).trim(); if (!userId) continue;
+    const dataSlot = String(data[r][iData]).substring(0,10), fimStr = String(data[r][iFim]).substring(0,5);
+    if (!dataSlot || !fimStr) continue;
+    const fimDt  = new Date(dataSlot + 'T' + fimStr + ':00');
+    const diffMin = (agora - fimDt) / 60000;
+    if (diffMin < -2 || diffMin > 3) continue;
+
+    const slotId = String(data[r][iId]).trim(), localNome = String(data[r][iNome]).trim(), tgId = getTelegramUserId_(ss, userId);
+    if (!tgId) continue;
+
+    UrlFetchApp.fetch(getConfig_('cloud_run_url') + '/internal/send-fim-turno', {
+      method: 'post', contentType: 'application/json',
+      payload: JSON.stringify({ integration_secret: getConfig_('integration_secret'), telegram_user_id: tgId, slot_id: slotId, user_id: userId, local_nome: localNome, fim: fimStr }),
+      muteHttpExceptions: true
+    });
+  }
+}
+
+function triggerAutoEncerramento() {
+  const ss    = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws    = ss.getSheetByName('SLOTS');
+  if (!ws) return;
+  const data  = ws.getDataRange().getValues();
+  const h     = data[0].map(v => String(v).toLowerCase().trim());
+  const iId   = h.indexOf('slot_id'), iUsr = h.indexOf('user_id'), iStt = h.indexOf('status'), iData = h.indexOf('data'), iFim = h.indexOf('fim');
+  const agora = new Date();
+
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][iStt]).trim() !== 'EM_ATIVIDADE') continue;
+    const userId = String(data[r][iUsr]).trim(), dataSlot = String(data[r][iData]).substring(0,10), fimStr = String(data[r][iFim]).substring(0,5);
+    if (!dataSlot || !fimStr) continue;
+    const fimDt  = new Date(dataSlot + 'T' + fimStr + ':00');
+    const diffMin = (agora - fimDt) / 60000;
+    if (diffMin < 29 || diffMin > 35) continue;
+
+    const slotId  = String(data[r][iId]).trim(), jornada = getJornadaPorSlot_(ss, slotId, userId);
+    if (!jornada) continue;
+
+    const horario = agora.toISOString();
+    atualizarJornada_(ss, jornada.jornada_id, { status: 'ENCERRADO', fim_real: horario, atualizado_em: horario, observacao: 'Auto-encerrado por ausência de checkout' });
+    atualizarSlotStatus_(ss, slotId, 'ENCERRADO', horario);
+
+    const tgId = getTelegramUserId_(ss, userId);
+    if (tgId) {
+      UrlFetchApp.fetch(getConfig_('cloud_run_url') + '/internal/send-checkin-reminder', {
+        method: 'post', contentType: 'application/json',
+        payload: JSON.stringify({ integration_secret: getConfig_('integration_secret'), telegram_user_id: tgId, slot_id: slotId, local_nome: '', inicio: fimStr, tipo: 'AUTO_ENCERRADO' }),
+        muteHttpExceptions: true
+      });
+    }
+  }
+}
+
+function slotsConflitam_(fimExistente, inicioNovo, fimNovo, inicioExistente) {
+  const gap1 = calcularGapMinutos_(fimExistente, inicioNovo);
+  const gap2 = calcularGapMinutos_(fimNovo, inicioExistente);
+  return gap1 < -1 && gap2 < -1;
+}
+
+function processarFSMInterno_(body, evento) {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const userId = body.user_id; if (!userId) return { ok: false, erro: 'user_id obrigatório' };
+  const ws   = ss.getSheetByName('PROMOTORES'), data = ws.getDataRange().getValues();
+  const h    = data[0].map(v => String(v).toLowerCase().trim()), iId = h.indexOf('user_id');
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][iId]).trim() !== userId) continue;
+    const user = rowToUser_(h, data[r]);
+    return processarFSM_(user, body, evento);
+  }
+  return { ok: false, erro: 'usuário não encontrado' };
 }
