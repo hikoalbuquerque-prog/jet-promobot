@@ -486,7 +486,7 @@ function montarIntegracoes_(evento, resultado, user, body, jornadaAnterior) {
     integracoes.push({
       canal: 'telegram', tipo: 'group_message',
       cidade,
-      topic_key: 'COBERTURAS_URGENCIAS',
+      topic_key: 'SLOTS_OCUPADOS',
       parse_mode: 'HTML',
       text_html: `🤝 <b>Slot Aceito</b>\n\n👤 <b>${user.nome_completo || user.user_id}</b>\n🔧 ${user.cargo_principal || ''} · ${operacao}\n📍 ${slotNome}\n⏰ ${hora}`,
     });

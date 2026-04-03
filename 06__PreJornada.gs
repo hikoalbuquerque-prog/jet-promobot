@@ -172,7 +172,7 @@ function triggerSlotsDiarios() {
 
   for (const [cidade, slots] of Object.entries(slotsPorCidade)) {
     const texto = `📅 <b>Slots para amanhã</b>\n\n${slots.join('\n')}\n\n<a href="${getConfig_('cloud_run_url')}">👉 Abrir app para aceitar</a>`;
-    processIntegracoes([{ canal:'telegram', tipo:'group_message', cidade, topic_key:'COBERTURAS_URGENCIAS', text_html:texto }], { evento:'BROADCAST_DIARIO' });
+    processIntegracoes([{ canal:'telegram', tipo:'group_message', cidade, topic_key:'SLOTS_DISPONIVEIS', text_html:texto }], { evento:'BROADCAST_DIARIO' });
   }
 }
 
