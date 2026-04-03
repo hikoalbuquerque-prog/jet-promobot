@@ -238,3 +238,43 @@ function registrarPushToken_(body) {
   ws.appendRow([user_id, subscription_json, agora]);
   return { ok: true };
 }
+
+/**
+ * Envia uma notificação push nativa para um usuário específico.
+ */
+function enviarPush_(userId, titulo, mensagem, url = '/') {
+  try {
+    const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+    const ws = ss.getSheetByName('PUSH_SUBSCRIPTIONS');
+    if (!ws) return;
+
+    const data = ws.getDataRange().getValues();
+    let subJson = null;
+    for (let r = 1; r < data.length; r++) {
+      if (String(data[r][0]).trim() === userId) {
+        subJson = data[r][1];
+        break;
+      }
+    }
+
+    if (!subJson) return;
+
+    const cloudUrl = getConfig_('cloud_run_url') + '/internal/send-push';
+    const payload = {
+      integration_secret: getConfig_('integration_secret'),
+      subscription_json: subJson,
+      title: titulo,
+      body: mensagem,
+      url: url
+    };
+
+    UrlFetchApp.fetch(cloudUrl, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+  } catch (e) {
+    console.log('Erro ao enviar Push:', e.message);
+  }
+}

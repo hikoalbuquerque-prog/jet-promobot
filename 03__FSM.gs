@@ -51,6 +51,15 @@ function triggerAlertaNoShow() {
       }];
 
       processIntegracoes(integracoes, { evento: 'ALERTA_NOSHOW' });
+
+      // Notificação Push Direta para o Promotor
+      enviarPush_(
+        userId, 
+        '⏰ Alerta de Atraso!', 
+        `Você ainda não iniciou seu slot em ${local}. Faça o check-in agora!`,
+        'https://hikoalbuquerque-prog.github.io/jet-promobot'
+      );
+
       ws.getRange(r + 1, iAlerta + 1).setValue('ENVIADO_' + agora.toISOString());
     }
   }
