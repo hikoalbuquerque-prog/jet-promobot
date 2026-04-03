@@ -310,6 +310,23 @@ app.post('/indicacao/submit', async (req, res) => {
   }
 });
 
+// ── Broadcast para promotores ───────────────────────────────────────────────
+app.post('/gestor/broadcast', async (req, res) => {
+  try {
+    const { mensagem, token } = req.body || {};
+    if (!mensagem) return res.json({ ok: false, erro: 'Mensagem obrigatoria' });
+    const result = await callAppsScriptPost({
+      evento: 'BROADCAST_PROMOTORES',
+      integration_secret: CFG.appsScriptSharedSecret,
+      mensagem
+    });
+    res.json(result);
+  } catch(e) {
+    console.error('[broadcast]', e.message);
+    res.status(500).json({ ok: false, erro: e.message });
+  }
+});
+
 // ── Fim de turno: pergunta se encerrou ou ficará mais ────────────────────────
 app.post('/internal/send-fim-turno', async (req, res) => {
   try {
@@ -543,6 +560,27 @@ async function handleCallbackQuery(callbackQuery) {
   }
 
   // ── Jornada via bot (pausa/retorno/checkout) ────────────────────────────────
+  if (data.startsWith('PILULA_')) {
+    const match = data.match(/PILULA_([0-9]{4}-[0-9]{2}-[0-9]{2})_([0-9]+)_([a-d])_(.+)/);
+    if (match) {
+      const dataPilula = match[1];
+      const questaoIdx = parseInt(match[2]);
+      const resposta   = match[3];
+      const usuarioId  = match[4];
+      try {
+        await callAppsScriptPost({
+          evento: 'PILULA_RESPOSTA',
+          integration_secret: CFG.appsScriptSharedSecret,
+          usuario_id: usuarioId,
+          data_pilula: dataPilula,
+          questao_idx: questaoIdx,
+          resposta
+        });
+        await telegramApi('answerCallbackQuery', { callback_query_id: callbackQuery.id });
+      } catch(e) { console.error('[pilula]', e.message); }
+    }
+    return res.sendStatus(200);
+  }
   if (data.startsWith('JORNADA_PAUSAR:') || data.startsWith('JORNADA_RETOMAR:') || data.startsWith('JORNADA_CHECKOUT:')) {
     const parts   = data.split(':');
     const tipo    = parts[0];
@@ -636,6 +674,27 @@ async function handleCallbackQuery(callbackQuery) {
   }
 
   // ── Jornada via bot (pausa/retorno/checkout) ────────────────────────────────
+  if (data.startsWith('PILULA_')) {
+    const match = data.match(/PILULA_([0-9]{4}-[0-9]{2}-[0-9]{2})_([0-9]+)_([a-d])_(.+)/);
+    if (match) {
+      const dataPilula = match[1];
+      const questaoIdx = parseInt(match[2]);
+      const resposta   = match[3];
+      const usuarioId  = match[4];
+      try {
+        await callAppsScriptPost({
+          evento: 'PILULA_RESPOSTA',
+          integration_secret: CFG.appsScriptSharedSecret,
+          usuario_id: usuarioId,
+          data_pilula: dataPilula,
+          questao_idx: questaoIdx,
+          resposta
+        });
+        await telegramApi('answerCallbackQuery', { callback_query_id: callbackQuery.id });
+      } catch(e) { console.error('[pilula]', e.message); }
+    }
+    return res.sendStatus(200);
+  }
   if (data.startsWith('JORNADA_PAUSAR:') || data.startsWith('JORNADA_RETOMAR:') || data.startsWith('JORNADA_CHECKOUT:')) {
     const parts   = data.split(':');
     const tipo    = parts[0];
@@ -729,6 +788,27 @@ async function handleCallbackQuery(callbackQuery) {
   }
 
   // ── Jornada via bot (pausa/retorno/checkout) ────────────────────────────────
+  if (data.startsWith('PILULA_')) {
+    const match = data.match(/PILULA_([0-9]{4}-[0-9]{2}-[0-9]{2})_([0-9]+)_([a-d])_(.+)/);
+    if (match) {
+      const dataPilula = match[1];
+      const questaoIdx = parseInt(match[2]);
+      const resposta   = match[3];
+      const usuarioId  = match[4];
+      try {
+        await callAppsScriptPost({
+          evento: 'PILULA_RESPOSTA',
+          integration_secret: CFG.appsScriptSharedSecret,
+          usuario_id: usuarioId,
+          data_pilula: dataPilula,
+          questao_idx: questaoIdx,
+          resposta
+        });
+        await telegramApi('answerCallbackQuery', { callback_query_id: callbackQuery.id });
+      } catch(e) { console.error('[pilula]', e.message); }
+    }
+    return res.sendStatus(200);
+  }
   if (data.startsWith('JORNADA_PAUSAR:') || data.startsWith('JORNADA_RETOMAR:') || data.startsWith('JORNADA_CHECKOUT:')) {
     const parts   = data.split(':');
     const tipo    = parts[0];
