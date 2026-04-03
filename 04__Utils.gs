@@ -328,3 +328,15 @@ function sincronizarGruposCache_() {
   });
   console.log('Grupos sincronizados com Cloud Run.');
 }
+
+/**
+ * Normaliza uma string removendo acentos e convertendo para minúsculas.
+ */
+function normStr_(str) {
+  if (!str) return '';
+  return String(str)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}

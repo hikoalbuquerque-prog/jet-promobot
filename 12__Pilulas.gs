@@ -65,15 +65,42 @@ function processarPilulaResposta_(body) {
 }
 
 function broadcastPromotor_(body) {
-  const mensagem = body.mensagem || ''; if (!mensagem) return { ok: false, erro: 'Mensagem obrigatória' };
-  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), wsPro = ss.getSheetByName('PROMOTORES'), dataPro = wsPro.getDataRange().getValues(), hP = dataPro[0].map(v => String(v).toLowerCase().trim());
+  const { mensagem, cidade, cargo } = body;
+  if (!mensagem) return { ok: false, erro: 'Mensagem obrigatória' };
+
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const wsPro = ss.getSheetByName('PROMOTORES');
+  const dataPro = wsPro.getDataRange().getValues();
+  const hP = dataPro[0].map(v => String(v).toLowerCase().trim());
+  
+  const iTg = hP.indexOf('telegram_user_id'), iSt = hP.indexOf('status');
+  const iCid = hP.indexOf('cidade_base'), iCar = hP.indexOf('cargo_principal');
+
   let enviados = 0;
   for (let r = 1; r < dataPro.length; r++) {
-    const tgId = String(dataPro[r][hP.indexOf('telegram_user_id')] || '').trim();
-    if (tgId && String(dataPro[r][hP.indexOf('status')]).trim() !== 'INATIVO') {
-      processIntegracoes([{ canal:'telegram', tipo:'private_message', telegram_user_id:tgId, parse_mode:'HTML', text_html:mensagem }], { evento:'BROADCAST' });
-      enviados++; Utilities.sleep(100);
-    }
+    const tgId = String(dataPro[r][iTg] || '').trim();
+    if (!tgId) continue;
+
+    // Filtros de Status
+    const status = String(dataPro[r][iSt]).trim().toUpperCase();
+    if (status === 'INATIVO' || status === 'BLOQUEADO') continue;
+
+    // Filtro de Cidade (Opcional)
+    if (cidade && normStr_(dataPro[r][iCid]) !== normStr_(cidade)) continue;
+
+    // Filtro de Cargo (Opcional)
+    if (cargo && String(dataPro[r][iCar]).trim().toUpperCase() !== String(cargo).trim().toUpperCase()) continue;
+
+    processIntegracoes([{
+      canal: 'telegram',
+      tipo: 'private_message',
+      telegram_user_id: tgId,
+      parse_mode: 'HTML',
+      text_html: mensagem
+    }], { evento: 'BROADCAST' });
+
+    enviados++;
+    Utilities.sleep(100); 
   }
   return { ok: true, enviados };
 }
