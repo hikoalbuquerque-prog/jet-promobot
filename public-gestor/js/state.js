@@ -39,6 +39,10 @@ const state = (() => {
       return !!_data.gestor?.token;
     },
 
+    getToken() {
+      return _data.gestor?.token;
+    },
+
     clear() {
       _data = { gestor: null, promotores: [], slots: [], solicitacoes: [], kpis: {} };
       sessionStorage.removeItem(STATE_KEY);

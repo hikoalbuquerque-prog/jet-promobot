@@ -3,6 +3,7 @@
 
 const router = (() => {
   let _current = null;
+  const _history = [];
 
   // Telas registradas
   const _screens = {
@@ -17,11 +18,12 @@ const router = (() => {
     historicoMEI: { module: historicoMEIScreen,  method: 'render',     hasNav: true,  navId: 'nav-hist-mei' },
     cadastros:    { module: cadastrosScreen,     method: 'render',     hasNav: true,  navId: 'nav-cadastros' },
     'fiscal-turno': { module: fiscalTurnoScreen, method: 'render',     hasNav: true,  navId: 'nav-fiscal-turno' },
+    broadcast:    { module: broadcast,           method: 'render',     hasNav: true,  navId: 'nav-broadcast' },
   };
 
   const _FISCAL_ALLOWED = ['mapa', 'slots', 'fiscal-turno'];
 
-  function navigate(screen) {
+  function navigate(screen, pushHistory = true) {
     const _cargoNav2 = state.get('gestor')?.cargo?.toUpperCase();
     if (_cargoNav2 === 'FISCAL' && screen !== 'login' && !_FISCAL_ALLOWED.includes(screen)) {
       screen = 'mapa';
@@ -29,6 +31,7 @@ const router = (() => {
     if (_current) {
       const prev = _screens[_current];
       if (prev?.module?.destroy) prev.module.destroy();
+      if (pushHistory) _history.push(_current);
     }
 
     _current = screen;
@@ -69,6 +72,11 @@ const router = (() => {
     route.module[route.method]();
   }
 
+  function back() {
+    const prev = _history.pop();
+    navigate(prev || 'dashboard', false);
+  }
+
   // ── Shell do painel (navbar + #app) ─────────────────────────────────────────
   function _ensureShell() {
     if (document.getElementById('app-shell')) return;
@@ -100,8 +108,7 @@ const router = (() => {
           <div style="display:flex;align-items:center;gap:12px;">
             <div style="
               font-size:12px;color:#a0aec0;
-              font-family:'IBM Plex Mono',
-    broadcast: () => broadcast.render(),monospace;
+              font-family:'IBM Plex Mono',monospace;
             ">${gestor?.nome || ''}</div>
             <div style="
               width:32px;height:32px;border-radius:50%;
@@ -155,6 +162,9 @@ const router = (() => {
             </button>
             <button class="nav-item" id="nav-cadastros" data-route="cadastros">
               🆔 Cadastros
+            </button>
+            <button class="nav-item" id="nav-broadcast" data-route="broadcast">
+              📢 Broadcast
             </button>
             <button class="nav-item" id="nav-fiscal-turno" data-route="fiscal-turno">
               ⏱️ Meu Turno
@@ -538,7 +548,7 @@ const router = (() => {
       .catch(function() {});
   }
 
-  return { navigate };
+  return { navigate, back };
 })();
 
 function _mostrarBannerAtualizacaoGestor(reg) {

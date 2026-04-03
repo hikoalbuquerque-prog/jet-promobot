@@ -49,7 +49,7 @@ const broadcast = {
     btn.textContent = 'Enviando...';
 
     try {
-      const res = await fetch('https://promo-telegram-gateway-v3-476120210909.southamerica-east1.run.app/gestor/broadcast', {
+      const res = await fetch(CONFIG.CLOUD_RUN_URL + '/gestor/broadcast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mensagem: msg, token: state.getToken() })
@@ -72,6 +72,6 @@ const broadcast = {
       alert('Erro de conexao: ' + e.message);
     }
     btn.disabled = false;
-    btn.textContent = '&#128226; Enviar para todos os promotores';
+    btn.innerHTML = '&#128226; Enviar para todos os promotores';
   }
 };
