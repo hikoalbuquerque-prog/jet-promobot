@@ -39,7 +39,11 @@ const slotScreen = {
             const extra = document.createElement('div');
             extra.innerHTML = '<div style="font-size:11px;color:#a0aec0;font-weight:700;letter-spacing:1px;margin:16px 0 8px">OUTROS SLOTS DISPONÍVEIS</div>'
               + disp2.slots.map(slot => `
-                <div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:14px;padding:16px;margin-bottom:10px">
+                <div style="background:#1e2a45;border:1px solid ${slot.is_sugerido ? '#f1c40f' : '#2a3a55'};border-radius:14px;padding:16px;margin-bottom:10px;position:relative">
+                  ${slot.is_sugerido ? `
+                    <div style="position:absolute;top:-10px;right:10px;background:#f1c40f;color:#000;font-size:10px;font-weight:800;padding:4px 8px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.3)">
+                      ⭐ SUGESTÃO PARA VOCÊ
+                    </div>` : ''}
                   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
                     <div>
                       <div style="font-size:16px;font-weight:700">📍 ${slot.local_nome||slot.local||'—'}</div>
@@ -51,6 +55,10 @@ const slotScreen = {
                     <div><div style="font-size:10px;color:#6c7a8d;margin-bottom:2px">INÍCIO</div><div style="font-size:13px;font-weight:600">${_fmtHora(slot.inicio)||'—'}</div></div>
                     <div><div style="font-size:10px;color:#6c7a8d;margin-bottom:2px">FIM</div><div style="font-size:13px;font-weight:600">${_fmtHora(slot.fim)||'—'}</div></div>
                   </div>
+                  ${slot.is_sugerido && slot.preferencia_expira ? `
+                    <div style="font-size:11px;color:#f1c40f;margin-bottom:12px;text-align:center;background:rgba(241,196,15,0.1);padding:6px;border-radius:6px">
+                      Sua preferência expira em: <b>${new Date(slot.preferencia_expira).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</b>
+                    </div>` : ''}
                   <button onclick="slotScreen._aceitar('${slot.slot_id}', event)" data-slot-id="${slot.slot_id}" data-slot-inicio="${slot.inicio||''}" data-slot-data="${slot.data||''}"
                     style="width:100%;background:#2ecc71;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;padding:13px;cursor:pointer">
                     ✅ Aceitar Slot
