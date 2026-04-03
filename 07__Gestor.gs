@@ -54,17 +54,12 @@ function getPromotoresAtivos_(token) {
     const locData=locWs.getDataRange().getValues(), lh=locData[0].map(v=>String(v).toLowerCase().trim());
     const iUsr=lh.indexOf('user_id'), iLat=lh.indexOf('lat'), iLng=lh.indexOf('lng');
     const iTs=lh.indexOf('horario_servidor'), iScore=lh.indexOf('location_trust_score');
-    const agora = new Date().getTime();
-    const trintaMin = 30 * 60 * 1000;
-
+    
     // Percorre todas as linhas e mantém apenas a posição MAIS RECENTE por user_id
     for (let r = 1; r < locData.length; r++) {
       const uid = String(locData[r][iUsr]).trim(); if (!uid) continue;
       const ts = locData[r][iTs] ? new Date(locData[r][iTs]).getTime() : 0;
       
-      // Se a posição for mais antiga que 30 minutos, ignora (evita promotores "congelados" no mapa)
-      if (agora - ts > trintaMin) continue;
-
       const existing = posMap[uid];
       const existingTs = existing && existing._ts || 0;
       if (!existing || ts > existingTs) {
