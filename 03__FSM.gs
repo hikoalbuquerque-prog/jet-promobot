@@ -734,9 +734,10 @@ function getSlotsDisponiveis_(params, user) {
       }
     }
 
+    // Filtra por cidade do promotor (Insensível a acento e caso)
     if (cidadeUser) {
       const cidadeSlot = String(data[r][iCid] || '').trim();
-      if (cidadeSlot && cidadeSlot !== cidadeUser) continue;
+      if (cidadeSlot && normStr_(cidadeSlot) !== normStr_(cidadeUser)) continue;
     }
 
     const dataSlot = String(data[r][iDt] || '').substring(0, 10);
@@ -1052,4 +1053,16 @@ function verificarBloqueiosPromotores_(ss, userId) {
   }
 
   return { bloqueado: false, motivo: '' };
+}
+
+/**
+ * Normaliza uma string removendo acentos e convertendo para minúsculas.
+ */
+function normStr_(str) {
+  if (!str) return '';
+  return String(str)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
 }
