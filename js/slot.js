@@ -72,6 +72,18 @@ const slotScreen = {
 
       // Sem jornada ativa — mostrar slots disponíveis
       const disp = await api.get('GET_SLOTS_DISPONIVEIS');
+
+      if (!disp.ok && disp.bloqueado) {
+        document.getElementById('slot-content').innerHTML = `
+          <div style="background:rgba(231,76,60,0.1);border:1px solid #e74c3c44;border-radius:16px;padding:24px;margin:20px;text-align:center">
+            <div style="font-size:40px;margin-bottom:12px">⚠️</div>
+            <div style="font-size:16px;font-weight:800;color:#ff7675;margin-bottom:8px;letter-spacing:1px">ACESSO RESTRITO</div>
+            <div style="font-size:14px;color:#a0aec0;line-height:1.5">${disp.erro}</div>
+            <button onclick="router.go('home')" style="margin-top:20px;background:transparent;border:1px solid #a0aec044;color:#a0aec0;padding:8px 16px;border-radius:8px;font-size:13px">Voltar ao início</button>
+          </div>`;
+        return;
+      }
+
       // Atualiza badge
       try {
         const _badge = document.getElementById('badge-slots');
