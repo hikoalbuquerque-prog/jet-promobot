@@ -291,3 +291,82 @@ function triggerCheckoutLembrete() {
     }
   }
 }
+
+/**
+ * Auditoria de Confirmação (T-45): Alerta supervisor se o promotor não respondeu ao aviso de T-90.
+ */
+function triggerAuditoriaConfirmacao() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const wsConf = ss.getSheetByName('PRE_JORNADA_CONFIRMACOES');
+  if (!wsConf) return;
+  
+  const dataConf = wsConf.getDataRange().getValues(), hConf = dataConf[0].map(v => String(v).toLowerCase().trim());
+  const iId = hConf.indexOf('confirmacao_id'), iStt = hConf.indexOf('status'), iSlt = hConf.indexOf('slot_id'), iUsr = hConf.indexOf('user_id'), iCid = hConf.indexOf('cidade');
+  const agora = new Date();
+
+  for (let r = 1; r < dataConf.length; r++) {
+    if (String(dataConf[r][iStt]).trim() !== 'PENDENTE') continue;
+    
+    const slotId = String(dataConf[r][iSlt]);
+    const slot = getSlot_(ss, slotId);
+    if (!slot || slot.status !== 'ACEITO') continue;
+
+    const dataSlot = String(slot.data).substring(0, 10), inicioStr = String(slot.inicio).substring(0, 5);
+    const slotDt = new Date(dataSlot + 'T' + inicioStr + ':00');
+    const diffMin = (slotDt - agora) / 60000;
+
+    // Se falta menos de 45 minutos e ainda está pendente
+    if (diffMin <= 45 && diffMin > 0) {
+      const tgAlertaKey = 'AUDIT_CONF_' + slotId;
+      const jaAlertado = PropertiesService.getScriptProperties().getProperty(tgAlertaKey);
+      if (jaAlertado) continue;
+
+      const promId = String(dataConf[r][iUsr]);
+      const promMap = _getPromotoresMap_(ss);
+      const prom = promMap[promId] || { nome: promId };
+      
+      processIntegracoes([{
+        canal: 'telegram', tipo: 'group_message',
+        cidade: String(dataConf[r][iCid]),
+        topic_key: 'ALERTAS',
+        parse_mode: 'HTML',
+        text_html: '⚠️ <b>CONFIRMAÇÃO PENDENTE (T-45)</b>\n\nO promotor ainda não respondeu ao chamado de 90min.\n\n👤 <b>' + (prom.nome) + '</b>\n📍 ' + (slot.local_nome || slot.local) + '\n⏰ Início em: ' + inicioStr + '\n\n<i>Risco de no-show detectado.</i>'
+      }], { evento: 'AUDITORIA_PRE_JORNADA' });
+
+      PropertiesService.getScriptProperties().setProperty(tgAlertaKey, 'true');
+    }
+  }
+}
+
+/**
+ * Lembrete de Pausa Longa: Avisa promotor se ele estiver em pausa há mais de 60 minutos.
+ */
+function triggerLembretePausa() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const wsJ = ss.getSheetByName('JORNADAS');
+  if (!wsJ) return;
+  
+  const dataJ = wsJ.getDataRange().getValues(), hJ = dataJ[0].map(v => String(v).toLowerCase().trim());
+  const iStt = hJ.indexOf('status'), iUpd = hJ.indexOf('atualizado_em'), iUsr = hJ.indexOf('user_id');
+  const agora = new Date();
+
+  for (let r = 1; r < dataJ.length; r++) {
+    if (String(dataJ[r][iStt]).trim() !== 'PAUSADO') continue;
+    
+    const ultimaAtu = new Date(dataJ[r][iUpd]);
+    if (isNaN(ultimaAtu.getTime())) continue;
+    const diffMin = (agora - ultimaAtu) / 60000;
+
+    // Se está pausado há mais de 60 minutos (janela de 60 a 75 min para evitar flood)
+    if (diffMin >= 60 && diffMin < 75) {
+      const userId = String(dataJ[r][iUsr]);
+      const tgId = getTelegramUserId_(ss, userId);
+      if (tgId) {
+        processIntegracoes([{
+          canal: 'telegram', tipo: 'private_message', telegram_user_id: tgId, parse_mode: 'HTML',
+          text_html: '☕ <b>Lembrete de Pausa</b>\n\nVocê está em pausa há mais de 60 minutos. Não esqueça de retornar ao trabalho e registrar o fim da pausa no app para evitar divergências na sua jornada.'
+        }], { evento: 'PAUSA_LONGA_REMINDER' });
+      }
+    }
+  }
+}

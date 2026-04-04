@@ -12,6 +12,18 @@ function botPrecadastro_(body) {
   }
   var id = 'CAD_' + new Date().getTime();
   ws.appendRow([id, body.telegram_user_id || '', body.telegram_nome || '', body.nome_completo || '', body.cargo || '', body.cidade || '', body.cpf || '', body.data_nascimento || '', 'PENDENTE', new Date().toISOString()]);
+  
+  // Notificar Gestão sobre Novo Cadastro
+  try {
+    processIntegracoes([{
+      canal: 'telegram', tipo: 'group_message',
+      cidade: body.cidade || '',
+      topic_key: 'ALERTAS',
+      parse_mode: 'HTML',
+      text_html: `👤 <b>Novo Cadastro Pendente</b>\n\n<b>Nome:</b> ${body.nome_completo}\n<b>Cidade:</b> ${body.cidade}\n<b>Cargo:</b> ${body.cargo}\n\n<i>Acesse o painel para aprovar ou rejeitar.</i>`
+    }], { evento: 'NOVO_CADASTRO' });
+  } catch(_) {}
+
   return { ok: true, id: id };
 }
 
