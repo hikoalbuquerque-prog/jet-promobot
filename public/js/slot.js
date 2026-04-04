@@ -101,13 +101,30 @@ const slotScreen = {
   },
 
   async _solicitarReforco() {
-    const local = prompt('Digite o nome do local onde você está (ex: PDV Centro):');
-    if (!local) return;
-    ui.toast('Registrando...', 'info');
-    try {
-      const res = await api.post({ evento: 'CRIAR_SLOT_REFORCO', local_referencia: local });
-      if (res.ok) { ui.toast('✅ Reforço ok!', 'success'); router.go('operacao'); }
-      else alert(res.erro);
-    } catch(e) { alert('Erro de conexão.'); }
+    if (!confirm('Deseja iniciar um reforço em sua localização atual?')) return;
+    
+    ui.toast('Obtendo localização...', 'info');
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+      ui.toast('Registrando...', 'info');
+      try {
+        const res = await api.post({ 
+          evento: 'CRIAR_SLOT_REFORCO', 
+          lat, 
+          lng, 
+          accuracy 
+        });
+        if (res.ok) { 
+          ui.toast('✅ Reforço ok!', 'success'); 
+          router.go('operacao'); 
+        } else {
+          alert(res.erro || 'Erro ao registrar reforço');
+        }
+      } catch(e) { 
+        alert('Erro de conexão.'); 
+      }
+    }, (err) => {
+      alert('Erro de GPS: ' + err.message);
+    }, { enableHighAccuracy: true, timeout: 10000 });
   }
 };

@@ -316,7 +316,7 @@ const operacao = {
 
     ui.render(`
       <div class="screen">
-        ${ui.header('Em Atividade', slot?.local || slot?.local_nome || '', false)}
+        ${ui.header('Em Atividade', slot?.local || slot?.local_nome || '', true)}
         <div class="content">
 
           ${ui.statusBadge('EM_ATIVIDADE')}
