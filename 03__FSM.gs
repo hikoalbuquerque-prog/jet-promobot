@@ -709,78 +709,93 @@ function atualizarSlotStatus_(ss,slotId,status,horarioServidor) {
 }
 
 function getSlotsDisponiveis_(params, user) {
-  const ss    = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  
-  // ── Verificação de Bloqueio Preventiva ──────────────────────
-  if (user?.user_id) {
-    const bloqueio = verificarBloqueiosPromotores_(ss, user.user_id);
-    if (bloqueio.bloqueado) {
-      return { ok: false, erro: bloqueio.motivo, bloqueado: true };
-    }
-  }
-
-  const ws    = ss.getSheetByName('SLOTS');
-  const data  = ws.getDataRange().getValues();
-  const h     = data[0].map(v => String(v).toLowerCase().trim());
-  const iSt   = h.indexOf('status'), iCid = h.indexOf('cidade'), iDt = h.indexOf('data'), iFim = h.indexOf('fim');
-  const iSugerido = h.indexOf('promotor_sugerido_id'), iPrefAte = h.indexOf('preferencia_ate');
-
-  const cidadeUser = (user && user.cidade_base) ? String(user.cidade_base).trim() : '';
-  const userId = user?.user_id || '';
-
-  const agora     = new Date();
-  const hojeStr   = Utilities.formatDate(agora, "GMT-3", "yyyy-MM-dd");
-  const amanha    = new Date(agora.getTime() + 24 * 60 * 60 * 1000);
-  const amanhaStr = Utilities.formatDate(amanha, "GMT-3", "yyyy-MM-dd");
-  const agoraMin  = agora.getHours() * 60 + agora.getMinutes();
-
-  const slots = [];
-  for (let r = 1; r < data.length; r++) {
-    if (data[r][iSt] !== 'DISPONIVEL') continue;
-
-    const obj = rowToObj_(h, data[r]);
-
-    // Filtra por cidade do promotor (Insensível a acento e caso)
-    if (cidadeUser && cidadeUser.toUpperCase() !== 'ADMIN') {
-      const cidadeSlot = String(data[r][iCid] || '').trim();
-      if (cidadeSlot && cidadeSlot.toUpperCase() !== 'TODAS') {
-        if (normStr_(cidadeSlot) !== normStr_(cidadeUser)) continue;
-      }
-    }
-
-    // Normalização de Data para comparação segura
-    let dataSlotRaw = data[r][iDt];
-    if (dataSlotRaw instanceof Date) {
-      dataSlotRaw = Utilities.formatDate(dataSlotRaw, "GMT-3", "yyyy-MM-dd");
-    }
-    const dataSlot = String(dataSlotRaw || '').substring(0, 10);
+  try {
+    const ss    = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
     
-    // Mostra slots de hoje e amanhã (ou qualquer slot se for Admin/Gestor)
-    const isGestor = (user?.tipo_vinculo || '').toUpperCase() === 'GESTOR';
-    if (!isGestor && dataSlot !== hojeStr && dataSlot !== amanhaStr) continue;
-
-    // Se for hoje, verifica se o horário de fim já passou
-    if (!isGestor && dataSlot === hojeStr && iFim > -1) {
-      const fimStr = String(data[r][iFim] || '').substring(0, 5);
-      if (fimStr && fimStr.includes(':')) {
-        const parts = fimStr.split(':');
-        const fimMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
-        if (fimMin < agoraMin) continue; // Pula slots que já terminaram
+    // ── Verificação de Bloqueio Preventiva ──────────────────────
+    if (user?.user_id) {
+      const bloqueio = verificarBloqueiosPromotores_(ss, user.user_id);
+      if (bloqueio.bloqueado) {
+        return { ok: false, erro: bloqueio.motivo, bloqueado: true };
       }
     }
 
-    slots.push(obj);
-  }
-  slots.sort((a, b) => {
-    if (a.is_sugerido && !b.is_sugerido) return -1;
-    if (!a.is_sugerido && b.is_sugerido) return 1;
-    const dA = String(a.data || '').substring(0, 10);
-    const dB = String(b.data || '').substring(0, 10);
-    if (dA !== dB) return dA < dB ? -1 : 1;
-    return String(a.inicio || '') < String(b.inicio || '') ? -1 : 1;
-  });
+    const ws    = ss.getSheetByName('SLOTS');
+    if (!ws) return { ok: false, erro: 'Aba SLOTS não encontrada' };
+    
+    const data  = ws.getDataRange().getValues();
+    const h     = data[0].map(v => String(v).toLowerCase().trim());
+    const iSt   = h.indexOf('status'), iCid = h.indexOf('cidade'), iDt = h.indexOf('data'), iFim = h.indexOf('fim');
+    
+    // Tenta carregar cidade do usuário de múltiplos campos possíveis
+    const cidadeUser = (user?.cidade_base || user?.cidade || '').trim();
+    const userId = user?.user_id || '';
 
-  return { ok: true, slots };
+    const agora     = new Date();
+    const hojeStr   = Utilities.formatDate(agora, "GMT-3", "yyyy-MM-dd");
+    const amanha    = new Date(agora.getTime() + 24 * 60 * 60 * 1000);
+    const amanhaStr = Utilities.formatDate(amanha, "GMT-3", "yyyy-MM-dd");
+    const agoraMin  = agora.getHours() * 60 + agora.getMinutes();
+
+    const slots = [];
+    for (let r = 1; r < data.length; r++) {
+      if (data[r][iSt] !== 'DISPONIVEL') continue;
+
+      const obj = rowToObj_(h, data[r]);
+
+      // Filtra por cidade do promotor (Insensível a acento e caso)
+      if (cidadeUser && cidadeUser.toUpperCase() !== 'ADMIN') {
+        const cidadeSlot = String(data[r][iCid] || '').trim();
+        if (cidadeSlot && cidadeSlot.toUpperCase() !== 'TODAS') {
+          if (normStr_(cidadeSlot) !== normStr_(cidadeUser)) continue;
+        }
+      }
+
+      // Normalização de Data para comparação segura
+      let dataSlotRaw = data[r][iDt];
+      if (dataSlotRaw instanceof Date) {
+        dataSlotRaw = Utilities.formatDate(dataSlotRaw, "GMT-3", "yyyy-MM-dd");
+      }
+      const dataSlot = String(dataSlotRaw || '').substring(0, 10);
+      
+      // Mostra slots de hoje e amanhã (ou qualquer slot se for Admin/Gestor)
+      const rolesGestor = ['GESTOR', 'FISCAL', 'LIDER'];
+      const isGestor = rolesGestor.includes((user?.tipo_vinculo || '').toUpperCase());
+      
+      if (!isGestor && dataSlot !== hojeStr && dataSlot !== amanhaStr) continue;
+
+      // Se for hoje, verifica se o horário de fim já passou
+      if (!isGestor && dataSlot === hojeStr && iFim > -1) {
+        const fimStr = String(data[r][iFim] || '').substring(0, 5);
+        if (fimStr && fimStr.includes(':')) {
+          const parts = fimStr.split(':');
+          const fimMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+          if (fimMin < agoraMin) continue; // Pula slots que já terminaram
+        }
+      }
+
+      // Campo is_sugerido para ordenação
+      const iSugId = h.indexOf('promotor_sugerido_id');
+      if (iSugId > -1 && String(data[r][iSugId]).trim() === userId) {
+        obj.is_sugestao = true;
+      }
+
+      slots.push(obj);
+    }
+    
+    slots.sort((a, b) => {
+      if (a.is_sugestao && !b.is_sugestao) return -1;
+      if (!a.is_sugestao && b.is_sugestao) return 1;
+      const dA = String(a.data || '').substring(0, 10);
+      const dB = String(b.data || '').substring(0, 10);
+      if (dA !== dB) return dA < dB ? -1 : 1;
+      return String(a.inicio || '') < String(b.inicio || '') ? -1 : 1;
+    });
+
+    return { ok: true, slots };
+  } catch (e) {
+    return { ok: false, erro: 'Erro interno ao buscar vagas: ' + e.message };
+  }
 }
 
 

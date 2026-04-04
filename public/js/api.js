@@ -2,8 +2,18 @@ const API_URL = (window.APP_CONFIG && window.APP_CONFIG.API_URL)
   || 'https://promo-telegram-gateway-v3-476120210909.southamerica-east1.run.app';
 
 async function _parseResponse(res) {
+  const isJson = res.headers.get('content-type')?.includes('application/json');
+  if (isJson) {
+    const data = await res.json();
+    if (!res.ok && !data.ok) {
+      // Se a resposta tem ok:false e status de erro, retornamos o JSON 
+      // para que o chamador possa tratar a mensagem de erro específica (ex: bloqueio)
+      return data;
+    }
+    return data;
+  }
   if (!res.ok) throw new Error(`Erro de conexão (${res.status}).`);
-  return res.json();
+  return res.text();
 }
 
 const api = {
