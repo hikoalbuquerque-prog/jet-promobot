@@ -28,19 +28,34 @@ const slotScreen = {
         return;
       }
 
-      container.innerHTML = res.slots.map(s => `
-        <div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:16px;padding:16px;margin-bottom:12px;position:relative;${s.is_sugestao ? 'border-left:4px solid #f6ad55' : ''}">
-          ${s.is_sugestao ? '<div style="position:absolute;top:10px;right:16px;background:#f6ad55;color:#1a1a2e;font-size:9px;font-weight:800;padding:2px 6px;border-radius:4px">SUGESTÃO</div>' : ''}
-          <div style="font-size:13px;color:#63b3ed;font-weight:700;margin-bottom:4px">${s.operacao || 'PROMO'}</div>
-          <div style="font-size:16px;font-weight:700;margin-bottom:4px">${s.local_nome || s.local}</div>
-          <div style="font-size:13px;color:#a0aec0;margin-bottom:12px">⏰ ${s.inicio} - ${s.fim}</div>
-          
-          <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;border-top:1px solid rgba(255,255,255,0.05)">
-            <div style="font-size:11px;color:#718096">📍 ${s.cidade || ''}</div>
-            <button onclick="slotScreen._aceitar('${s.slot_id}', this)" style="background:#4f8ef7;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Aceitar Vaga</button>
-          </div>
-        </div>
-      `).join('') + `
+      let lastDate = '';
+      let slotsHtml = '';
+
+      res.slots.forEach(s => {
+        const dataSlot = String(s.data || '').substring(0, 10);
+        if (dataSlot !== lastDate) {
+          lastDate = dataSlot;
+          const label = dataSlot === hojeStr ? 'HOJE' : (dataSlot === amanhaStr ? 'AMANHÃ' : dataSlot);
+          slotsHtml += `<div style="font-size:11px;font-weight:800;color:#f6ad55;margin:20px 0 10px 4px;letter-spacing:1px;display:flex;align-items:center;gap:8px">
+            <span style="width:12px;height:2px;background:#f6ad55;border-radius:2px"></span> ${label}
+          </div>`;
+        }
+
+        slotsHtml += `
+          <div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:16px;padding:16px;margin-bottom:12px;position:relative;${s.is_sugestao ? 'border-left:4px solid #f6ad55' : ''}">
+            ${s.is_sugestao ? '<div style="position:absolute;top:10px;right:16px;background:#f6ad55;color:#1a1a2e;font-size:9px;font-weight:800;padding:2px 6px;border-radius:4px">SUGESTÃO</div>' : ''}
+            <div style="font-size:13px;color:#63b3ed;font-weight:700;margin-bottom:4px">${s.operacao || 'PROMO'}</div>
+            <div style="font-size:16px;font-weight:700;margin-bottom:4px">${s.local_nome || s.local}</div>
+            <div style="font-size:13px;color:#a0aec0;margin-bottom:12px">⏰ ${s.inicio} - ${s.fim}</div>
+            
+            <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;border-top:1px solid rgba(255,255,255,0.05)">
+              <div style="font-size:11px;color:#718096">📍 ${s.cidade || ''}</div>
+              <button onclick="slotScreen._aceitar('${s.slot_id}', this)" style="background:#4f8ef7;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Aceitar Vaga</button>
+            </div>
+          </div>`;
+      });
+
+      container.innerHTML = slotsHtml + `
         <div style="text-align:center;padding:20px 0">
           <button onclick="slotScreen._solicitarReforco()" style="background:transparent;border:1px solid #4a5568;color:#a0aec0;padding:10px 16px;border-radius:10px;font-size:12px;cursor:pointer">
             ✨ Vim trabalhar sem slot (Reforço)

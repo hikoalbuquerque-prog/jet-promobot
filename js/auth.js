@@ -201,6 +201,15 @@ const homeScreen = {
             </button>
           </div>
 
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <button onclick="router.go('historico')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
+              <span style="font-size:24px">📋</span>Histórico
+            </button>
+            <button onclick="homeScreen._indicar()" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
+              <span style="font-size:24px">🤝</span>Indicar
+            </button>
+          </div>
+
           <button onclick="router.go('academy')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:10px;font-size:13px;font-weight:700">
             <span style="font-size:24px">🎓</span>JET Academy
           </button>
@@ -237,10 +246,10 @@ const homeScreen = {
 
   async _pedirPush() {
     if (Notification.permission === 'denied') {
-      alert('⚠️ Notificações Bloqueadas!\n\nVocê bloqueou as notificações deste site. Para ativar:\n1. Clique no cadeado (🔒) na barra de endereço\n2. Ative o botão "Notificações"\n3. Recarregue a página.');
+      alert('⚠️ Notificações Bloqueadas!\n\nVocê bloqueou as notificações. Para ativar:\n1. Clique no cadeado (🔒) na barra de endereço\n2. Ative "Notificações"\n3. Recarregue a página.');
       return;
     }
-    if (typeof pushManager === 'undefined') { alert('Erro: pushManager não carregado.'); return; }
+    if (typeof pushManager === 'undefined') { alert('pushManager não carregado.'); return; }
     try {
       const ok = await pushManager.requestPermission();
       if (ok) {
