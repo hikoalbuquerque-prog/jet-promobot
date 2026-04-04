@@ -20,13 +20,18 @@ const slotScreen = {
         container.innerHTML = `
           <div style="text-align:center;padding:40px;color:#a0aec0">
             <div style="font-size:40px;margin-bottom:10px">⛱️</div>
-            <div>Nenhuma vaga disponível para sua cidade no momento.</div>
+            <div>Nenhuma vaga disponível no momento.</div>
             <button onclick="slotScreen._solicitarReforco()" style="margin-top:24px;background:#4f8ef7;color:#fff;border:none;padding:12px 20px;border-radius:10px;font-weight:700;cursor:pointer">
               ✨ Vim trabalhar (Reforço)
             </button>
           </div>`;
         return;
       }
+
+      const hoje = new Date();
+      const hojeStr = hoje.toISOString().split('T')[0];
+      const amanha = new Date(hoje); amanha.setDate(amanha.getDate() + 1);
+      const amanhaStr = amanha.toISOString().split('T')[0];
 
       let lastDate = '';
       let slotsHtml = '';
@@ -36,9 +41,10 @@ const slotScreen = {
         if (dataSlot !== lastDate) {
           lastDate = dataSlot;
           const label = dataSlot === hojeStr ? 'HOJE' : (dataSlot === amanhaStr ? 'AMANHÃ' : dataSlot);
-          slotsHtml += `<div style="font-size:11px;font-weight:800;color:#f6ad55;margin:20px 0 10px 4px;letter-spacing:1px;display:flex;align-items:center;gap:8px">
-            <span style="width:12px;height:2px;background:#f6ad55;border-radius:2px"></span> ${label}
-          </div>`;
+          slotsHtml += `
+            <div style="font-size:11px;font-weight:800;color:#f6ad55;margin:20px 0 10px 4px;letter-spacing:1px;display:flex;align-items:center;gap:8px">
+              <span style="width:12px;height:2px;background:#f6ad55;border-radius:2px"></span> ${label}
+            </div>`;
         }
 
         slotsHtml += `
@@ -62,6 +68,7 @@ const slotScreen = {
           </button>
         </div>`;
     } catch(e) {
+      console.error('[slots]', e);
       document.getElementById('slot-content').innerHTML = `<div style="text-align:center;padding:40px;color:#fc8181">Erro ao carregar vagas.</div>`;
     }
   },
@@ -70,7 +77,7 @@ const slotScreen = {
     if (!confirm('Deseja aceitar esta vaga?')) return;
     btn.disabled = true; btn.textContent = '...';
     try {
-      const res = await api.post({ evento: 'ACEITAR_SLOT', slot_id: slotId });
+      const res = await api.post('ACEITAR_SLOT', { slot_id: slotId });
       if (res.ok) {
         ui.toast('✅ Vaga aceita!', 'success');
         router.go('operacao');
@@ -86,7 +93,7 @@ const slotScreen = {
     if (!local) return;
     ui.toast('Registrando...', 'info');
     try {
-      const res = await api.post({ evento: 'CRIAR_SLOT_REFORCO', local_referencia: local });
+      const res = await api.post('CRIAR_SLOT_REFORCO', { local_referencia: local });
       if (res.ok) { ui.toast('✅ Reforço ok!', 'success'); router.go('operacao'); }
       else alert(res.erro);
     } catch(e) { alert('Erro de conexão.'); }
