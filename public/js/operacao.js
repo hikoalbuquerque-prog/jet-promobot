@@ -99,7 +99,9 @@ const operacao = {
     let jornada = null;
     try {
       const currentSlot = state.get('slot');
-      const res = await api.get('GET_SLOT_ATUAL' + (currentSlot?.slot_id ? '&slot_id=' + currentSlot.slot_id : ''));
+      const params = {};
+      if (currentSlot?.slot_id) params.slot_id = currentSlot.slot_id;
+      const res = await api.get('GET_SLOT_ATUAL', params);
       if (res.ok && res.slot)    { slot    = res.slot;    state.set('slot', slot); }
       if (res.ok && res.jornada) { jornada = res.jornada; state.saveJornada(jornada); }
     } catch(_) {}
@@ -741,3 +743,11 @@ const _heartbeatTimer = (() => {
 
   return { iniciar, parar };
 })();
+
+function _fmtHora(v) {
+  if (!v) return '-';
+  var s = String(v);
+  if (/^\d{2}:\d{2}/.test(s)) return s.substring(0, 5);
+  try { return new Date(v).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}); }
+  catch(_) { return '-'; }
+}

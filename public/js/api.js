@@ -10,7 +10,8 @@ const api = {
   // GET → /app/query?evento=...&token=...
   async get(evento, params = {}) {
     const token = state.get('token');
-    const qs = new URLSearchParams({ evento, token: token || '', ...params }).toString();
+    const query = { ...params, evento, token: token || '' };
+    const qs = new URLSearchParams(query).toString();
     const res = await fetch(`${API_URL}/app/query?${qs}`);
     return _parseResponse(res);
   },
