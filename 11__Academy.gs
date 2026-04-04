@@ -17,8 +17,25 @@ function getAcademyTrilha_(user) {
     if (String(dataProg[r][0]).trim() === user.user_id) concluidos.push(String(dataProg[r][1]).trim()); 
   }
   
-  // Se o Cloud Run já tem o cache dos módulos, ele só precisa dos IDs concluídos
-  return { ok: true, progresso_ids: concluidos, modulos: [] }; 
+  const dataMod = wsMod.getDataRange().getValues(), hMod = dataMod[0].map(v => String(v).toLowerCase().trim());
+  const modulos = [];
+  const iId = hMod.indexOf('modulo_id'), iAtivo = hMod.indexOf('ativo'), iTit = hMod.indexOf('titulo'), iNiv = hMod.indexOf('nivel'), iPts = hMod.indexOf('pontos'), iOrd = hMod.indexOf('ordem');
+
+  for (let r = 1; r < dataMod.length; r++) {
+    if (String(dataMod[r][iAtivo]).toUpperCase() === 'TRUE' || String(dataMod[r][iAtivo]).toUpperCase() === 'SIM') {
+      modulos.push({
+        modulo_id: String(dataMod[r][iId]).trim(),
+        titulo: String(dataMod[r][iTit]).trim(),
+        nivel: String(dataMod[r][iNiv]).trim(),
+        pontos: parseInt(dataMod[r][iPts] || '0'),
+        ordem: parseInt(dataMod[r][iOrd] || '0'),
+        concluido: concluidos.includes(String(dataMod[r][iId]).trim()),
+        desbloqueado: true // Simplificado no GAS, o Cloud Run aplica a regra real se houver cache
+      });
+    }
+  }
+  
+  return { ok: true, progresso_ids: concluidos, modulos: modulos }; 
 }
 
 function getAcademyModulo_(params, user) {

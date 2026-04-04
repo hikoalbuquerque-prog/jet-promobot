@@ -219,45 +219,46 @@ app.get('/app/query', async (req, res) => {
       return res.json({ ok: true, slots: SLOTS_CACHE.slots, _cache: true });
     }
 
-    if (evento === 'GET_ACADEMY_TRILHA' && ACADEMY_CACHE.modulos.length > 0) {
-      console.log('[CACHE] Servindo trilha Academy via memória.');
-      const result = await callAppsScriptGet(evento, req.query); 
-      if (result.ok) {
-        const concluidos = new Set(result.progresso_ids || []);
-        const ordemNiveis = ['MANUAL APP', 'BASICO', 'INTERMEDIARIO', 'AVANCADO', 'ESPECIALISTA', 'MASTER'];
-        
-        // Ordenar módulos do cache
-        const modulosOrdenados = [...ACADEMY_CACHE.modulos].sort((a, b) => {
-          const na = ordemNiveis.indexOf(a.nivel), nb = ordemNiveis.indexOf(b.nivel);
-          if (na !== nb) return na - nb;
-          return parseInt(a.ordem || 0) - parseInt(b.ordem || 0);
-        });
+    if (evento === 'GET_ACADEMY_TRILHA') {
+      if (ACADEMY_CACHE.modulos.length > 0) {
+        console.log('[CACHE] Servindo trilha Academy via memória.');
+        const result = await callAppsScriptGet(evento, req.query);
+        if (result.ok) {
+          const concluidos = new Set(result.progresso_ids || []);
+          const ordemNiveis = ['MANUAL APP', 'BASICO', 'INTERMEDIARIO', 'AVANCADO', 'ESPECIALISTA', 'MASTER'];
 
-        result.modulos = modulosOrdenados.map((m, idx) => {
-          const isConcluido = concluidos.has(m.modulo_id);
-          let isDesbloqueado = false;
-          if (idx === 0) isDesbloqueado = true;
-          else {
-            const reqs = m.pre_requisitos_json ? JSON.parse(m.pre_requisitos_json) : {};
-            if (reqs.must_complete_modulos && reqs.must_complete_modulos.length) {
-              isDesbloqueado = reqs.must_complete_modulos.every(id => concluidos.has(id));
-            } else {
-              isDesbloqueado = concluidos.has(modulosOrdenados[idx - 1].modulo_id);
+          const modulosOrdenados = [...ACADEMY_CACHE.modulos].sort((a, b) => {
+            const na = ordemNiveis.indexOf(a.nivel), nb = ordemNiveis.indexOf(b.nivel);
+            if (na !== nb) return na - nb;
+            return parseInt(a.ordem || 0) - parseInt(b.ordem || 0);
+          });
+
+          result.modulos = modulosOrdenados.map((m, idx) => {
+            const isConcluido = concluidos.has(m.modulo_id);
+            let isDesbloqueado = false;
+            if (idx === 0) isDesbloqueado = true;
+            else {
+              const reqs = m.pre_requisitos_json ? JSON.parse(m.pre_requisitos_json) : {};
+              if (reqs.must_complete_modulos && reqs.must_complete_modulos.length) {
+                isDesbloqueado = reqs.must_complete_modulos.every(id => concluidos.has(id));
+              } else {
+                isDesbloqueado = concluidos.has(modulosOrdenados[idx - 1].modulo_id);
+              }
             }
-          }
-          return {
-            modulo_id: m.modulo_id,
-            nivel: m.nivel,
-            titulo: m.titulo,
-            pontos: m.pontos,
-            concluido: isConcluido,
-            desbloqueado: isDesbloqueado
-          };
-        });
-        return res.json(result);
+            return {
+              modulo_id: m.modulo_id,
+              nivel: m.nivel,
+              titulo: m.titulo,
+              pontos: m.pontos,
+              concluido: isConcluido,
+              desbloqueado: isDesbloqueado
+            };
+          });
+          return res.json(result);
+        }
       }
+      // Se não tem cache, deixa passar para o GAS que agora retorna a lista básica
     }
-
     if (evento === 'GET_ACADEMY_MODULO' && req.query.modulo_id && ACADEMY_CACHE.modulos.length > 0) {
       const mod = ACADEMY_CACHE.modulos.find(m => m.modulo_id === req.query.modulo_id);
       if (mod) {

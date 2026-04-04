@@ -140,21 +140,28 @@ function getMapaPromotor_(user, params) {
 
   const dataLoc = wsLoc.getDataRange().getValues(), hLoc = dataLoc[0].map(v => String(v).toLowerCase().trim());
   const dataJor = wsJor.getDataRange().getValues(), hJor = dataJor[0].map(v => String(v).toLowerCase().trim());
-  const promMap = _getPromotoresMap_(ss);
+  
+  // Buscar promotores sem usar cache para garantir dados novos no mapa
+  const wsP = ss.getSheetByName('PROMOTORES'), dataP = wsP.getDataRange().getValues();
+  const hP = dataP[0].map(v => String(v).toLowerCase().trim()), iIdP = hP.indexOf('user_id'), iNomP = hP.indexOf('nome_completo');
+  const promMap = {};
+  for(let r=1; r<dataP.length; r++) { promMap[String(dataP[r][iIdP]).trim()] = String(dataP[r][iNomP] || ''); }
 
-  const iUsrLoc = hLoc.indexOf('user_id'), iUsrJor = hJor.indexOf('user_id'), iStJor = hJor.indexOf('status');
-  const iNomeJor = hJor.indexOf('nome_completo') > -1 ? hJor.indexOf('nome_completo') : hJor.indexOf('promotor_nome');
+  const iUsrLoc = hLoc.indexOf('user_id'), iUsrJor = hJor.indexOf('user_id'), iStJor = hJor.indexOf('status'), iUpdLoc = hLoc.indexOf('atualizado_em');
+  const iNomJor = hJor.indexOf('nome_completo') > -1 ? hJor.indexOf('nome_completo') : hJor.indexOf('promotor_nome');
 
-  // Mapeia status atual de cada promotor
+  // Mapeia status atual de cada promotor (apenas jornadas de HOJE ou ativas)
   const statusMap = {};
-  for (let r = dataJor.length - 1; r >= 1; r--) {
+  const hoje = new Date().toISOString().substring(0,10);
+  for (let r = 1; r < dataJor.length; r++) {
     const uid = String(dataJor[r][iUsrJor]).trim();
-    if (!uid || statusMap[uid]) continue;
-    const prom = promMap[uid] || {};
-    statusMap[uid] = {
-      status: String(dataJor[r][iStJor]).trim().toUpperCase(),
-      nome: prom.nome || String(dataJor[r][iNomeJor] || uid).trim()
-    };
+    const st = String(dataJor[r][iStJor]).trim().toUpperCase();
+    const dt = String(dataJor[r][hJor.indexOf('inicio_previsto')] || '').substring(0,10);
+    
+    if (!uid || (dt !== hoje && !['EM_ATIVIDADE','PAUSADO'].includes(st))) continue;
+    
+    // Sobrescreve com a mais recente
+    statusMap[uid] = { status: st, nome: promMap[uid] || String(dataJor[r][iNomJor] || uid).trim() };
   }
 
   const role = (user.tipo_vinculo || '').toUpperCase();
@@ -162,16 +169,20 @@ function getMapaPromotor_(user, params) {
 
   const pontos = [];
   const seen = new Set();
+  const agoraMs = new Date().getTime();
+
   for (let r = dataLoc.length - 1; r >= 1; r--) {
     const uid = String(dataLoc[r][iUsrLoc]).trim();
     if (!uid || seen.has(uid)) continue;
-    seen.add(uid);
-
-    const prom = promMap[uid] || {};
-    const info = statusMap[uid] || { status: 'OFFLINE', nome: prom.nome || uid };
     
-    // Regra de Visibilidade: 
-    // Se for promotor, só vê ATIVO ou PAUSADO. Se for gestor, vê tudo de hoje.
+    // Ignorar pontos com mais de 12 horas
+    const updStr = dataLoc[r][iUpdLoc];
+    const updMs = updStr ? new Date(updStr).getTime() : 0;
+    if (agoraMs - updMs > 12 * 60 * 60 * 1000) continue;
+
+    seen.add(uid);
+    const info = statusMap[uid] || { status: 'OFFLINE', nome: promMap[uid] || uid };
+    
     if (!isGestor && !['EM_ATIVIDADE', 'PAUSADO', 'A_CAMINHO'].includes(info.status)) continue;
 
     const obj = rowToObj_(hLoc, dataLoc[r]);
