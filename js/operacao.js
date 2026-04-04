@@ -321,25 +321,10 @@ const operacao = {
 
           ${ui.statusBadge('EM_ATIVIDADE')}
 
-          <div class="card" style="text-align:center;padding:24px 20px">
-            <div class="section-label" style="margin-bottom:8px">TEMPO ATIVO</div>
-            <div id="timer-display" style="font-size:48px;font-weight:800;color:var(--green);letter-spacing:-2px;line-height:1">00:00:00</div>
-          </div>
-
-          <div id="progress-wrap" style="display:flex;flex-direction:column;gap:6px">
-            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2)">
-              <span>Progresso</span><span id="progress-pct">0%</span>
-            </div>
-            <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden">
-              <div id="progress-fill" style="height:100%;background:var(--green);width:0%;transition:width 1s linear;border-radius:2px"></div>
-            </div>
-          </div>
-
           <div class="card">
             <div class="info-row"><span class="info-label">Local</span><span class="info-value">${slot?.local || slot?.local_nome || '—'}</span></div>
             <div class="info-row"><span class="info-label">Check-in</span><span class="info-value" id="at-checkin">${ui.hora(jornada?.inicio_real)}</span></div>
             <div class="info-row"><span class="info-label">Término previsto</span><span class="info-value">${_fmtHora(slot?.fim)}</span></div>
-            <div class="info-row"><span class="info-label">Restante</span><span class="info-value" id="at-restante">—</span></div>
           </div>
 
           <div class="gps-indicator">
@@ -373,46 +358,9 @@ const operacao = {
 
     const _jorn = state.loadJornada();
     if (_jorn?.jornada_id) _heartbeatTimer.iniciar(_jorn.jornada_id);
-    // Retoma o timer a partir do inicio_real da jornada
-    if (_jorn?.inicio_real) {
-      const decorridoSeg = Math.floor((Date.now() - new Date(_jorn.inicio_real).getTime()) / 1000);
-      timer.parar();
-      timer._acc = Math.max(0, decorridoSeg);
-      timer.retomar();
-    } else {
-      timer.iniciar();
-    }
+    
     let _avisoFimMostrado = false;
-    const unsubTimer = timer.onTick(s => {
-      const el = document.getElementById('timer-display');
-      if (el) el.textContent = ui.formatTimer(s);
-      this._atualizarProgress(s);
-      // Aviso fim de slot
-      if (!_avisoFimMostrado) {
-        const _slot = state.get('slot');
-        const _jorn = state.loadJornada();
-        if (_slot?.fim && _jorn?.inicio_real) {
-          const _fimParts = String(_slot.fim).substring(0,5).split(':');
-          const _fimD = new Date(_jorn.inicio_real);
-          _fimD.setHours(parseInt(_fimParts[0]), parseInt(_fimParts[1]), 0, 0);
-          if (_fimD < new Date(_jorn.inicio_real)) _fimD.setDate(_fimD.getDate()+1);
-          const _restMs = _fimD.getTime() - Date.now();
-          if (_restMs <= 0 && !document.getElementById('banner-fim-slot')) {
-            _avisoFimMostrado = true;
-            const banner = document.createElement('div');
-            banner.id = 'banner-fim-slot';
-            banner.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:398px;background:#1e2a45;border:1px solid rgba(241,196,15,.4);border-radius:14px;padding:16px;z-index:500;box-shadow:0 8px 32px rgba(0,0,0,.5)';
-            banner.innerHTML = '<div style="font-size:15px;font-weight:700;color:#f1c40f;margin-bottom:6px">⌛ Seu slot terminou às ' + String(_slot.fim).substring(0,5) + '</div>'
-              + '<div style="font-size:13px;color:#a0aec0;margin-bottom:14px">Você ainda está ativo. O que deseja fazer?</div>'
-              + '<div style="display:flex;gap:10px">'
-              + '<button onclick="document.getElementById(\'banner-fim-slot\').remove();router.go(\'checkout\')" style="flex:1;background:#e74c3c;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer">🏁 Encerrar agora</button>'
-              + '<button onclick="document.getElementById(\'banner-fim-slot\').remove()" style="flex:1;background:rgba(241,196,15,.15);border:1px solid rgba(241,196,15,.3);color:#f1c40f;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer">⏰ Continuar</button>'
-              + '</div>';
-            document.body.appendChild(banner);
-          }
-        }
-      }
-    });
+    // O timer visual foi removido, mas mantemos o aviso de fim de slot via verificação pontual se necessário
   },
 
   _atualizarProgress(s) {
