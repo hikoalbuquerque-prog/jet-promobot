@@ -36,6 +36,7 @@ function doGet(e) {
       case 'GET_MINHAS_SOLICITACOES': return jsonResp_(getMinhasSolicitacoes_(user));
       case 'GET_HISTORICO':           return jsonResp_(getHistorico_(user, params));
       case 'GET_MAPA_PROMOTOR':       return jsonResp_(getMapaPromotor_(user, params));
+      case 'GET_BROADCAST_FILTERS':   return jsonResp_(getBroadcastFilters_());
       case 'GET_PROMOTORES_SEM_SLOT': return jsonResp_(getPromotoresSemSlot_(token, params));
       case 'GET_RANKING_SEMANAL':     return jsonResp_(getRankings_(user, params.periodo || 'SEMANAL'));
       case 'GET_BADGES':              return jsonResp_(getBadges_(user.user_id));

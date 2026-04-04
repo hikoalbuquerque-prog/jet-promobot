@@ -1,18 +1,6 @@
-// ─── mapa.js ──────────────────────────────────────────────────────────────────
-// Mapa operacional — layout revisado com capacidade, filtros e lista lateral
 const mapaScreen = (() => {
-  let _map        = null;
-  let _interval   = null;
-  let _layerSlots      = null;
-  let _layerPromotores = null;
-  let _layerRaios      = null;
-  let _layerRota       = null;
-
-  let _todosSlots      = [];
-  let _todosPromotores = [];
-  let _stats           = {};
-  let _dataFiltroAtual = new Date().toISOString().split('T')[0];
-
+  let _map = null, _interval = null, _layerSlots = null, _layerPromotores = null, _layerRaios = null, _layerRota = null;
+  let _todosSlots = [], _todosPromotores = [], _stats = {}, _dataFiltroAtual = new Date().toISOString().split('T')[0];
   const _visible = { promotores: true, slots: true, raios: false };
 
   function render() {
@@ -28,7 +16,6 @@ const mapaScreen = (() => {
             <span class="stat-pill stat-total">— total</span>
             <span class="stat-pill stat-ativo">— ativos</span>
             <span class="stat-pill stat-vago">— vagos</span>
-            <span class="stat-pill stat-enc">— encerrados</span>
           </div>
           <span id="mapa-ts" style="font-size:10px;color:#4a5568;white-space:nowrap">—</span>
         </div>
@@ -37,23 +24,14 @@ const mapaScreen = (() => {
           <button class="toggle-btn active" id="toggle-promotores" onclick="mapaScreen._toggleLayer('promotores')">👤 Pessoas</button>
           <button class="toggle-btn" id="toggle-raios" onclick="mapaScreen._toggleLayer('raios')">⭕ Raios</button>
           <div style="width:1px;height:20px;background:rgba(99,179,237,0.2);margin:0 4px"></div>
-          
           <select id="filtro-cidade" onchange="mapaScreen._aplicarFiltros()" style="background:#1a2744;border:1px solid rgba(99,179,237,0.2);color:#e2e8f0;padding:4px 8px;border-radius:6px;font-size:11px">
             <option value="">Todas as cidades</option>
           </select>
-
           <select id="filtro-status" onchange="mapaScreen._aplicarFiltros()" style="background:#1a2744;border:1px solid rgba(99,179,237,0.2);color:#e2e8f0;padding:4px 8px;border-radius:6px;font-size:11px">
             <option value="">Todos os status</option>
             <option value="DISPONIVEL">Disponível</option>
             <option value="OCUPADO">Aceito</option>
             <option value="ATIVO">Em atividade</option>
-            <option value="ENCERRADO">Encerrado</option>
-          </select>
-          <select id="filtro-horario" onchange="mapaScreen._aplicarFiltros()" style="background:#1a2744;border:1px solid rgba(99,179,237,0.2);color:#e2e8f0;padding:4px 8px;border-radius:6px;font-size:11px">
-            <option value="">Todos os horários</option>
-            <option value="manha">Manhã (até 12h)</option>
-            <option value="tarde">Tarde (12h–18h)</option>
-            <option value="noite">Noite (18h+)</option>
           </select>
           <button onclick="mapaScreen._limparFiltros()" style="background:rgba(252,129,129,0.1);border:1px solid rgba(252,129,129,0.3);color:#fc8181;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer">✕ Limpar</button>
         </div>
@@ -64,9 +42,7 @@ const mapaScreen = (() => {
               <span style="font-size:12px;font-weight:700;color:#63b3ed">PROMOTORES ATIVOS</span>
               <span id="lista-count" style="font-size:11px;color:#718096">0</span>
             </div>
-            <div id="lista-promotores" style="flex:1;padding:8px">
-              <div style="text-align:center;padding:20px;color:#4a5568;font-size:12px">Carregando...</div>
-            </div>
+            <div id="lista-promotores" style="flex:1;padding:8px"></div>
           </div>
         </div>
       </section>`;
@@ -75,280 +51,112 @@ const mapaScreen = (() => {
     _load();
     _interval = setInterval(_load, 15000);
     const hoje = new Date().toISOString().split('T')[0];
-    _dataFiltroAtual = hoje;
-    setTimeout(() => { const inp = document.getElementById('mapa-filtro-data'); if (inp) inp.value = hoje; }, 50);
+    const inp = document.getElementById('mapa-filtro-data'); if (inp) inp.value = hoje;
   }
 
   function _initMap() {
     if (_map) { _map.remove(); _map = null; }
-    _map = L.map('leaflet-map', { zoomControl: true }).setView([-23.55052, -46.63331], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap', maxZoom: 19
-    }).addTo(_map);
-    _layerSlots = L.markerClusterGroup({
-      maxClusterRadius: 40, showCoverageOnHover: false, disableClusteringAtZoom: 16,
-      iconCreateFunction(cluster) {
-        const count = cluster.getChildCount();
-        return L.divIcon({ html: `<div style="background:#1a56db;color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;border:2px solid #63b3ed">${count}</div>`, className: '', iconSize: [32,32] });
-      }
-    }).addTo(_map);
+    _map = L.map('leaflet-map', { zoomControl: true }).setView([-23.55, -46.63], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(_map);
+    _layerSlots = L.markerClusterGroup().addTo(_map);
     _layerPromotores = L.layerGroup().addTo(_map);
-    _layerRaios      = L.layerGroup();
-    _layerRota       = L.layerGroup().addTo(_map);
+    _layerRaios = L.layerGroup();
+    _layerRota = L.layerGroup().addTo(_map);
   }
 
   async function _load() {
     try {
       const [slotsRes, promRes] = await Promise.all([
-        api.getSlotsHoje(_dataFiltroAtual || ''),
-        api.getPromotoresAtivos(_dataFiltroAtual || '')
+        api.get('GET_SLOTS_HOJE', { data: _dataFiltroAtual }),
+        api.get('GET_MAPA_PROMOTOR')
       ]);
-      _todosSlots      = slotsRes?.data  || [];
-      _todosPromotores = promRes?.data   || [];
-      _stats           = slotsRes?.stats || {};
+      _todosSlots = slotsRes?.data || [];
+      _todosPromotores = promRes?.pontos || [];
+      _stats = slotsRes?.stats || {};
       _atualizarStats();
       _atualizarFiltroCidades();
       _renderSlots(_aplicarFiltrosLocais(_todosSlots));
       _renderPromotores(_aplicarFiltrosPromotores(_todosPromotores));
       _renderListaLateral(_aplicarFiltrosPromotores(_todosPromotores));
-      const ts = document.getElementById('mapa-ts');
-      if (ts) ts.textContent = 'Atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
     } catch(e) { console.error('[mapa]', e.message); }
   }
 
+  function _atualizarStats() {
+    const pills = { '.stat-total': `${_stats.total||0} slots`, '.stat-ativo': `${_stats.ocupados||0} ativos`, '.stat-vago': `${_stats.disponiveis||0} vagos` };
+    for (const [sel, txt] of Object.entries(pills)) { const el = document.querySelector(sel); if (el) el.textContent = txt; }
+  }
+
   function _atualizarFiltroCidades() {
-    const sel = document.getElementById('filtro-cidade');
-    if (!sel) return;
+    const sel = document.getElementById('filtro-cidade'); if (!sel) return;
     const valAtual = sel.value;
-    const cidadesSet = new Set();
-    _todosSlots.forEach(s => { if(s.cidade) cidadesSet.add(s.cidade); });
-    _todosPromotores.forEach(p => { if(p.cidade) cidadesSet.add(p.cidade); });
-    const cidades = Array.from(cidadesSet).filter(Boolean).sort();
+    const cidades = [...new Set(_todosSlots.map(s => s.cidade))].filter(Boolean).sort();
     sel.innerHTML = '<option value="">Todas as cidades</option>' + cidades.map(c => `<option value="${c}">${c}</option>`).join('');
     sel.value = valAtual;
   }
 
-  function _atualizarStats() {
-    const pills = { '.stat-total': `${_stats.total||0} slots`, '.stat-ativo': `${_stats.ocupados||0} ativos`, '.stat-vago': `${_stats.disponiveis||0} vagos`, '.stat-enc': `${_stats.encerrados||0} enc.` };
-    for (const [sel, txt] of Object.entries(pills)) { const el = document.querySelector(sel); if (el) el.textContent = txt; }
-  }
-
   function _aplicarFiltrosLocais(slots) {
-    const cidade  = (document.getElementById('filtro-cidade')?.value  || '').trim();
-    const status  = (document.getElementById('filtro-status')?.value  || '').trim();
-    const horario = (document.getElementById('filtro-horario')?.value || '').trim();
-    return slots.filter(s => {
-      if (cidade && s.cidade !== cidade) return false;
-      if (status && s.status_geral !== status) return false;
-      if (horario) {
-        const h = parseInt((s.inicio_slot||'00').split(':')[0]);
-        if (horario === 'manha' && h >= 12) return false;
-        if (horario === 'tarde' && (h < 12 || h >= 18)) return false;
-        if (horario === 'noite' && h < 18) return false;
-      }
-      return true;
-    });
+    const cid = document.getElementById('filtro-cidade')?.value, st = document.getElementById('filtro-status')?.value;
+    return slots.filter(s => (!cid || s.cidade === cid) && (!st || s.status_geral === st));
   }
 
-  function _aplicarFiltrosPromotores(promotores) {
-    const cidade = (document.getElementById('filtro-cidade')?.value || '').trim();
-    return promotores.filter(p => {
-      if (cidade && p.cidade !== cidade) return false;
-      return true;
-    });
-  }
-
-  function _corSlot(status) {
-    return { DISPONIVEL:'#2b6cb0', OCUPADO:'#c05621', ATIVO:'#276749', PAUSADO:'#7b341e', ENCERRADO:'#2d3748', CANCELADO:'#2d3748' }[status] || '#2d3748';
-  }
-  function _corBorda(status) {
-    return { DISPONIVEL:'#63b3ed', OCUPADO:'#f6ad55', ATIVO:'#68d391', PAUSADO:'#fc8181', ENCERRADO:'#4a5568', CANCELADO:'#4a5568' }[status] || '#4a5568';
+  function _aplicarFiltrosPromotores(proms) {
+    const cid = document.getElementById('filtro-cidade')?.value;
+    return proms.filter(p => !cid || p.cidade === cid);
   }
 
   function _renderSlots(slots) {
-    if (!_layerSlots) return;
-    _layerSlots.clearLayers();
-    _layerRaios.clearLayers();
-    const posMap = {};
+    if (!_layerSlots) return; _layerSlots.clearLayers(); _layerRaios.clearLayers();
     slots.forEach(s => {
-      if (!s.lat || !s.lng) return;
-      const key = s.lat + '_' + s.lng;
-      if (!posMap[key]) posMap[key] = [];
-      posMap[key].push(s);
-    });
-    const offsets = [[0, 0], [0, 0.0003], [0, -0.0003], [0.0003, 0], [-0.0003, 0]];
-    slots.forEach(s => {
-      if (!s.lat || !s.lng) return;
-      const key = s.lat + '_' + s.lng;
-      const idx = posMap[key].indexOf(s);
-      const off = offsets[idx] || [idx * 0.0003, 0];
-      const lat = parseFloat(s.lat) + off[0];
-      const lng = parseFloat(s.lng) + off[1];
-      const vagas = s.max_promotores || 1;
-      const ocup  = s.vagas_ocupadas || 0;
-      const cor   = _corSlot(s.status_geral);
-      const borda = _corBorda(s.status_geral);
-      const nome  = (s.nome||'').split(' ').slice(0,3).join(' ');
-      const icon  = L.divIcon({
-        html: `<div style="display:flex;flex-direction:column;align-items:center"><div style="background:${cor};border:2px solid ${borda};border-radius:8px;padding:4px 7px;min-width:52px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.4)"><div style="font-size:9px;color:rgba(255,255,255,0.8);white-space:nowrap;max-width:80px;overflow:hidden;text-overflow:ellipsis">${nome}</div><div style="font-size:10px;font-weight:800;color:#fff;margin-top:1px">${s.inicio_slot||'—'}–${s.fim_slot||'—'}</div><div style="font-size:11px;font-weight:900;color:#fff;margin-top:2px">${ocup}/${vagas} <span style="font-size:9px;opacity:.8">vagas</span></div></div><div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid ${cor}"></div></div>`,
-        className: '', iconSize: [70,60], iconAnchor: [35,60]
+      const cor = { DISPONIVEL:'#2b6cb0', OCUPADO:'#c05621', ATIVO:'#276749' }[s.status_geral] || '#2d3748';
+      const icon = L.divIcon({
+        html: `<div style="background:${cor};border:2px solid #fff;border-radius:8px;padding:4px;width:50px;text-align:center;color:#fff;font-size:9px;font-weight:800">${s.inicio_slot}</div>`,
+        className: '', iconSize: [50, 20]
       });
-      L.marker([lat, lng], { icon })
-        .bindTooltip(`<b>${s.nome}</b><br>${s.inicio_slot} – ${s.fim_slot}<br>${ocup}/${vagas} vagas`, { permanent:false, direction:'top', className:'jet-tooltip' })
-        .on('click', () => _showSlotPanel(s))
-        .addTo(_layerSlots);
-      if (s.raio_metros) {
-        L.circle([parseFloat(s.lat), parseFloat(s.lng)], { radius:s.raio_metros, color:cor, fillColor:cor, fillOpacity:0.06, weight:1, dashArray:'4,4' }).addTo(_layerRaios);
-      }
+      L.marker([s.lat, s.lng], { icon }).addTo(_layerSlots).bindPopup(`<b>${s.local_nome}</b><br>${s.cidade}`);
     });
   }
 
-  function _renderPromotores(promotores) {
-    if (!_layerPromotores) return;
-    _layerPromotores.clearLayers();
-    promotores.forEach(p => {
-      if (!p.lat || !p.lng) return;
-      const isFiscal = p.tipo_vinculo === 'FISCAL' || p.cargo_principal === 'FISCAL';
-      const cor   = isFiscal ? '#9f7aea' : (p.status_jornada === 'EM_ATIVIDADE' ? '#68d391' : '#63b3ed');
-      const label = isFiscal ? '⭐' : (p.confirmacao_presenca === 'A_CAMINHO' ? '🚀' : (p.status_jornada === 'EM_ATIVIDADE' ? '⚡' : '⏳'));
-      const nomeCurto = (p.nome || p.nome_completo || '').split(' ')[0];
-      const icon  = L.divIcon({
-        html: `<div style="display:flex;flex-direction:column;align-items:center"><div style="background:${cor};border:2px solid #fff;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${label}</div><div style="background:rgba(13,21,38,0.9);color:#fff;font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;margin-top:2px;white-space:nowrap">${nomeCurto}</div></div>`,
-        className: '', iconSize:[36,52], iconAnchor:[18,52]
+  function _renderPromotores(proms) {
+    if (!_layerPromotores) return; _layerPromotores.clearLayers();
+    proms.forEach(p => {
+      const isPausa = p.status_jornada === 'PAUSADO';
+      const cor = isPausa ? '#a0aec0' : '#68d391';
+      const icon = L.divIcon({
+        html: `<div style="display:flex;flex-direction:column;align-items:center"><div style="background:${cor};border:2px solid #fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${isPausa?'⏳':'⚡'}</div><div style="background:rgba(13,21,38,0.9);color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:4px;margin-top:2px">${(p.nome_completo||'').split(' ')[0]}</div></div>`,
+        className: '', iconSize:[40,42], iconAnchor:[20,42]
       });
-      L.marker([p.lat, p.lng], { icon })
-        .bindTooltip(`<b>${isFiscal ? '[FISCAL] ' : ''}${p.nome || p.nome_completo}</b><br>${p.slot_nome||'—'}<br>${(p.status_jornada||'').replace('_',' ')}`, { permanent:false, direction:'top', className:'jet-tooltip' })
-        .on('click', () => _showPromotorPanel(p))
-        .addTo(_layerPromotores);
+      L.marker([p.lat, p.lng], { icon }).addTo(_layerPromotores).on('click', () => _showPromotorPanel(p));
     });
   }
 
-  function _renderListaLateral(promotores) {
-    const lista = document.getElementById('lista-promotores');
-    const count = document.getElementById('lista-count');
-    if (!lista) return;
-    if (count) count.textContent = promotores.length;
-    if (!promotores.length) { lista.innerHTML = '<div style="text-align:center;padding:20px;color:#4a5568;font-size:12px">Nenhum promotor ativo</div>'; return; }
-    lista.innerHTML = promotores.map(p => {
-      const isFiscal = p.tipo_vinculo === 'FISCAL' || p.cargo_principal === 'FISCAL';
-      const cor    = isFiscal ? '#9f7aea' : (p.status_jornada === 'EM_ATIVIDADE' ? '#68d391' : '#63b3ed');
-      const status = isFiscal ? 'Supervisão' : (p.status_jornada === 'EM_ATIVIDADE' ? 'Em atividade' : (p.confirmacao_presenca === 'A_CAMINHO' ? 'A caminho' : 'Aceito'));
-      return `<div onclick="mapaScreen._focarPromotor('${p.user_id}')" style="background:#1a2744;border:1px solid ${isFiscal ? '#9f7aea44' : 'rgba(99,179,237,0.15)'};border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div style="font-size:12px;font-weight:700;color:#e2e8f0">${isFiscal ? '⭐ ' : ''}${p.nome||p.nome_completo||'—'}</div><span style="font-size:10px;font-weight:700;color:${cor};background:${cor}20;padding:2px 6px;border-radius:10px;flex-shrink:0">${status}</span></div><div style="font-size:11px;color:#718096;margin-top:3px">${p.slot_nome||'—'}</div></div>`;
-    }).join('');
-  }
-
-  function _showSlotPanel(s) {
-    const painel = document.getElementById('mapa-painel');
-    if (!painel) return;
-    const proms = (s.promotores||[]).map(p => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(99,179,237,0.1)"><span style="font-size:12px;color:#e2e8f0">${p.nome}</span><span style="font-size:10px;color:${_corBorda(p.status)}">${p.status}</span></div>`).join('') || '<div style="font-size:12px;color:#4a5568;padding:8px 0">Nenhum promotor alocado</div>';
-    painel.innerHTML = `<div style="padding:14px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><span style="font-size:12px;font-weight:700;color:#63b3ed">SLOT</span><button onclick="mapaScreen._voltarLista()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:12px">← Lista</button></div><div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:4px">${s.nome||'—'}</div><div style="font-size:12px;color:#718096;margin-bottom:12px">${s.inicio_slot} – ${s.fim_slot}</div><div style="display:flex;gap:8px;margin-bottom:12px"><div style="flex:1;background:#1a2744;border-radius:6px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:#e2e8f0">${s.vagas_ocupadas||0}</div><div style="font-size:10px;color:#718096">ocupadas</div></div><div style="flex:1;background:#1a2744;border-radius:6px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:#63b3ed">${(s.max_promotores||1)-(s.vagas_ocupadas||0)}</div><div style="font-size:10px;color:#718096">disponíveis</div></div><div style="flex:1;background:#1a2744;border-radius:6px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:#f6ad55">${s.max_promotores||1}</div><div style="font-size:10px;color:#718096">capacidade</div></div></div><div style="font-size:11px;font-weight:700;color:#718096;margin-bottom:6px">PROMOTORES</div>${proms}</div>`;
+  function _renderListaLateral(proms) {
+    const list = document.getElementById('lista-promotores'); if (!list) return;
+    document.getElementById('lista-count').textContent = proms.length;
+    list.innerHTML = proms.map(p => `
+      <div onclick="mapaScreen._focarPromotor('${p.user_id}')" style="background:#1a2744;border:1px solid rgba(99,179,237,0.15);border-radius:8px;padding:10px;margin-bottom:6px;cursor:pointer">
+        <div style="font-size:12px;font-weight:700">${p.nome_completo}</div>
+        <div style="font-size:10px;color:#718096">${p.status_jornada}</div>
+      </div>`).join('');
   }
 
   function _showPromotorPanel(p) {
     const painel = document.getElementById('mapa-painel');
-    if (!painel) return;
-    const isFiscal = p.tipo_vinculo === 'FISCAL' || p.cargo_principal === 'FISCAL';
     painel.innerHTML = `
       <div style="padding:14px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <span style="font-size:12px;font-weight:700;color:#63b3ed">${isFiscal ? 'FISCAL' : 'PROMOTOR'}</span>
-          <button onclick="mapaScreen._voltarLista()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:12px">← Lista</button>
-        </div>
-        <div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:2px">${isFiscal ? '⭐ ' : ''}${p.nome||p.nome_completo||'—'}</div>
-        <div style="font-size:12px;color:#718096;margin-bottom:12px">${p.cargo_principal||''} · ${p.tipo_vinculo||''}</div>
-        <div style="background:#1a2744;border-radius:8px;padding:10px">
-          <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(99,179,237,0.1)"><span style="font-size:11px;color:#718096">Local Atual</span><span style="font-size:11px;color:#e2e8f0">${p.slot_nome||'—'}</span></div>
-          <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(99,179,237,0.1)"><span style="font-size:11px;color:#718096">Status</span><span style="font-size:11px;color:#68d391">${(p.status_jornada||'').replace('_',' ')}</span></div>
-          <div style="display:flex;justify-content:space-between;padding:5px 0"><span style="font-size:11px;color:#718096">Última pos.</span><span style="font-size:11px;color:#e2e8f0">${p.ultima_posicao?new Date(p.ultima_posicao).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'—'}</span></div>
-        </div>
-        <button onclick="mapaScreen._verRota('${p.user_id}')" style="width:100%;margin-top:12px;background:rgba(99,179,237,0.1);border:1px solid rgba(99,179,237,0.3);color:#63b3ed;padding:8px;border-radius:6px;font-size:12px;cursor:pointer">🗺️ Ver trajeto hoje</button>
-        ${isFiscal ? `<button onclick="mapaScreen._verRelatorioFiscal('${p.user_id}', '${p.nome||p.nome_completo}')" style="width:100%;margin-top:8px;background:rgba(159,122,234,0.1);border:1px solid rgba(159,122,234,0.3);color:#9f7aea;padding:8px;border-radius:6px;font-size:12px;cursor:pointer">📊 Relatório de Supervisão</button>` : ''}
+        <div style="display:flex;justify-content:space-between;margin-bottom:12px"><b>PROMOTOR</b><button onclick="mapaScreen._voltarLista()">✕</button></div>
+        <div style="font-size:14px;font-weight:700">${p.nome_completo}</div>
+        <div style="font-size:12px;color:#718096;margin-bottom:12px">Status: ${p.status_jornada}</div>
+        <button onclick="mapaScreen._verRota('${p.user_id}')" style="width:100%;background:#4f8ef7;color:#fff;border:none;padding:8px;border-radius:6px;cursor:pointer">Ver Rota</button>
       </div>`;
   }
 
-  function _voltarLista() {
-    const painel = document.getElementById('mapa-painel');
-    if (!painel) return;
-    painel.innerHTML = `<div style="padding:12px 14px;border-bottom:1px solid rgba(99,179,237,0.1);display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:700;color:#63b3ed">PROMOTORES ATIVOS</span><span id="lista-count" style="font-size:11px;color:#718096">${_todosPromotores.length}</span></div><div id="lista-promotores" style="flex:1;padding:8px"></div>`;
-    _renderListaLateral(_todosPromotores);
-  }
+  function _voltarLista() { _load(); }
+  function _toggleLayer(l) { _visible[l] = !_visible[l]; _load(); }
+  function _focarPromotor(uid) { const p = _todosPromotores.find(x => x.user_id === uid); if (p) _map.setView([p.lat, p.lng], 16); }
+  function _setDataFiltro(d) { _dataFiltroAtual = d; _load(); }
+  function _aplicarFiltros() { _load(); }
+  function _limparFiltros() { document.getElementById('filtro-cidade').value = ''; document.getElementById('filtro-status').value = ''; _load(); }
+  async function _verRota(uid) { _layerRota.clearLayers(); const res = await api.get('GET_HISTORICO_LOCALIZACAO', { promotor_id: uid }); const pts = (res?.pontos || []).map(p => [p.lat, p.lng]); L.polyline(pts, { color: '#4f8ef7' }).addTo(_layerRota); }
 
-  function _toggleLayer(layer) {
-    _visible[layer] = !_visible[layer];
-    const btn = document.getElementById('toggle-' + layer);
-    if (btn) btn.classList.toggle('active', _visible[layer]);
-    const lg = { slots:_layerSlots, promotores:_layerPromotores, raios:_layerRaios }[layer];
-    if (!lg || !_map) return;
-    if (_visible[layer]) { if (!_map.hasLayer(lg)) _map.addLayer(lg); }
-    else { if (_map.hasLayer(lg)) _map.removeLayer(lg); }
-  }
-
-  function _aplicarFiltros() { 
-    _renderSlots(_aplicarFiltrosLocais(_todosSlots)); 
-    _renderPromotores(_aplicarFiltrosPromotores(_todosPromotores));
-    _renderListaLateral(_aplicarFiltrosPromotores(_todosPromotores));
-  }
-
-  function _limparFiltros() {
-    ['filtro-cidade', 'filtro-status', 'filtro-horario'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-    _aplicarFiltros();
-  }
-
-  function _setDataFiltro(data) {
-    _dataFiltroAtual = data;
-    _load();
-  }
-
-  function _focarPromotor(userId) {
-    const p = _todosPromotores.find(x => x.user_id === userId);
-    if (p && p.lat && p.lng && _map) _map.setView([p.lat, p.lng], 16, { animate: true });
-  }
-
-  async function _verRelatorioFiscal(fiscalId, nome) {
-    const painel = document.getElementById('mapa-painel');
-    if (!painel) return;
-    painel.innerHTML = `<div style="padding:14px;color:#a0aec0;font-size:12px">📊 Gerando relatório de ${nome.split(' ')[0]}...</div>`;
-    try {
-      const res = await api.get('GET_RELATORIO_SUPERVISAO', { fiscal_id: fiscalId, data: _dataFiltroAtual });
-      if (!res.ok) throw new Error(res.erro);
-      const visitasHtml = (res.visitas || []).map(v => {
-        const isLonga = v.duracao_min > 45 && !v.is_cobertura;
-        const bg = v.is_cobertura ? 'rgba(159,122,234,0.1)' : (isLonga ? 'rgba(252,129,129,0.05)' : 'transparent');
-        return `
-          <div style="padding:10px;border-bottom:1px solid rgba(99,179,237,0.1);background:${bg}">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
-              <div style="font-size:13px;font-weight:700;color:#e2e8f0">📍 ${v.local}</div>
-              ${v.is_cobertura ? '<span style="font-size:9px;font-weight:800;background:#9f7aea;color:#fff;padding:2px 5px;border-radius:4px;letter-spacing:0.5px">COBERTURA</span>' : ''}
-            </div>
-            <div style="display:flex;justify-content:space-between;font-size:11px">
-              <span>⏰ ${new Date(v.inicio).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})} - ${new Date(v.fim).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</span>
-              <span style="font-weight:800;color:${v.is_cobertura ? '#9f7aea' : (isLonga ? '#fc8181' : '#68d391')}">⏱️ ${v.duracao_min} min</span>
-            </div>
-          </div>`;
-      }).join('') || '<div style="padding:20px;text-align:center;color:#4a5568">Nenhuma visita registrada hoje.</div>';
-      painel.innerHTML = `
-        <div style="padding:14px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><span style="font-size:12px;font-weight:700;color:#9f7aea">RELATÓRIO DE VISITAS</span><button onclick="mapaScreen._voltarLista()" style="background:none;border:none;color:#718096;cursor:pointer;font-size:12px">← Voltar</button></div>
-          <div style="font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:2px">⭐ ${nome}</div>
-          <div style="background:#1a2744;border-radius:10px;overflow:hidden;border:1px solid rgba(99,179,237,0.1)">${visitasHtml}</div>
-        </div>`;
-    } catch(e) { painel.innerHTML = `<div style="padding:14px;color:#fc8181">❌ Erro: ${e.message}</div>`; }
-  }
-
-  async function _verRota(promotorId) {
-    if (!_layerRota || !_map) return;
-    _layerRota.clearLayers();
-    try {
-      const res = await api.get('GET_HISTORICO_LOCALIZACAO', { promotor_id: promotorId, data: _dataFiltroAtual });
-      const pts = (res?.pontos || []).filter(p => p.lat && p.lng);
-      if (pts.length < 2) return;
-      const latlngs = pts.map(p => [parseFloat(p.lat), parseFloat(p.lng)]);
-      L.polyline(latlngs, { color:'#63b3ed', weight:3, opacity:.8 }).addTo(_layerRota);
-      _map.fitBounds(L.latLngBounds(latlngs), { padding:[40,40] });
-    } catch(e) { console.error('[rota]', e.message); }
-  }
-
-  function destroy() { clearInterval(_interval); _interval = null; if (_map) { _map.remove(); _map = null; } }
-
-  return { _setDataFiltro, _toggleLayer, _aplicarFiltros, _limparFiltros, _focarPromotor, _voltarLista, _verRota, _verRelatorioFiscal, render, destroy };
+  return { _setDataFiltro, _toggleLayer, _aplicarFiltros, _limparFiltros, _focarPromotor, _voltarLista, _verRota, render };
 })();

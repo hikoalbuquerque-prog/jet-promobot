@@ -181,49 +181,77 @@ function getHistorico_(user, params) {
   return { ok: true, historico: registros };
 }
 
-function _getPromotoresMap_(ss) {
-  const cache = CacheService.getScriptCache();
-  const cached = cache.get('promotores_map');
-  if (cached) {
-    try { return JSON.parse(cached); } catch(_) {}
-  }
-  const ws   = ss.getSheetByName('PROMOTORES'); if (!ws) return {};
-  const data = ws.getDataRange().getValues();
-  const h    = data[0].map(v => String(v).toLowerCase().trim());
-  const iId  = h.indexOf('user_id'), iNome = h.indexOf('nome_completo');
-  const map = {};
-  for (let r = 1; r < data.length; r++) {
-    const id = String(data[r][iId]).trim();
-    if (id) map[id] = {
-      nome: data[r][iNome] || id,
-      user_id: id
-    };
-  }
-  try { cache.put('promotores_map', JSON.stringify(map), 600); } catch(_) {}
-  return map;
-}
-
 function getMapaPromotor_(user, params) {
   const ss    = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const ws    = ss.getSheetByName('LOCALIZACAO_TEMPO_REAL');
-  if (!ws) return { ok: true, pontos: [] };
-  const data  = ws.getDataRange().getValues();
-  const h     = data[0].map(v => String(v).toLowerCase().trim());
-  const iUsr  = h.indexOf('user_id');
+  const wsLoc = ss.getSheetByName('LOCALIZACAO_TEMPO_REAL');
+  const wsJor = ss.getSheetByName('JORNADAS');
+  if (!wsLoc || !wsJor) return { ok: true, pontos: [] };
+
+  const dataLoc = wsLoc.getDataRange().getValues(), hLoc = dataLoc[0].map(v => String(v).toLowerCase().trim());
+  const dataJor = wsJor.getDataRange().getValues(), hJor = dataJor[0].map(v => String(v).toLowerCase().trim());
+  
+  const iUsrLoc = hLoc.indexOf('user_id'), iUsrJor = hJor.indexOf('user_id'), iStJor = hJor.indexOf('status');
+  const iNomeJor = hJor.indexOf('nome_completo') > -1 ? hJor.indexOf('nome_completo') : hJor.indexOf('promotor_nome');
+
+  // Mapeia status atual de cada promotor
+  const statusMap = {};
+  for (let r = dataJor.length - 1; r >= 1; r--) {
+    const uid = String(dataJor[r][iUsrJor]).trim();
+    if (!uid || statusMap[uid]) continue;
+    statusMap[uid] = {
+      status: String(dataJor[r][iStJor]).trim().toUpperCase(),
+      nome: String(dataJor[r][iNomeJor] || uid).trim()
+    };
+  }
+
+  const role = (user.tipo_vinculo || '').toUpperCase();
+  const isGestor = ['GESTOR','FISCAL','LIDER'].includes(role);
+
   const pontos = [];
-  const seen   = new Set();
-
-  const promMap = _getPromotoresMap_(ss);
-
-  for (let r = data.length - 1; r >= 1; r--) {
-    const uid = String(data[r][iUsr]).trim();
+  const seen = new Set();
+  for (let r = dataLoc.length - 1; r >= 1; r--) {
+    const uid = String(dataLoc[r][iUsrLoc]).trim();
     if (!uid || seen.has(uid)) continue;
     seen.add(uid);
-    const obj = rowToObj_(h, data[r]);
-    obj.nome_completo = promMap[uid]?.nome || uid;
+
+    const info = statusMap[uid] || { status: 'OFFLINE', nome: uid };
+    
+    // Regra de Visibilidade: 
+    // Se for promotor, só vê ATIVO ou PAUSADO. Se for gestor, vê tudo de hoje.
+    if (!isGestor && !['EM_ATIVIDADE', 'PAUSADO', 'A_CAMINHO'].includes(info.status)) continue;
+
+    const obj = rowToObj_(hLoc, dataLoc[r]);
+    obj.status_jornada = info.status;
+    obj.nome_completo = info.nome;
     pontos.push(obj);
   }
   return { ok: true, pontos };
+}
+
+/**
+ * Retorna cidades e cargos únicos para o seletor de broadcast.
+ */
+function getBroadcastFilters_() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws = ss.getSheetByName('PROMOTORES');
+  const data = ws.getDataRange().getValues();
+  const h = data[0].map(v => String(v).toLowerCase().trim());
+  
+  const iCid = h.indexOf('cidade_base'), iCar = h.indexOf('cargo_principal'), iSt = h.indexOf('status');
+  const cidades = new Set(), cargos = new Set();
+
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][iSt]).toUpperCase() === 'ATIVO') {
+      if (data[r][iCid]) cidades.add(String(data[r][iCid]).trim());
+      if (data[r][iCar]) cargos.add(String(data[r][iCar]).trim());
+    }
+  }
+
+  return { 
+    ok: true, 
+    cidades: Array.from(cidades).sort(), 
+    cargos: Array.from(cargos).sort() 
+  };
 }
 
 function processIntegracoes(integracoes, contexto) {
