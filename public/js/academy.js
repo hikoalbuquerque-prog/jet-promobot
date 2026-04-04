@@ -25,8 +25,10 @@ const academy = {
 
   _renderTrilha() {
     var modulos = academy._modulos;
-    var nivelNomes = { BASICO: 'Basico', INTERMEDIARIO: 'Intermediario', AVANCADO: 'Avancado', ESPECIALISTA: 'Especialista', MASTER: 'Master' };
-    var nivelCores = { BASICO: '#63b3ed', INTERMEDIARIO: '#f6ad55', AVANCADO: '#68d391', ESPECIALISTA: '#b794f4', MASTER: '#ffd700' };
+    var categorias = ['MANUAL APP', 'TECNICA VENDAS', 'AVANCADO', 'ESPECIALISTA', 'MASTER'];
+    var catNomes = { 'MANUAL APP': 'Manual do App', 'TECNICA VENDAS': 'Técnica de Vendas', 'AVANCADO': 'Avançado', 'ESPECIALISTA': 'Especialista', 'MASTER': 'Master' };
+    var catCores = { 'MANUAL APP': '#4f8ef7', 'TECNICA VENDAS': '#f6ad55', 'AVANCADO': '#68d391', 'ESPECIALISTA': '#b794f4', 'MASTER': '#ffd700' };
+    
     var total = modulos.length;
     var conc = modulos.filter(function(m){ return m.concluido; }).length;
     var pct = total > 0 ? Math.round(conc/total*100) : 0;
@@ -41,15 +43,15 @@ const academy = {
       + '<div style="background:linear-gradient(90deg,#63b3ed,#68d391);height:100%;width:' + pct + '%;border-radius:20px"></div>'
       + '</div></div>';
 
-    ['BASICO','INTERMEDIARIO','AVANCADO','ESPECIALISTA','MASTER'].forEach(function(nivel) {
+    categorias.forEach(function(nivel) {
       var mods = modulos.filter(function(m){ return m.nivel === nivel; });
       if (!mods.length) return;
-      var cor = nivelCores[nivel];
+      var cor = catCores[nivel];
       var concN = mods.filter(function(m){ return m.concluido; }).length;
       html += '<div style="margin-bottom:20px">'
         + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">'
         + '<div style="width:3px;height:20px;background:' + cor + ';border-radius:2px"></div>'
-        + '<span style="font-size:12px;font-weight:700;color:' + cor + '">' + nivelNomes[nivel].toUpperCase() + '</span>'
+        + '<span style="font-size:12px;font-weight:700;color:' + cor + '">' + (catNomes[nivel] || nivel).toUpperCase() + '</span>'
         + '<span style="font-size:11px;color:#718096">' + concN + '/' + mods.length + '</span>'
         + '</div>';
 
