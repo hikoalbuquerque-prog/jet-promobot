@@ -820,6 +820,18 @@ async function handleCallbackQuery(callbackQuery) {
     return;
   }
 
+  if (data === 'bot:slots') {
+    await handleTelegramUpdate({ message: { chat, from, text: '/slots' } });
+    await telegramApi('answerCallbackQuery', { callback_query_id: callbackId });
+    return;
+  }
+
+  if (data === 'bot:jornada') {
+    await handleTelegramUpdate({ message: { chat, from, text: '/jornada' } });
+    await telegramApi('answerCallbackQuery', { callback_query_id: callbackId });
+    return;
+  }
+
   if (data === 'bot:reset_confirm') {
     await handleTelegramUpdate({ message: { chat, from, text: '/reset' } });
     await telegramApi('answerCallbackQuery', { callback_query_id: callbackId });
@@ -1318,10 +1330,12 @@ async function handleTextMessage(message) {
       `<b>Comandos principais:</b>\n` +
       `/cadastro — Vincular Telegram ao promotor\n` +
       `/perfil — Ver meu score, streak e bloqueios\n` +
+      `/slots — Ver vagas disponíveis agora\n` +
+      `/jornada — Ver minhas vagas aceitas\n` +
       `/reset — Resetar jornada travada\n` +
       `/links — Links úteis (NF, Newsletter, LinkedIn)\n\n` +
       `<b>Links Rápidos:</b>\n` +
-      `• <a href="https://hikoalbuquerque-prog.github.io/jet-promobot/">Abrir Aplicativo JET</a>\n` +
+      `• <a href="https://hikoalbuquerque-prog.github.io/jet-promobot/">JET Promo Web Bot</a>\n` +
       `• <a href="https://t.me/Promoter_GOJET_BOT">Lançar Vendas (Bot Vendas)</a>`;
     
     await telegramApi('sendMessage', { 
@@ -1330,7 +1344,8 @@ async function handleTextMessage(message) {
       text: welcome,
       reply_markup: JSON.stringify({
         inline_keyboard: [
-          [{ text: '👤 Ver Meu Perfil', callback_data: 'bot:perfil' }, { text: '🔄 Resetar Jornada', callback_data: 'bot:reset_confirm' }],
+          [{ text: '👤 Perfil', callback_data: 'bot:perfil' }, { text: '📅 Minha Jornada', callback_data: 'bot:jornada' }],
+          [{ text: '🔍 Vagas Disponíveis', callback_data: 'bot:slots' }, { text: '🔄 Resetar', callback_data: 'bot:reset_confirm' }],
           [{ text: '🔗 Links Úteis', callback_data: 'bot:links' }]
         ]
       })
@@ -1338,51 +1353,41 @@ async function handleTextMessage(message) {
     return;
   }
 
-  if (/^\/links\b/i.test(text)) {
-    const linksMsg = `🔗 <b>Links Úteis para Promotores</b>\n\n` +
-      `• <b>Emissão de NF:</b> <a href="https://t.me/TopDoerBrasilBot">Top Doer Brasil Bot</a>\n` +
-      `• <b>Newsletter Promo BR:</b> <a href="https://t.me/Jetnewspromo">Canal de Notícias</a>\n` +
-      `• <b>LinkedIn JET:</b> <a href="https://www.linkedin.com/company/jetazul/">Seguir Página</a>\n` +
-      `• <b>Lançar Vendas:</b> <a href="https://t.me/Promoter_GOJET_BOT">Bot de Vendas</a>`;
+  if (/^\/jornada\b/i.test(text)) {
+    const auth = await callAppsScriptGet('BOT_GET_SESSION', { integration_secret: CFG.appsScriptSharedSecret, telegram_user_id: telegramUserId });
+    const res = await callAppsScriptGet('GET_SLOT_ATUAL', { token: auth?.sessao?.token || '', telegram_user_id: telegramUserId });
     
-    await telegramApi('sendMessage', { chat_id: chat.id, parse_mode: 'HTML', text: linksMsg });
-    return;
-  }
-
-  if (/^\/perfil\b/i.test(text)) {
-    const res = await callAppsScriptPost({ evento: 'BOT_GET_PERFIL', integration_secret: CFG.appsScriptSharedSecret, telegram_user_id: telegramUserId });
-    if (!res.ok) {
-      await telegramApi('sendMessage', { chat_id: chat.id, text: '❌ ' + (res.erro || 'Perfil não encontrado. Faça o /cadastro primeiro.') });
+    if (!res.ok || !res.jornadas?.length) {
+      await telegramApi('sendMessage', { chat_id: chat.id, text: '📅 Você não possui nenhuma jornada ativa no momento.' });
       return;
     }
-    const perfilMsg = `👤 <b>Seu Perfil</b>\n\n` +
-      `<b>Nome:</b> ${res.nome}\n` +
-      `<b>Score:</b> ${res.score.toFixed(1)} pts\n` +
-      `<b>Streak:</b> ${res.streak} dias 🔥\n` +
-      `<b>Status:</b> ${res.bloqueado ? '🔴 BLOQUEADO' : '✅ ATIVO'}` +
-      `${res.bloqueado ? `\n<b>Motivo:</b> ${res.motivo_bloqueio}` : ''}`;
-    
-    await telegramApi('sendMessage', { chat_id: chat.id, parse_mode: 'HTML', text: perfilMsg });
-    return;
-  }
 
-  if (/^\/reset\b/i.test(text)) {
+    const lista = res.jornadas.map(j => {
+      const s = j.slot || {};
+      const statusIcon = j.jornada.status === 'EM_ATIVIDADE' ? '✅' : '🟡';
+      return `${statusIcon} <b>${s.local_nome || s.local || 'Local desconhecido'}</b>\n` +
+             `📅 ${s.data || '—'} | 🕐 ${s.inicio || '—'}–${s.fim || '—'}\n` +
+             `Status: <code>${j.jornada.status}</code>`;
+    }).join('\n\n');
+
     await telegramApi('sendMessage', { 
       chat_id: chat.id, 
-      text: '⚠️ Deseja realmente resetar sua jornada atual? Isso forçará o encerramento no sistema para liberar novas vagas.',
-      reply_markup: JSON.stringify({
-        inline_keyboard: [[
-          { text: '✅ Sim, Resetar', callback_data: 'bot:reset_exec' },
-          { text: '❌ Não', callback_data: 'bot_clear_session' }
-        ]]
-      })
+      parse_mode: 'HTML', 
+      text: `📅 <b>Sua Agenda Atual:</b>\n\n${lista}\n\n<a href="https://hikoalbuquerque-prog.github.io/jet-promobot/">👉 Abrir App para Operar</a>`
     });
     return;
   }
 
-  if (/^\/vagas\b/i.test(text)) {
+  if (/^\/slots\b/i.test(text)) {
     const auth = await callAppsScriptGet('BOT_GET_SESSION', { integration_secret: CFG.appsScriptSharedSecret, telegram_user_id: telegramUserId });
-    const res = await callAppsScriptGet('GET_SLOTS_DISPONIVEIS', { token: auth?.sessao?.token || '', telegram_user_id: telegramUserId });
+    // Busca o perfil para pegar a cidade base do promotor
+    const perfil = await callAppsScriptPost({ evento: 'BOT_GET_PERFIL', integration_secret: CFG.appsScriptSharedSecret, telegram_user_id: telegramUserId });
+    const res = await callAppsScriptGet('GET_SLOTS_DISPONIVEIS', { 
+      token: auth?.sessao?.token || '', 
+      telegram_user_id: telegramUserId,
+      cidade: perfil?.ok ? perfil.cidade : '' 
+    });
+
     if (!res.ok || !res.slots?.length) {
       await telegramApi('sendMessage', { chat_id: chat.id, text: '📭 Nenhuma vaga disponível no momento para sua cidade.' });
       return;
@@ -1391,7 +1396,7 @@ async function handleTextMessage(message) {
     await telegramApi('sendMessage', { 
       chat_id: chat.id, 
       parse_mode: 'HTML', 
-      text: `📅 <b>Vagas Disponíveis:</b>\n\n${lista}\n\n<a href="https://hikoalbuquerque-prog.github.io/jet-promobot/">👉 Abrir App para Aceitar</a>`
+      text: `🔍 <b>Vagas Disponíveis (Próximas):</b>\n\n${lista}\n\n<a href="https://hikoalbuquerque-prog.github.io/jet-promobot/">👉 Abrir App para Aceitar</a>`
     });
     return;
   }

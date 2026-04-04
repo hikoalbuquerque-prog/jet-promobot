@@ -558,8 +558,10 @@ function botGetPerfil_(params) {
   const tgId = String(params.telegram_user_id || '').trim();
   const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   const wsP = ss.getSheetByName('PROMOTORES'), dataP = wsP.getDataRange().getValues();
-  const hP = dataP[0].map(v => String(v).toLowerCase().trim()), iId = hP.indexOf('user_id'), iTg = hP.indexOf('telegram_user_id');
-  const iNome = hP.indexOf('nome'), iScore = hP.indexOf('score_operacional'), iStreak = hP.indexOf('streak_dias');
+  const hP = dataP[0].map(v => String(v).toLowerCase().trim());
+  const iId = hP.indexOf('user_id'), iTg = hP.indexOf('telegram_user_id');
+  const iNome = hP.indexOf('nome_completo'), iScore = hP.indexOf('score_operacional'), iStreak = hP.indexOf('streak_dias');
+  const iCid = hP.indexOf('cidade_base') > -1 ? hP.indexOf('cidade_base') : hP.indexOf('cidade');
 
   for (let r = 1; r < dataP.length; r++) {
     if (String(dataP[r][iTg]).trim() === tgId) {
@@ -567,9 +569,10 @@ function botGetPerfil_(params) {
       const bloqueio = verificarBloqueiosPromotores_(ss, userId);
       return {
         ok: true,
-        nome: String(dataP[r][iNome] || ''),
-        score: parseFloat(dataP[r][iScore] || '0'),
-        streak: parseInt(dataP[r][iStreak] || '0'),
+        nome: iNome > -1 ? String(dataP[r][iNome] || '') : 'Sem Nome',
+        cidade: iCid > -1 ? String(dataP[r][iCid] || '') : '',
+        score: iScore > -1 ? parseFloat(dataP[r][iScore] || '0') : 0,
+        streak: iStreak > -1 ? parseInt(dataP[r][iStreak] || '0') : 0,
         bloqueado: bloqueio.bloqueado,
         motivo_bloqueio: bloqueio.motivo
       };

@@ -267,6 +267,17 @@ function encerrarJornadasFantasma() {
     } else if (slot.data && slot.data < hoje) {
       deveEncerrar = true;
       motivo = 'Slot de dia passado';
+    } else if (slot.data === hoje && slot.fim) {
+      // Verifica se o horário atual passou do fim do slot + 1 hora de tolerância
+      try {
+        const [hFim, mFim] = slot.fim.split(':').map(Number);
+        const dtFim = new Date(agora.getTime());
+        dtFim.setHours(hFim, mFim, 0, 0);
+        if (agora.getTime() > dtFim.getTime() + 60 * 60 * 1000) {
+          deveEncerrar = true;
+          motivo = 'Horário de fim ultrapassado (>1h)';
+        }
+      } catch(_) {}
     } else {
       const ultimaAtu = dataJ[r][iJUpd] ? new Date(dataJ[r][iJUpd]).getTime() : 0;
       if (status === 'EM_ATIVIDADE' && (agora.getTime() - ultimaAtu > 60 * 60 * 1000)) {
