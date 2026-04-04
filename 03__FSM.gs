@@ -759,7 +759,13 @@ function getSlotsDisponiveis_(params, user) {
     const vinc = (user?.tipo_vinculo || '').toUpperCase();
     if (vinc !== 'MEI' && vinc !== 'FISCAL') continue;
 
-    const dataSlot = String(data[r][iDt] || '').substring(0, 10);
+    // Normalização de Data para comparação segura
+    let dataSlotRaw = data[r][iDt];
+    if (dataSlotRaw instanceof Date) {
+      dataSlotRaw = dataSlotRaw.toISOString().split('T')[0];
+    }
+    const dataSlot = String(dataSlotRaw || '').substring(0, 10);
+    
     if (dataSlot && dataSlot !== hojeStr && dataSlot !== amanhaStr) continue;
 
     if (dataSlot === hojeStr && iFim > -1) {

@@ -1,9 +1,9 @@
 const ranking = {
   _BADGES_DEF: [
-    { id: 'JORNADAS', label: 'Jornadas', icon: '💪', niveis: [{ label:'10 jornadas', cor:'#cd7f32', raridade:'Bronze' },{ label:'100 jornadas', cor:'#63b3ed', raridade:'Safira' },{ label:'1000 jornadas',cor:'#ffd700', raridade:'Lendário' }]},
-    { id: 'STREAK', label: 'Streak', icon: '🔥', niveis: [{ label:'5 dias', cor:'#cd7f32', raridade:'Bronze' },{ label:'30 dias', cor:'#63b3ed', raridade:'Safira' }]},
-    { id: 'PONTUAL', label: 'Pontualidade', icon: '🎯', niveis: [{ label:'5 pontuais', cor:'#cd7f32', raridade:'Bronze' },{ label:'100 pontuais', cor:'#68d391', raridade:'Esmeralda' }]},
-    { id: 'INDICACAO', label: 'Indicações', icon: '🤝', niveis: [{ label:'1 indicação', cor:'#cd7f32', raridade:'Bronze' },{ label:'10 indicações', cor:'#63b3ed', raridade:'Safira' }]},
+    { id: 'JORNADAS', label: 'Jornadas', icon: '💪' },
+    { id: 'STREAK', label: 'Streak', icon: '🔥' },
+    { id: 'PONTUAL', label: 'Pontualidade', icon: '🎯' },
+    { id: 'INDICACAO', label: 'Indicações', icon: '🤝' },
   ],
 
   _periodo: 'SEMANAL',
@@ -68,7 +68,19 @@ const ranking = {
         <div id="rank-list-nacional">${this._renderLista(rankRes.nacional, eu)}</div>
         <div id="rank-list-regional" style="display:none">${this._renderLista(rankRes.regional, eu, rankRes.cidade)}</div>
 
-        <div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;margin:24px 0">
+        <div style="font-size:11px;color:#a0aec0;font-weight:700;margin:24px 0 10px 0">CONQUISTAS</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px">
+          ${this._BADGES_DEF.map(def => {
+            const tem = badges.some(b => b.tipo && b.tipo.startsWith(def.id));
+            return `
+              <div style="background:#1e2a45;border-radius:12px;padding:12px;text-align:center;opacity:${tem ? 1 : 0.3}">
+                <div style="font-size:24px;margin-bottom:4px">${def.icon}</div>
+                <div style="font-size:11px;font-weight:700">${def.label}</div>
+              </div>`;
+          }).join('')}
+        </div>
+
+        <div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;margin-bottom:20px">
           <div style="font-size:12px;font-weight:700;color:#a0aec0;margin-bottom:12px">COMO GANHAR PONTOS</div>
           ${[['✅ Check-in pontual','+10'],['🏁 Checkout','+5'],['🔥 Streak (5 dias)','+25'],['❌ Cancelamento','-20']].map(r => `
             <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:13px">
@@ -76,29 +88,28 @@ const ranking = {
             </div>
           `).join('')}
         </div>
-
-        <div style="font-size:11px;color:#a0aec0;font-weight:700;margin-bottom:10px">MINHAS CONQUISTAS</div>
       `;
-      this._BADGES_DEF.forEach(def => {
-        const conquista = badges.filter(b => b.tipo && b.tipo.startsWith(def.id));
-        const nivel = conquista.length;
-        const opacity = nivel > 0 ? '1' : '0.3';
-        html += `<div style="background:#1e2a45;border-radius:12px;padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:12px;opacity:${opacity}"><div style="font-size:30px">${def.icon}</div><div style="flex:1"><div style="font-size:13px;font-weight:700">${def.label}</div><div style="font-size:11px;color:#718096">${nivel > 0 ? 'Conquistado' : 'Não conquistado'}</div></div></div>`;
-      });
       el.innerHTML = html;
-    } catch(e) { el.innerHTML = 'Erro ao carregar ranking.'; }
+    } catch(e) { el.innerHTML = `<div style="text-align:center;padding:40px;color:#fc8181">Erro ao carregar dados.</div>`; }
   },
 
   _setPeriodo(p) { this._periodo = p; this._load(); },
+  
   _renderLista(lista, eu, cidade) {
     let html = ''; if (cidade) html += `<div style="font-size:10px;color:#718096;text-align:center;margin-bottom:8px">Cidade: ${cidade}</div>`;
     if (!lista || !lista.length) return html + '<div style="text-align:center;padding:20px;color:#4a5568">Nenhum dado</div>';
     lista.forEach((p, i) => {
       const isMe = eu && p.user_id === eu.user_id;
-      html += `<div style="background:${isMe?'rgba(79,142,247,0.1)':'#1e2a45'};border:1px solid ${isMe?'#4f8ef7':'#2a3a55'};border-radius:12px;padding:12px;margin-bottom:6px;display:flex;align-items:center;gap:10px"><div style="font-size:18px;width:28px">${i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'º'}</div><div style="flex:1"><div style="font-size:13px;font-weight:700">${p.nome}</div></div><div style="font-size:16px;font-weight:800;color:#4f8ef7">${p.pontos}</div></div>`;
+      html += `
+        <div style="background:${isMe?'rgba(79,142,247,0.1)':'#1e2a45'};border:1px solid ${isMe?'#4f8ef7':'#2a3a55'};border-radius:12px;padding:12px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px">
+          <div style="font-size:18px;width:28px">${i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'º'}</div>
+          <div style="flex:1"><div style="font-size:13px;font-weight:700">${p.nome}</div></div>
+          <div style="font-size:16px;font-weight:800;color:#4f8ef7">${p.pontos}</div>
+        </div>`;
     });
     return html;
   },
+
   _switchRank(tipo) {
     const nac = document.getElementById('rank-list-nacional'), reg = document.getElementById('rank-list-regional');
     const bN = document.getElementById('tab-rank-nac'), bR = document.getElementById('tab-rank-reg');
