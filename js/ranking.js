@@ -72,14 +72,21 @@ const ranking = {
         <div id="rank-list-nacional">${this._renderLista(rankRes.nacional, eu)}</div>
         <div id="rank-list-regional" style="display:none">${this._renderLista(rankRes.regional, eu, rankRes.cidade)}</div>
 
-        <div style="font-size:11px;color:#a0aec0;font-weight:700;margin:24px 0 10px 0">CONQUISTAS (BADGES)</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:24px">
+        <div style="font-size:11px;color:#a0aec0;font-weight:700;margin:24px 0 10px 0">CONQUISTAS DETALHADAS</div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:24px">
           ${this._BADGES_DEF.map(def => {
-            const tem = badges.some(b => b.tipo && b.tipo.startsWith(def.id));
+            const conquistasDef = badges.filter(b => b.tipo && b.tipo.startsWith(def.id));
+            const nivelAtingido = conquistasDef.length;
+            const ultimaConquista = nivelAtingido > 0 ? conquistasDef[nivelAtingido-1] : null;
+            const opacity = nivelAtingido > 0 ? 1 : 0.3;
             return `
-              <div style="background:#1e2a45;border-radius:12px;padding:10px;text-align:center;opacity:${tem ? 1 : 0.2}">
-                <div style="font-size:24px;margin-bottom:4px">${def.icon}</div>
-                <div style="font-size:8px;font-weight:700;color:#a0aec0;text-transform:uppercase">${def.label}</div>
+              <div style="background:#1e2a45;border-radius:12px;padding:12px;display:flex;align-items:center;gap:12px;opacity:${opacity}">
+                <div style="font-size:30px">${def.icon}</div>
+                <div style="flex:1">
+                  <div style="font-size:13px;font-weight:700">${def.label}</div>
+                  <div style="font-size:11px;color:#718096">${ultimaConquista ? ultimaConquista.descricao : 'Ainda não conquistado'}</div>
+                </div>
+                ${nivelAtingido > 0 ? `<div style="background:rgba(104,211,145,0.15);color:#68d391;font-size:10px;font-weight:800;padding:2px 8px;border-radius:10px">NÍVEL ${nivelAtingido}</div>` : ''}
               </div>`;
           }).join('')}
         </div>
@@ -87,7 +94,7 @@ const ranking = {
         <div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:16px;padding:16px;margin-bottom:40px">
           <div style="font-size:12px;font-weight:700;color:#a0aec0;margin-bottom:12px">REGRAS DE PONTUAÇÃO</div>
           ${[['✅ Check-in pontual','+10'],['✅ Check-in atrasado','+5'],['🏁 Checkout','+5'],['🔥 Streak (5 dias)','+25'],['❌ Cancelamento','-20']].map(r => `
-            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:13px">
+            <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:13px">
               <span>${r[0]}</span><span style="font-weight:700;color:${r[1].includes('+')?'#68d391':'#fc8181'}">${r[1]}</span>
             </div>
           `).join('')}
