@@ -161,7 +161,7 @@ function getSlotsHoje_(token, params) {
 
   const dataFiltro = (params && params.data)
     ? String(params.data).substring(0, 10)
-    : new Date().toISOString().split('T')[0];
+    : Utilities.formatDate(new Date(), "GMT-3", "yyyy-MM-dd");
 
   const statusValidos = ['DISPONIVEL', 'ACEITO', 'EM_ATIVIDADE', 'PAUSADO', 'ENCERRADO', 'CANCELADO'];
   const iSlotId  = h.indexOf('slot_id'), iStatus = h.indexOf('status'), iUserId = h.indexOf('user_id');

@@ -189,7 +189,8 @@ function getMapaPromotor_(user, params) {
 
   const dataLoc = wsLoc.getDataRange().getValues(), hLoc = dataLoc[0].map(v => String(v).toLowerCase().trim());
   const dataJor = wsJor.getDataRange().getValues(), hJor = dataJor[0].map(v => String(v).toLowerCase().trim());
-  
+  const promMap = _getPromotoresMap_(ss);
+
   const iUsrLoc = hLoc.indexOf('user_id'), iUsrJor = hJor.indexOf('user_id'), iStJor = hJor.indexOf('status');
   const iNomeJor = hJor.indexOf('nome_completo') > -1 ? hJor.indexOf('nome_completo') : hJor.indexOf('promotor_nome');
 
@@ -198,9 +199,10 @@ function getMapaPromotor_(user, params) {
   for (let r = dataJor.length - 1; r >= 1; r--) {
     const uid = String(dataJor[r][iUsrJor]).trim();
     if (!uid || statusMap[uid]) continue;
+    const prom = promMap[uid] || {};
     statusMap[uid] = {
       status: String(dataJor[r][iStJor]).trim().toUpperCase(),
-      nome: String(dataJor[r][iNomeJor] || uid).trim()
+      nome: prom.nome || String(dataJor[r][iNomeJor] || uid).trim()
     };
   }
 
@@ -214,7 +216,8 @@ function getMapaPromotor_(user, params) {
     if (!uid || seen.has(uid)) continue;
     seen.add(uid);
 
-    const info = statusMap[uid] || { status: 'OFFLINE', nome: uid };
+    const prom = promMap[uid] || {};
+    const info = statusMap[uid] || { status: 'OFFLINE', nome: prom.nome || uid };
     
     // Regra de Visibilidade: 
     // Se for promotor, só vê ATIVO ou PAUSADO. Se for gestor, vê tudo de hoje.

@@ -79,12 +79,55 @@ const mapaScreen = (() => {
       _renderPromotores(_aplicarFiltrosPromotores(_todosPromotores));
       _renderListaLateral(_aplicarFiltrosPromotores(_todosPromotores));
       const ts = document.getElementById('mapa-ts');
+    if (ts) ts.textContent = 'Atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+    
+    // Garantir que o filtro de data use o fuso local correto
+    const hoje = new Date().toLocaleDateString('en-CA'); // yyyy-mm-dd local
+    const inp = document.getElementById('mapa-filtro-data');
+    if (inp && !inp.value) {
+      inp.value = hoje;
+      _dataFiltroAtual = hoje;
+    }
+  }
+
+  function _initMap() {
+    if (_map) { _map.remove(); _map = null; }
+    _map = L.map('leaflet-map', { zoomControl: true }).setView([-23.55, -46.63], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(_map);
+    _layerSlots = L.markerClusterGroup({
+      maxClusterRadius: 30,
+      iconCreateFunction: function(cluster) {
+        return L.divIcon({ html: `<div style="background:rgba(99,179,237,0.9);color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-weight:bold;border:2px solid #fff">${cluster.getChildCount()}</div>`, className: '', iconSize: [30, 30] });
+      }
+    }).addTo(_map);
+    _layerPromotores = L.layerGroup().addTo(_map);
+    _layerRaios = L.layerGroup();
+    _layerRota = L.layerGroup().addTo(_map);
+  }
+
+  async function _load() {
+    try {
+      if (!_dataFiltroAtual) _dataFiltroAtual = new Date().toLocaleDateString('en-CA');
+      
+      const [slotsRes, promRes] = await Promise.all([
+        api.getSlotsHoje(_dataFiltroAtual),
+        api.get('GET_MAPA_PROMOTOR')
+      ]);
+      _todosSlots = slotsRes?.data || [];
+      _todosPromotores = promRes?.pontos || [];
+      _stats = slotsRes?.stats || {};
+      _atualizarStats();
+      _atualizarFiltroCidades();
+      _renderSlots(_aplicarFiltrosLocais(_todosSlots));
+      _renderPromotores(_aplicarFiltrosPromotores(_todosPromotores));
+      _renderListaLateral(_aplicarFiltrosPromotores(_todosPromotores));
+      const ts = document.getElementById('mapa-ts');
       if (ts) ts.textContent = 'Atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
     } catch(e) { console.error('[mapa]', e.message); }
   }
 
   function _atualizarStats() {
-    const pills = { '.stat-total': `${_stats.total||0} slots`, '.stat-ativo': `${_stats.ocupados||0} ocupados`, '.stat-vago': `${_stats.disponiveis||0} vagos` };
+    const pills = { '.stat-total': `${_stats.total||0} locais`, '.stat-ativo': `${_stats.ocupados||0} ocupados`, '.stat-vago': `${_stats.disponiveis||0} vagos` };
     for (const [sel, txt] of Object.entries(pills)) { const el = document.querySelector(sel); if (el) el.textContent = txt; }
   }
 
@@ -111,13 +154,33 @@ const mapaScreen = (() => {
   function _renderSlots(slots) {
     if (!_layerSlots) return; _layerSlots.clearLayers(); _layerRaios.clearLayers();
     slots.forEach(s => {
-      const cor = { DISPONIVEL:'#2b6cb0', OCUPADO:'#c05621', ATIVO:'#276749' }[s.status_geral] || '#2d3748';
+      // Cores: Disponível=Azul, Aceito/Ocupado=Laranja, Ativo=Verde
+      const cor = { DISPONIVEL:'#3182ce', OCUPADO:'#ed8936', ATIVO:'#48bb78' }[s.status_geral] || '#718096';
+      const label = s.status_geral === 'DISPONIVEL' ? 'VAGO' : (s.promotores[0]?.nome.split(' ')[0] || 'OK');
+      
       const icon = L.divIcon({
-        html: `<div style="background:${cor};border:2px solid #fff;border-radius:8px;padding:4px;width:55px;text-align:center;color:#fff;font-size:10px;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,0.3)">${s.inicio_slot}</div>`,
-        className: '', iconSize: [55, 22]
+        html: `<div style="background:${cor};border:2px solid #fff;border-radius:12px;padding:2px 6px;min-width:60px;text-align:center;color:#fff;font-size:10px;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,0.3);white-space:nowrap">${s.inicio_slot} · ${label}</div>`,
+        className: '', iconSize: [60, 20], iconAnchor: [30, 10]
       });
-      L.marker([s.lat, s.lng], { icon }).addTo(_layerSlots).bindPopup(`<b>📍 ${s.local_nome}</b><br>${s.cidade}<br>Status: ${s.status_geral}`);
+      
+      const marker = L.marker([s.lat, s.lng], { icon }).addTo(_layerSlots);
+      
+      let pop = `<strong>📍 ${s.nome}</strong><br><small>${s.cidade}</small><br><br>`;
+      pop += `⏰ ${s.inicio_slot} – ${s.fim_slot}<br>`;
+      pop += `📊 Vagas: ${s.vagas_ocupadas} / ${s.max_promotores}<br>`;
+      if (s.promotores.length > 0) {
+        pop += `<hr style="margin:8px 0;border:0;border-top:1px solid #eee">`;
+        s.promotores.forEach(p => {
+          pop += `👤 ${p.nome} (${p.status})<br>`;
+        });
+      }
+      marker.bindPopup(pop);
+
+      if (_visible.raios && s.raio_metros) {
+        L.circle([s.lat, s.lng], { radius: s.raio_metros, color: cor, fillOpacity: 0.1, weight: 1 }).addTo(_layerRaios);
+      }
     });
+    if (_visible.raios) _layerRaios.addTo(_map); else _layerRaios.remove();
   }
 
   function _renderPromotores(proms) {
