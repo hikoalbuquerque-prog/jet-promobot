@@ -465,7 +465,7 @@ const router = (() => {
         border-radius: 16px; padding: 32px;
         box-shadow: 0 24px 48px rgba(0,0,0,0.5);
       }
-    `;      .modal-title { font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 700; }
+      .modal-title { font-family: 'IBM Plex Mono', monospace; font-size: 16px; font-weight: 700; }
       .modal-body { display: flex; flex-direction: column; gap: 8px; }
       .modal-info-row { display: flex; justify-content: space-between; font-size: 13px; color: #a0aec0; }
       .modal-info-row strong { color: #e2e8f0; }
