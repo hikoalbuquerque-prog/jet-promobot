@@ -234,16 +234,22 @@ function getMapaPromotor_(user, params) {
 function getBroadcastFilters_() {
   const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   const ws = ss.getSheetByName('PROMOTORES');
+  if (!ws) return { ok: false, erro: 'Aba PROMOTORES não encontrada' };
+  
   const data = ws.getDataRange().getValues();
   const h = data[0].map(v => String(v).toLowerCase().trim());
   
-  const iCid = h.indexOf('cidade_base'), iCar = h.indexOf('cargo_principal'), iSt = h.indexOf('status');
-  const cidades = new Set(), cargos = new Set();
+  // Busca flexível de colunas
+  const iCid = h.findIndex(v => v.includes('cidade'));
+  const iCar = h.findIndex(v => v.includes('cargo') || v.includes('função'));
+  const iSt  = h.findIndex(v => v.includes('status'));
 
+  const cidades = new Set(), cargos = new Set();
   for (let r = 1; r < data.length; r++) {
-    if (String(data[r][iSt]).toUpperCase() === 'ATIVO') {
-      if (data[r][iCid]) cidades.add(String(data[r][iCid]).trim());
-      if (data[r][iCar]) cargos.add(String(data[r][iCar]).trim());
+    const status = String(data[r][iSt] || '').toUpperCase();
+    if (status !== 'INATIVO' && status !== 'BLOQUEADO') {
+      if (iCid > -1 && data[r][iCid]) cidades.add(String(data[r][iCid]).trim());
+      if (iCar > -1 && data[r][iCar]) cargos.add(String(data[r][iCar]).trim());
     }
   }
 

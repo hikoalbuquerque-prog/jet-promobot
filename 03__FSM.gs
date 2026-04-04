@@ -749,15 +749,18 @@ function getSlotsDisponiveis_(params, user) {
       }
     }
 
-    // Filtra por cidade do promotor (Insensível a acento e caso)
+    // Filtra por cidade do promotor (Relaxado p/ depuração)
     if (cidadeUser) {
       const cidadeSlot = String(data[r][iCid] || '').trim();
-      if (cidadeSlot && normStr_(cidadeSlot) !== normStr_(cidadeUser)) continue;
+      // Se a cidade do slot for "TODAS" ou se houver um "match" parcial, permite
+      if (cidadeSlot && cidadeSlot.toUpperCase() !== 'TODAS') {
+        if (normStr_(cidadeSlot) !== normStr_(cidadeUser) && !normStr_(cidadeSlot).includes(normStr_(cidadeUser))) continue;
+      }
     }
 
     // Permite MEI e FISCAL verem slots
     const vinc = (user?.tipo_vinculo || '').toUpperCase();
-    if (vinc !== 'MEI' && vinc !== 'FISCAL') continue;
+    if (vinc !== 'MEI' && vinc !== 'FISCAL' && vinc !== 'GESTOR') continue;
 
     // Normalização de Data para comparação segura
     let dataSlotRaw = data[r][iDt];
