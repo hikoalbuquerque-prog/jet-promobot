@@ -16,7 +16,17 @@ const slotScreen = {
       const container = document.getElementById('slot-content');
       if (!container) return;
 
-      if (!res.ok || !res.slots || res.slots.length === 0) {
+      if (!res.ok) {
+        container.innerHTML = `
+          <div style="text-align:center;padding:40px;color:#fc8181">
+            <div style="font-size:40px;margin-bottom:10px">⚠️</div>
+            <div>${res.erro || res.mensagem || 'Erro ao carregar vagas.'}</div>
+            <button onclick="location.reload()" style="margin-top:20px;background:transparent;border:1px solid #4a5568;color:#a0aec0;padding:8px 16px;border-radius:10px;font-size:12px;cursor:pointer">Tentar novamente</button>
+          </div>`;
+        return;
+      }
+
+      if (!res.slots || res.slots.length === 0) {
         container.innerHTML = `
           <div style="text-align:center;padding:40px;color:#a0aec0">
             <div style="font-size:40px;margin-bottom:10px">⛱️</div>
