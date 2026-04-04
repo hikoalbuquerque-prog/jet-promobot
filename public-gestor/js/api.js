@@ -1,11 +1,7 @@
 // ─── api.js ───────────────────────────────────────────────────────────────────
 // Camada de comunicação com Apps Script (gestor)
-// Usa 'evento' como parâmetro (compatível com Main.gs atual)
-
 const api = (() => {
-  function _token() {
-    return state.get('gestor')?.token || '';
-  }
+  function _token() { return state.get('gestor')?.token || ''; }
 
   async function _get(evento, params = {}) {
     const url = new URL(CONFIG.APPS_SCRIPT_URL);
@@ -22,7 +18,6 @@ const api = (() => {
   }
 
   async function _post(evento, body = {}) {
-    // POST vai pelo Cloud Run para evitar CORS do Apps Script
     const payload = { evento, token: _token(), ...body };
     const res = await fetch(CONFIG.CLOUD_RUN_URL + '/app/event', {
       method: 'POST',
@@ -36,13 +31,14 @@ const api = (() => {
   }
 
   return {
+    get(evento, params) { return _get(evento, params); },
+    post(evento, body) { return _post(evento, body); },
     getPromotoresAtivos(data)       { return _get('GET_PROMOTORES_ATIVOS', data ? { data } : {}); },
     getSlotsHoje(data)              { return _get('GET_SLOTS_HOJE', data ? { data } : {}); },
     getSolicitacoesAbertas()        { return _get('GET_SOLICITACOES_ABERTAS'); },
     getKpisDia()                    { return _get('GET_KPIS_DIA'); },
     getHistoricoLocalizacao(uid, data) { return _get('GET_HISTORICO_LOCALIZACAO', { promotor_id: uid, data }); },
     criarSlot(dados)                { return _post('CRIAR_SLOT', dados); },
-    // Escala
     getEscalaDrafts()         { return _get('GET_ESCALA_DRAFTS'); },
     criarEscalaDraft(dados)   { return _post('CRIAR_ESCALA_DRAFT', dados); },
     publicarEscala(draftId)   { return _post('INTERNAL_PUBLICAR_ESCALA', { escala_draft_id: draftId, publicado_por: state.get('gestor')?.user_id || '' }); },
@@ -55,7 +51,6 @@ const api = (() => {
     criarTurnoCLT(dados)                 { return _post('CRIAR_TURNO_CLT', dados); },
     getCadastrosPendentes()              { return _get('GET_CADASTROS_PENDENTES'); },
     getMeusTurnosCLT()                  { return _get('GET_MEUS_TURNOS_CLT'); },
-    post(evento, body)                   { return _post(evento, body); },
     aprovarCadastro(dados)               { return _post('APROVAR_CADASTRO', dados); },
     responderSolicitacao(id, decisao, obs) {
       return _post('RESPONDER_SOLICITACAO', { solicitacao_id: id, decisao, observacao: obs || '' });

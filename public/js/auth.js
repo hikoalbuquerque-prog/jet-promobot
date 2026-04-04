@@ -266,6 +266,8 @@ const homeScreen = {
       if (ok) {
         document.getElementById('push-permission-bar').style.display = 'none';
         ui.toast('Notificações ativadas!', 'success');
+      } else {
+        alert('Permissão negada. Verifique as configurações do navegador.');
       }
     } catch(e) { alert('Erro: ' + e.message); }
   }

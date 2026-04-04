@@ -67,7 +67,7 @@ const mapaScreen = (() => {
   async function _load() {
     try {
       const [slotsRes, promRes] = await Promise.all([
-        api.get('GET_SLOTS_HOJE', { data: _dataFiltroAtual }),
+        api.getSlotsHoje(_dataFiltroAtual || ''),
         api.get('GET_MAPA_PROMOTOR')
       ]);
       _todosSlots = slotsRes?.data || [];
@@ -78,18 +78,22 @@ const mapaScreen = (() => {
       _renderSlots(_aplicarFiltrosLocais(_todosSlots));
       _renderPromotores(_aplicarFiltrosPromotores(_todosPromotores));
       _renderListaLateral(_aplicarFiltrosPromotores(_todosPromotores));
+      const ts = document.getElementById('mapa-ts');
+      if (ts) ts.textContent = 'Atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
     } catch(e) { console.error('[mapa]', e.message); }
   }
 
   function _atualizarStats() {
-    const pills = { '.stat-total': `${_stats.total||0} slots`, '.stat-ativo': `${_stats.ocupados||0} ativos`, '.stat-vago': `${_stats.disponiveis||0} vagos` };
+    const pills = { '.stat-total': `${_stats.total||0} slots`, '.stat-ativo': `${_stats.ocupados||0} ocupados`, '.stat-vago': `${_stats.disponiveis||0} vagos` };
     for (const [sel, txt] of Object.entries(pills)) { const el = document.querySelector(sel); if (el) el.textContent = txt; }
   }
 
   function _atualizarFiltroCidades() {
     const sel = document.getElementById('filtro-cidade'); if (!sel) return;
     const valAtual = sel.value;
-    const cidades = [...new Set(_todosSlots.map(s => s.cidade))].filter(Boolean).sort();
+    const cidadesSet = new Set();
+    _todosSlots.forEach(s => { if(s.cidade) cidadesSet.add(s.cidade); });
+    const cidades = Array.from(cidadesSet).filter(Boolean).sort();
     sel.innerHTML = '<option value="">Todas as cidades</option>' + cidades.map(c => `<option value="${c}">${c}</option>`).join('');
     sel.value = valAtual;
   }
@@ -109,10 +113,10 @@ const mapaScreen = (() => {
     slots.forEach(s => {
       const cor = { DISPONIVEL:'#2b6cb0', OCUPADO:'#c05621', ATIVO:'#276749' }[s.status_geral] || '#2d3748';
       const icon = L.divIcon({
-        html: `<div style="background:${cor};border:2px solid #fff;border-radius:8px;padding:4px;width:50px;text-align:center;color:#fff;font-size:9px;font-weight:800">${s.inicio_slot}</div>`,
-        className: '', iconSize: [50, 20]
+        html: `<div style="background:${cor};border:2px solid #fff;border-radius:8px;padding:4px;width:55px;text-align:center;color:#fff;font-size:10px;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,0.3)">${s.inicio_slot}</div>`,
+        className: '', iconSize: [55, 22]
       });
-      L.marker([s.lat, s.lng], { icon }).addTo(_layerSlots).bindPopup(`<b>${s.local_nome}</b><br>${s.cidade}`);
+      L.marker([s.lat, s.lng], { icon }).addTo(_layerSlots).bindPopup(`<b>📍 ${s.local_nome}</b><br>${s.cidade}<br>Status: ${s.status_geral}`);
     });
   }
 
@@ -156,7 +160,14 @@ const mapaScreen = (() => {
   function _setDataFiltro(d) { _dataFiltroAtual = d; _load(); }
   function _aplicarFiltros() { _load(); }
   function _limparFiltros() { document.getElementById('filtro-cidade').value = ''; document.getElementById('filtro-status').value = ''; _load(); }
-  async function _verRota(uid) { _layerRota.clearLayers(); const res = await api.get('GET_HISTORICO_LOCALIZACAO', { promotor_id: uid }); const pts = (res?.pontos || []).map(p => [p.lat, p.lng]); L.polyline(pts, { color: '#4f8ef7' }).addTo(_layerRota); }
+  async function _verRota(uid) { 
+    _layerRota.clearLayers(); 
+    try {
+      const res = await api.get('GET_HISTORICO_LOCALIZACAO', { promotor_id: uid, data: _dataFiltroAtual });
+      const pts = (res?.pontos || []).map(p => [parseFloat(p.lat), parseFloat(p.lng)]);
+      if (pts.length) { L.polyline(pts, { color: '#4f8ef7', weight: 3 }).addTo(_layerRota); _map.fitBounds(L.latLngBounds(pts)); }
+    } catch(e) { console.error(e); }
+  }
 
   return { _setDataFiltro, _toggleLayer, _aplicarFiltros, _limparFiltros, _focarPromotor, _voltarLista, _verRota, render };
 })();
