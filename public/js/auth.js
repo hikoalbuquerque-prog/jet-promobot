@@ -104,11 +104,6 @@ const auth = {
         <div style="font-size:12px;color:#6c7a8d;text-align:center;max-width:300px">
           Use o CPF e sua data de nascimento para entrar
         </div>
-        <div id="pwa-install-wrap" style="width:100%;max-width:340px;display:none">
-          <button onclick="auth._instalarPWA()" style="width:100%;padding:13px;border:1.5px solid #4f8ef7;border-radius:10px;background:transparent;color:#4f8ef7;font-size:14px;font-weight:700;cursor:pointer">
-            📲 Instalar app na tela inicial
-          </button>
-        </div>
       </div>`;
   },
 
@@ -141,16 +136,6 @@ const auth = {
 
   renderSplash() { this._renderSplash(); },
 
-  _instalarPWA() {
-    if (window.__pwaPrompt) {
-      window.__pwaPrompt.prompt();
-      window.__pwaPrompt.userChoice.then((result) => {
-        window.__pwaPrompt = null;
-        document.getElementById('pwa-install-wrap') && (document.getElementById('pwa-install-wrap').style.display = 'none');
-      });
-    }
-  },
-
   logout() {
     state.clearToken();
     state.set('promotor', null);
@@ -179,7 +164,7 @@ const homeScreen = {
       <div style="min-height:100dvh;background:#1a1a2e;color:#eaf0fb;font-family:-apple-system,sans-serif;padding-bottom:80px">
         
         <div id="push-permission-bar" style="display:none;background:#4f8ef7;padding:10px 16px;text-align:center;font-size:12px;font-weight:700;color:#fff;cursor:pointer" onclick="homeScreen._pedirPush()">
-          🔔 Clique aqui para ativar notificações push e receber alertas!
+          🔔 Clique aqui para ativar notificações push!
         </div>
 
         <div style="background:#16213e;border-bottom:1px solid #2a3a55;padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50">
@@ -216,15 +201,6 @@ const homeScreen = {
             </button>
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-            <button onclick="router.go('historico')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
-              <span style="font-size:24px">📋</span>Histórico
-            </button>
-            <button onclick="homeScreen._indicar()" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
-              <span style="font-size:24px">🤝</span>Indicar
-            </button>
-          </div>
-
           <button onclick="router.go('academy')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:10px;font-size:13px;font-weight:700">
             <span style="font-size:24px">🎓</span>JET Academy
           </button>
@@ -253,21 +229,23 @@ const homeScreen = {
       }
     });
 
-    if (window.Notification && Notification.permission !== 'granted') {
+    if (Notification.permission !== 'granted') {
       const bar = document.getElementById('push-permission-bar');
       if (bar) bar.style.display = 'block';
     }
   },
 
   async _pedirPush() {
-    if (typeof pushManager === 'undefined') { alert('Notificações não carregadas.'); return; }
+    if (Notification.permission === 'denied') {
+      alert('⚠️ Notificações Bloqueadas!\n\nVocê bloqueou as notificações deste site. Para ativar:\n1. Clique no cadeado (🔒) na barra de endereço\n2. Ative o botão "Notificações"\n3. Recarregue a página.');
+      return;
+    }
+    if (typeof pushManager === 'undefined') { alert('Erro: pushManager não carregado.'); return; }
     try {
       const ok = await pushManager.requestPermission();
       if (ok) {
         document.getElementById('push-permission-bar').style.display = 'none';
         ui.toast('Notificações ativadas!', 'success');
-      } else {
-        alert('Permissão negada. Verifique as configurações do navegador.');
       }
     } catch(e) { alert('Erro: ' + e.message); }
   }
