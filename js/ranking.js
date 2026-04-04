@@ -31,19 +31,6 @@ const ranking = {
         { label:'60 pontuais',  cor:'#63b3ed', raridade:'Safira'    },
         { label:'100 pontuais', cor:'#68d391', raridade:'Esmeralda' },
     ]},
-    { id: 'SEM_CANCELAMENTO_MES', label: 'Mes Perfeito', icon: '🏆', niveis: [
-        { label:'1 mes',  cor:'#cd7f32', raridade:'Bronze'   },
-        { label:'3 meses',cor:'#a0aec0', raridade:'Prata'    },
-        { label:'6 meses',cor:'#f6ad55', raridade:'Ouro'     },
-        { label:'1 ano',  cor:'#b794f4', raridade:'Ametista' },
-    ]},
-    { id: 'MADRUGADOR',      label: 'Madrugador', icon: '🚀', niveis: [{ label:'Check-in antes das 7h', cor:'#63b3ed', raridade:'Especial' }] },
-    { id: 'PRIMEIRO_CHECKIN',label: 'Estreante',  icon: '🌟', niveis: [{ label:'Primeiro check-in',     cor:'#ffd700', raridade:'Marco'    }] },
-    { id: 'ACADEMY_BASICO',        label: 'Academy Basico',        icon: '🎓', niveis: [{ label:'Basico concluido',        cor:'#63b3ed', raridade:'Bronze'   }] },
-    { id: 'ACADEMY_INTERMEDIARIO', label: 'Academy Intermediario', icon: '🏅', niveis: [{ label:'Intermediario concluido', cor:'#f6ad55', raridade:'Prata'    }] },
-    { id: 'ACADEMY_AVANCADO',      label: 'Academy Avancado',      icon: '🚀', niveis: [{ label:'Avancado concluido',      cor:'#68d391', raridade:'Ouro'     }] },
-    { id: 'ACADEMY_ESPECIALISTA',  label: 'Academy Especialista',  icon: '🔬', niveis: [{ label:'Especialista concluido',  cor:'#b794f4', raridade:'Safira'   }] },
-    { id: 'ACADEMY_MASTER',        label: 'Academy Master',        icon: '👑', niveis: [{ label:'Master concluido',        cor:'#ffd700', raridade:'Lendario' }] },
     { id: 'INDICACAO', label: 'Indicacoes', icon: '🤝', niveis: [
         { label:'1 indicacao',   cor:'#cd7f32', raridade:'Bronze'    },
         { label:'3 indicacoes',  cor:'#a0aec0', raridade:'Prata'     },
@@ -53,19 +40,16 @@ const ranking = {
     ]},
   ],
 
-  _MESES:   ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'],
-  _COR_MES: ['#63b3ed','#68d391','#f6ad55','#fc8181','#b794f4','#fbd38d','#4299e1','#f687b3','#9f7aea','#ed8936','#48bb78','#e53e3e'],
-
   _periodo: 'SEMANAL',
 
   async render() {
     document.getElementById('app').innerHTML = `
-      <div style="min-height:100dvh;background:#1a1a2e;color:#eaf0fb;font-family:-apple-system,sans-serif;padding-bottom:80px">
+      <div style="height:100dvh;background:#1a1a2e;color:#eaf0fb;font-family:-apple-system,sans-serif;display:flex;flex-direction:column;overflow:hidden">
         <div style="background:#16213e;border-bottom:1px solid #2a3a55;padding:14px 16px;position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:12px">
           <button onclick="router.back()" style="background:#1e2a45;border:none;color:#eaf0fb;font-size:20px;width:36px;height:36px;border-radius:50%;cursor:pointer">‹</button>
           <div style="font-size:17px;font-weight:700">🏆 Ranking & Badges</div>
         </div>
-        <div style="padding:16px" id="ranking-content">
+        <div style="flex:1;overflow-y:auto;padding:16px" id="ranking-content">
           <div style="text-align:center;padding:40px;color:#a0aec0">Carregando...</div>
         </div>
         ${ui.bottomNav("ranking")}
@@ -89,7 +73,6 @@ const ranking = {
       const score = eu ? (eu.score_operacional || 0) : 0;
       const streak = eu ? (eu.streak_dias || 0) : 0;
       const badges = badgeRes && badgeRes.badges || [];
-      const self = ranking;
       
       const meuRank = rankRes.meuNacional;
       const pos = meuRank ? meuRank.posicao : '-';
@@ -99,19 +82,18 @@ const ranking = {
         <div style="background:linear-gradient(135deg,#1e3a5f,#16213e);border:1px solid #2a3a55;border-radius:16px;padding:20px;margin-bottom:16px">
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center;margin-bottom:12px">
             <div style="background:rgba(246,173,85,0.1);border-radius:10px;padding:10px">
-              <div style="font-size:26px;font-weight:800;color:#f6ad55">${score}</div>
-              <div style="font-size:10px;color:#a0aec0">TOTAL</div>
+              <div style="font-size:22px;font-weight:800;color:#f6ad55">${score}</div>
+              <div style="font-size:9px;color:#a0aec0">TOTAL</div>
             </div>
             <div style="background:rgba(104,211,145,0.1);border-radius:10px;padding:10px">
-              <div style="font-size:26px;font-weight:800;color:#68d391">+${ganho}</div>
-              <div style="font-size:10px;color:#a0aec0">${this._periodo}</div>
+              <div style="font-size:22px;font-weight:800;color:#68d391">+${ganho}</div>
+              <div style="font-size:9px;color:#a0aec0">${this._periodo}</div>
             </div>
             <div style="background:rgba(99,179,237,0.1);border-radius:10px;padding:10px">
-              <div style="font-size:26px;font-weight:800;color:#63b3ed">${pos}º</div>
-              <div style="font-size:10px;color:#a0aec0">NACIONAL</div>
+              <div style="font-size:22px;font-weight:800;color:#63b3ed">${pos}º</div>
+              <div style="font-size:9px;color:#a0aec0">NACIONAL</div>
             </div>
           </div>
-          ${streak >= 3 ? `<div style="text-align:center"><span style="display:inline-flex;align-items:center;gap:6px;background:rgba(246,173,85,0.15);border:1px solid rgba(246,173,85,0.3);border-radius:20px;padding:4px 14px"><span>🔥</span><span style="font-size:13px;font-weight:700;color:#f6ad55">${streak} dias</span></span></div>` : ''}
         </div>
 
         <div style="display:flex;gap:8px;margin-bottom:16px">
@@ -128,38 +110,21 @@ const ranking = {
         <div id="rank-list-nacional">${this._renderLista(rankRes.nacional, eu)}</div>
         <div id="rank-list-regional" style="display:none">${this._renderLista(rankRes.regional, eu, rankRes.cidade)}</div>
 
-        <div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;margin-top:24px;margin-bottom:24px">
-          <div style="font-size:12px;font-weight:700;color:#a0aec0;letter-spacing:1px;margin-bottom:12px">COMO GANHAR PONTOS</div>
-          ${[['✅ Check-in pontual','+ 10'],['✅ Check-in com atraso','+ 5'],['🏁 Checkout','+ 5'],
-             ['🔥 Streak bonus (a cada 5 dias)','+ 25'],['❌ Cancelamento','- 20'],['📵 Checkout sem GPS','- 5']
-            ].map(row => `
-              <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #2a3a55">
-                <span style="font-size:13px;color:#eaf0fb">${row[0]}</span>
-                <span style="font-size:13px;font-weight:700;color:${row[1].includes('-')?'#fc8181':'#68d391'}">${row[1]}</span>
-              </div>
-            `).join('')}
-        </div>
-
-        <div style="font-size:11px;color:#a0aec0;font-weight:700;letter-spacing:1px;margin-bottom:10px">MINHAS CONQUISTAS</div>
+        <div style="font-size:11px;color:#a0aec0;font-weight:700;letter-spacing:1px;margin:24px 0 10px 0">MINHAS CONQUISTAS</div>
       `;
       
-      self._BADGES_DEF.forEach(function(def) {
+      this._BADGES_DEF.forEach(function(def) {
         const conquistadasDef = badges.filter(function(b){ return b.tipo && b.tipo.startsWith(def.id); });
         const nivelAtingido = conquistadasDef.length;
         const nivelAtual = nivelAtingido > 0 ? def.niveis[nivelAtingido-1] : null;
-        const proxNivel = nivelAtingido < def.niveis.length ? def.niveis[nivelAtingido] : null;
         const cor = nivelAtual ? nivelAtual.cor : '#4a5568';
         const opacity = nivelAtingido > 0 ? '1' : '0.35';
         html += `
           <div style="background:#1e2a45;border:1px solid ${cor}44;border-radius:12px;padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:12px;opacity:${opacity}">
             <div style="font-size:30px">${def.icon}</div>
             <div style="flex:1">
-              <div style="font-size:13px;font-weight:700;color:#eaf0fb">${def.label} ${nivelAtual ? `<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:${cor}33;color:${cor}">${nivelAtual.raridade}</span>` : ''}</div>
-              <div style="font-size:11px;color:#718096;margin-top:2px">${nivelAtual ? nivelAtual.label + ' conquistado' : 'Não conquistado'}</div>
-              ${proxNivel ? `<div style="font-size:10px;color:#63b3ed;margin-top:2px">Próximo: ${proxNivel.label} (${proxNivel.raridade})</div>` : (nivelAtingido >= def.niveis.length ? '<div style="font-size:10px;color:#ffd700">Nível máximo!</div>' : '')}
-            </div>
-            <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
-              ${def.niveis.map((_, i) => `<div style="width:8px;height:8px;border-radius:50%;background:${i < nivelAtingido ? def.niveis[i].cor : '#2a3a55'}"></div>`).join('')}
+              <div style="font-size:13px;font-weight:700;color:#eaf0fb">${def.label}</div>
+              <div style="font-size:11px;color:#718096;margin-top:2px">${nivelAtual ? nivelAtual.label : 'Não conquistado'}</div>
             </div>
           </div>`;
       });
@@ -167,36 +132,27 @@ const ranking = {
       el.innerHTML = html;
 
     } catch(e) {
-      if (el) el.innerHTML = '<div style="text-align:center;padding:40px;color:#e74c3c;font-size:13px">Erro ao carregar ranking</div>';
-      console.error('[ranking]', e);
+      if (el) el.innerHTML = `<div style="text-align:center;padding:40px;color:#e74c3c">Erro ao carregar: ${e.message}</div>`;
     }
   },
 
-  _setPeriodo(p) {
-    this._periodo = p;
-    this._load();
-  },
+  _setPeriodo(p) { this._periodo = p; this._load(); },
 
   _renderLista(lista, eu, cidade) {
     let html = '';
-    if (cidade) html += '<div style="font-size:10px;color:#718096;margin-bottom:8px;text-align:center">Exibindo promotores de <b>' + cidade + '</b></div>';
-    
-    if (!lista || lista.length === 0) {
-      return html + '<div style="text-align:center;padding:20px;color:#4a5568">Nenhum dado nesta categoria</div>';
-    }
+    if (cidade) html += `<div style="font-size:10px;color:#718096;margin-bottom:8px;text-align:center">Cidade: <b>${cidade}</b></div>`;
+    if (!lista || lista.length === 0) return html + '<div style="text-align:center;padding:20px;color:#4a5568">Nenhum dado</div>';
 
     lista.forEach(function(p, i) {
-      const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'º';
       const isMe = eu && p.user_id === eu.user_id;
-      const cor = i===0?'#f6ad55':i===1?'#a0aec0':i===2?'#cd7f32':'#4f8ef7';
       html += `
         <div style="background:${isMe?'rgba(79,142,247,0.1)':'#1e2a45'};border:1px solid ${isMe?'#4f8ef7':'#2a3a55'};border-radius:12px;padding:12px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px">
-          <div style="font-size:22px;width:32px;text-align:center">${medal}</div>
+          <div style="font-size:18px;width:28px">${i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1)+'º'}</div>
           <div style="flex:1">
-            <div style="font-size:13px;font-weight:700;color:${isMe?'#4f8ef7':'#eaf0fb'}">${p.nome} ${isMe?' ✦':''}</div>
+            <div style="font-size:13px;font-weight:700;color:${isMe?'#4f8ef7':'#eaf0fb'}">${p.nome}</div>
             ${p.cidade && !cidade ? `<div style="font-size:10px;color:#718096">${p.cidade}</div>` : ''}
           </div>
-          <div style="font-size:18px;font-weight:800;color:${cor}">${p.pontos}</div>
+          <div style="font-size:16px;font-weight:800;color:#4f8ef7">${p.pontos}</div>
         </div>`;
     });
     return html;
@@ -208,15 +164,12 @@ const ranking = {
     const btnNac = document.getElementById('tab-rank-nac');
     const btnReg = document.getElementById('tab-rank-reg');
     if (!nac || !reg) return;
-
     if (tipo === 'nacional') {
-      nac.style.display = 'block';
-      reg.style.display = 'none';
+      nac.style.display = 'block'; reg.style.display = 'none';
       btnNac.style.background = '#4f8ef7'; btnNac.style.color = '#fff';
       btnReg.style.background = 'transparent'; btnReg.style.color = '#a0aec0';
     } else {
-      nac.style.display = 'none';
-      reg.style.display = 'block';
+      nac.style.display = 'none'; reg.style.display = 'block';
       btnReg.style.background = '#4f8ef7'; btnReg.style.color = '#fff';
       btnNac.style.background = 'transparent'; btnNac.style.color = '#a0aec0';
     }

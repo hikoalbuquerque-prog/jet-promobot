@@ -2,15 +2,17 @@ const pushManager = {
   publicKey: 'BCyAa3hD-bzlH4gr3iYvr7fSOXU0MTU6kKMRGiBaW-kBN5vGbbAxloNDjnGWit-G31tpf-wHkmSqMaWYVWs9QNc',
 
   async init() {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-    
-    // Se já tiver permissão, tenta registrar/atualizar
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.warn('[PUSH] Navegador não suporta Push.');
+      return;
+    }
     if (Notification.permission === 'granted') {
       this.subscribe();
     }
   },
 
   async requestPermission() {
+    if (!('Notification' in window)) return false;
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
       await this.subscribe();
@@ -22,7 +24,6 @@ const pushManager = {
   async subscribe() {
     try {
       const registration = await navigator.serviceWorker.ready;
-      
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: this.urlBase64ToUint8Array(this.publicKey)
