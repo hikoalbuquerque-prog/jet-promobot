@@ -1,4 +1,4 @@
-const SW_VERSION = 'jet-ops-gh-v1';
+const SW_VERSION = 'jet-ops-gh-v1.3.0';
 const BASE = '/jet-promobot';
 
 self.addEventListener('install', e => {

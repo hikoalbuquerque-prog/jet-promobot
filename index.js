@@ -23,7 +23,7 @@ app.get('/sw.js', (_req, res) => {
 });
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.get('/version', (_req, res) => res.json({ ok: true, service: 'promo-telegram-gateway', version: '1.0.0', now: new Date().toISOString() }));
+app.get('/version', (_req, res) => res.json({ ok: true, service: 'promo-telegram-gateway', version: '1.3.0', now: new Date().toISOString() }));
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.use(express.json({ limit: '1mb' }));
