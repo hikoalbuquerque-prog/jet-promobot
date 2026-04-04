@@ -124,6 +124,10 @@ app.post('/internal/sync-academy', requireAdminSecret, (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/internal/get-academy-cache', requireAdminSecret, (req, res) => {
+  res.json({ ok: true, modulos: ACADEMY_CACHE.modulos, quizzes: ACADEMY_CACHE.quizzes });
+});
+
 app.post('/internal/sync-groups', requireAdminSecret, (req, res) => {
   const { grupos } = req.body || {};
   if (!Array.isArray(grupos)) return res.status(400).json({ ok: false, erro: 'Array de grupos obrigatório' });
