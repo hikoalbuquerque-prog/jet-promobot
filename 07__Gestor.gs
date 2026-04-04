@@ -588,3 +588,54 @@ function replicarSemana_(token, params) {
 
   return { ok: true, count: totalReplicado, mensagem: `Escala semanal replicada! Total de ${totalReplicado} slots criados.` };
 }
+
+/**
+ * Envia uma mensagem em massa para promotores filtrados por cidade e/ou cargo.
+ */
+function broadcastPromotor_(body) {
+  const { token, mensagem, cidade, cargo } = body;
+  _assertGestor_(token);
+
+  if (!mensagem) return { ok: false, erro: 'Mensagem vazia' };
+
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const promWs = ss.getSheetByName('PROMOTORES');
+  if (!promWs) return { ok: false, erro: 'Aba PROMOTORES não encontrada' };
+
+  const data = promWs.getDataRange().getValues();
+  const h = data[0].map(v => String(v).toLowerCase().trim());
+  
+  const iTg = h.indexOf('telegram_user_id');
+  const iCid = h.findIndex(v => v.includes('cidade'));
+  const iCar = h.findIndex(v => v.includes('cargo') || v.includes('função'));
+  const iSt = h.findIndex(v => v.includes('status'));
+
+  const integracoes = [];
+  let enviados = 0;
+
+  for (let r = 1; r < data.length; r++) {
+    const tgId = String(data[r][iTg] || '').trim();
+    if (!tgId) continue;
+
+    const status = String(data[r][iSt] || '').toUpperCase();
+    if (status === 'INATIVO' || status === 'BLOQUEADO') continue;
+
+    if (cidade && String(data[r][iCid] || '').trim() !== cidade) continue;
+    if (cargo && String(data[r][iCar] || '').trim() !== cargo) continue;
+
+    integracoes.push({
+      canal: 'telegram',
+      tipo: 'private_message',
+      telegram_user_id: tgId,
+      parse_mode: 'HTML',
+      text_html: mensagem
+    });
+    enviados++;
+  }
+
+  if (integracoes.length > 0) {
+    processIntegracoes(integracoes, { evento: 'BROADCAST_MANUAL' });
+  }
+
+  return { ok: true, enviados };
+}

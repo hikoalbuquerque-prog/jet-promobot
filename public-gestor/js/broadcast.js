@@ -72,7 +72,7 @@ const broadcast = {
     btn.disabled = true; btn.textContent = 'Enviando...';
 
     try {
-      const res = await api.post('BROADCAST_PROMOTOR', { mensagem: msg, cidade, cargo });
+      const res = await api.post('BROADCAST_PROMOTORES', { mensagem: msg, cidade, cargo });
       const result = document.getElementById('bc-result');
       result.style.display = 'block';
       if (res.ok) {

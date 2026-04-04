@@ -18,6 +18,16 @@ const kpisScreen = (() => {
           ${_cardSkeleton(6)}
         </div>
 
+        <div class="section-title">Ações Rápidas</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:24px">
+          <button onclick="router.navigate('broadcast')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;font-size:13px;font-weight:600">
+            <span style="font-size:24px">📢</span> Broadcast
+          </button>
+          <button onclick="router.navigate('slots')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px;font-size:13px;font-weight:600">
+            <span style="font-size:24px">📍</span> Criar Slot
+          </button>
+        </div>
+
         <div class="section-title">Promotores em campo</div>
         <div id="kpi-promotores-lista" class="promotor-list">
           <div class="list-loading">Carregando...</div>
