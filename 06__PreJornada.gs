@@ -1,6 +1,6 @@
 // ============================================================
-//  06.PreJornada.gs  — Pré-jornada T-60 + Escala + Promocodes
-//  Versão: 2.1  |  Fase 3 — Limpeza de redundâncias
+//  06.PreJornada.gs  — Pré-jornada T-90 + Escala + Promocodes
+//  Versão: 3.0  |  Escala Nacional + Fluxo Consolidado
 // ============================================================
 
 function dispararPreJornada_(body) {
@@ -29,7 +29,7 @@ function dispararPreJornada_(body) {
   ws.appendRow([confId, slot_id, '', user_id, cidade || '', 'PENDENTE', 'system', agora, '', 'FALSE', agora, agora]);
 
   const tgId = getTelegramUserId_(ss, user_id);
-  const texto = `⏰ <b>Seu slot começa em 1 hora!</b>\n\n📍 <b>${localNome}</b>\n🕐 ${inicio} – ${fim}\n\nConfirme sua presença:`;
+  const texto = `⏰ <b>Seu slot começa em 1h30!</b> (90 min)\n\n📍 <b>${localNome}</b>\n🕐 ${inicio} – ${fim}\n\nConfirme sua presença para garantir seu promocode:`;
 
   return {
     ok: true, confirmacao_id: confId,
@@ -84,8 +84,19 @@ function confirmarPreJornada_(body) {
         integracoes.push({ canal:'telegram', tipo:'private_message', telegram_user_id:tgId, text_html:'✅ <b>Confirmado!</b> Te esperamos no slot. Boa operação!' });
       }
     } else if (novoStatus === 'NAO_VAI') {
-      integracoes.push({ canal:'telegram', tipo:'group_message', cidade, topic_key:'ALERTAS', parse_mode:'HTML', text_html:`⚠️ <b>ALERTA: Falta prevista</b>\n\nO promotor informou que não conseguirá comparecer.\n👤 <b>${userId}</b>\n📍 Slot: ${slotId}` });
-      integracoes.push({ canal:'telegram', tipo:'private_message', telegram_user_id:tgId, text_html:'📝 <b>Registrado.</b> Obrigado por avisar com antecedência.' });
+      // Liberar o slot
+      atualizarSlotStatus_(ss, slotId, 'DISPONIVEL', agora);
+      
+      // Notificar Gestão e Grupos (Vaga Urgente)
+      const slotObj = getSlot_(ss, slotId);
+      integracoes.push({ canal:'telegram', tipo:'group_message', cidade, topic_key:'ALERTAS', parse_mode:'HTML', text_html:`⚠️ <b>FALTA CONFIRMADA (T-90)</b>\n\nO promotor informou que não comparecerá.\n👤 <b>${userId}</b>\n📍 Slot: ${slotObj.local_nome || slotId}\n\nO slot foi liberado e republicado.` });
+      
+      integracoes.push({ 
+        canal:'telegram', tipo:'group_message', cidade, topic_key:'SLOTS_DISPONIVEIS', parse_mode:'HTML', 
+        text_html:`🔥 <b>VAGA URGENTE DISPONÍVEL!</b>\n\n📍 <b>${slotObj.local_nome || slotObj.local}</b>\n🏙 ${cidade}\n🕐 ${slotObj.inicio} – ${slotObj.fim}\n\n<a href="${getConfig_('cloud_run_url')}">👉 ACEITAR AGORA</a>` 
+      });
+
+      integracoes.push({ canal:'telegram', tipo:'private_message', telegram_user_id:tgId, text_html:'📝 <b>Registrado.</b> O slot foi liberado para outro promotor. Obrigado por avisar.' });
     }
 
     return { ok: true, confirmacao_id, status: novoStatus, integracoes };
@@ -153,7 +164,8 @@ function triggerPreJornada() {
     const dataSlot = String(data[r][iData]).substring(0, 10), inicioStr = String(data[r][iIni]).substring(0, 5);
     if (!dataSlot || !inicioStr) continue;
     const slotDt = new Date(dataSlot + 'T' + inicioStr + ':00'), diffMin = (slotDt - agora) / 60000;
-    if (diffMin < 55 || diffMin > 70) continue;
+    // Dispara entre 85 e 100 minutos antes (aprox 90 min)
+    if (diffMin < 85 || diffMin > 100) continue;
 
     const res = dispararPreJornada_({ slot_id: String(data[r][iId]).trim(), user_id: userId, cidade: String(data[r][iCid]).trim() });
     if (res.ok) processIntegracoes(res.integracoes, { evento: 'PRE_JORNADA' });
@@ -241,6 +253,40 @@ function triggerLembrete10Min() {
           }),
           muteHttpExceptions: true
         });
+      }
+    }
+  }
+}
+
+/**
+ * Lembrete de Checkout no horário previsto de término.
+ */
+function triggerCheckoutLembrete() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws = ss.getSheetByName('SLOTS');
+  if (!ws) return;
+  const data = ws.getDataRange().getValues(), h = data[0].map(v => String(v).toLowerCase().trim());
+  const iId = h.indexOf('slot_id'), iUsr = h.indexOf('user_id'), iStt = h.indexOf('status'), iData = h.indexOf('data'), iFim = h.indexOf('fim'), iNome = h.indexOf('local_nome');
+  const agora = new Date();
+
+  for (let r = 1; r < data.length; r++) {
+    // Apenas para quem está em atividade ou pausado
+    const status = String(data[r][iStt]).trim().toUpperCase();
+    if (!['EM_ATIVIDADE', 'PAUSADO'].includes(status)) continue;
+    
+    const userId = String(data[r][iUsr]).trim(); if (!userId) continue;
+    const dataSlot = String(data[r][iData]).substring(0, 10), fimStr = String(data[r][iFim]).substring(0, 5);
+    if (!dataSlot || !fimStr) continue;
+    
+    const slotDt = new Date(dataSlot + 'T' + fimStr + ':00'), diffMin = (agora - slotDt) / 60000;
+    
+    // Dispara no minuto exato do fim (janela de ±5 min)
+    if (diffMin > -5 && diffMin < 5) {
+      const tgId = getTelegramUserId_(ss, userId);
+      if (tgId) {
+        processIntegracoes([{
+          canal: 'telegram', tipo: 'private_message', telegram_user_id: tgId, parse_mode: 'HTML',
+          text_html: '🏁 <b>Seu slot terminou!</b>\n\n📍 ' + String(data[r][iNome]).trim() + '\n\nNão esqueça de realizar o <b>checkout</b> pelo app para garantir sua pontuação e evitar o auto-encerramento com penalidade.'
+        }], { evento: 'CHECKOUT_REMINDER' });
       }
     }
   }

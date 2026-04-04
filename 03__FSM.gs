@@ -1025,6 +1025,11 @@ function triggerAutoEncerramento() {
     atualizarJornada_(ss, jornada.jornada_id, { status: 'ENCERRADO', fim_real: horario, atualizado_em: horario, observacao: 'Auto-encerrado por ausência de checkout' });
     atualizarSlotStatus_(ss, slotId, 'ENCERRADO', horario);
 
+    // Penalidade no Ranking
+    try {
+      registrarScore_(ss, userId, 'AUTO_ENCERRAMENTO', -20, 'Ausência de checkout no horário previsto', jornada.jornada_id);
+    } catch(_) {}
+
     const tgId = getTelegramUserId_(ss, userId);
     if (tgId) {
       UrlFetchApp.fetch(getConfig_('cloud_run_url') + '/internal/send-checkin-reminder', {
