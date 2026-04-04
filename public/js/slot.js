@@ -28,10 +28,12 @@ const slotScreen = {
         return;
       }
 
-      const hoje = new Date();
-      const hojeStr = hoje.toISOString().split('T')[0];
-      const amanha = new Date(hoje); amanha.setDate(amanha.getDate() + 1);
-      const amanhaStr = amanha.toISOString().split('T')[0];
+      const agoraLocal = new Date();
+      const hojeStr = agoraLocal.toLocaleDateString('sv-SE'); // Formato YYYY-MM-DD local
+      
+      const amanhaLocal = new Date(agoraLocal);
+      amanhaLocal.setDate(agoraLocal.getDate() + 1);
+      const amanhaStr = amanhaLocal.toLocaleDateString('sv-SE');
 
       let lastDate = '';
       let slotsHtml = '';

@@ -705,10 +705,9 @@ function getSlotsDisponiveis_(params, user) {
   const userId = user?.user_id || '';
 
   const agora     = new Date();
-  const agoraMs   = agora.getTime();
-  const hojeStr   = agora.toISOString().split('T')[0];
-  const amanha    = new Date(agora); amanha.setDate(amanha.getDate() + 1);
-  const amanhaStr = amanha.toISOString().split('T')[0];
+  const hojeStr   = Utilities.formatDate(agora, "GMT-3", "yyyy-MM-dd");
+  const amanha    = new Date(agora.getTime() + 24 * 60 * 60 * 1000);
+  const amanhaStr = Utilities.formatDate(amanha, "GMT-3", "yyyy-MM-dd");
   const agoraMin  = agora.getHours() * 60 + agora.getMinutes();
 
   const slots = [];
