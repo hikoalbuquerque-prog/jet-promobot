@@ -189,12 +189,23 @@ function logErro_(origem, err) {
     const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
     const ws = ss.getSheetByName('EVENT_LOG');
     if (!ws) return;
+    const msgObj = { origem, mensagem: err.message, stack: err.stack };
     ws.appendRow([
       gerarId_('LOG'), gerarId_('EVT'), '', '', '', '',
       'ERRO_SISTEMA', '', '', 'sistema', 'TECNICO', 'critico',
-      JSON.stringify({ origem, mensagem: err.message, stack: err.stack }),
+      JSON.stringify(msgObj),
       new Date().toISOString(), '', ''
     ]);
+    
+    // Enviar alerta para o Telegram
+    processIntegracoes([{
+      canal: 'telegram', tipo: 'group_message',
+      cidade: 'São Paulo', // Fallback genérico para pegar a regra padrão ou o admin
+      topic_key: 'LOGS_TECNICOS',
+      parse_mode: 'HTML',
+      text_html: `🚨 <b>ERRO CRÍTICO NO SISTEMA</b>\n\n<b>Origem:</b> ${origem}\n<b>Erro:</b> <code>${err.message}</code>`
+    }], { evento: 'ERRO_SISTEMA' });
+    
   } catch (_) {}
 }
 

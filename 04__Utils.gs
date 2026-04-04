@@ -51,13 +51,14 @@ function registrarEventoLog_({ user_id, jornada_id, evento, estado_anterior, est
     const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
     const ws = ss.getSheetByName('EVENT_LOG');
     if (!ws) return;
+    const deviceInfo = (payload && payload.device_info) ? String(payload.device_info).substring(0, 200) : '';
     ws.appendRow([
       gerarId_('LOG'), gerarId_('EVT'), gerarId_('REQ'), '',
       user_id || '', jornada_id || '', evento || '',
       estado_anterior || '', estado_novo || '', origem || 'sistema',
       tipo_evento || 'OPERACIONAL', criticidade || 'informativo',
       JSON.stringify(payload || {}), horario_servidor || new Date().toISOString(),
-      '', ''
+      deviceInfo, ''
     ]);
   } catch (_) {}
 }
@@ -351,11 +352,62 @@ function enviarPush_(userId, titulo, mensagem, url = '/') {
 function internalSyncAll() {
   try {
     sincronizarGruposCache_();
-    if (typeof sincronizarCacheSlots_ === 'function') sincronizarCacheSlots_();
     if (typeof sincronizarAcademyCache_ === 'function') sincronizarAcademyCache_();
+    sincronizarCacheGlobal_();
     return { ok: true, mensagem: 'Sincronização global disparada.' };
   } catch (e) {
     return { ok: false, erro: e.message };
+  }
+}
+
+/**
+ * Sincroniza dados das abas principais para o Cloud Run.
+ */
+function sincronizarCacheGlobal_() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  
+  function getTab(name) {
+    const ws = ss.getSheetByName(name);
+    if (!ws) return [];
+    const data = ws.getDataRange().getValues();
+    if (data.length < 2) return [];
+    const h = data[0].map(v => String(v).toLowerCase().trim());
+    const rows = [];
+    for (let r = 1; r < data.length; r++) {
+      // Remover valores vazios no fim
+      if (data[r].join('').trim() === '') continue;
+      
+      const obj = {};
+      h.forEach((col, i) => {
+        let val = data[r][i];
+        if (val instanceof Date) val = val.toISOString();
+        obj[col] = val;
+      });
+      rows.push(obj);
+    }
+    return rows;
+  }
+
+  const payload = {
+    integration_secret: getConfig_('integration_secret'),
+    promotores: getTab('PROMOTORES'),
+    slots: getTab('SLOTS'),
+    jornadas: getTab('JORNADAS'),
+    turnos_clt: getTab('TURNOS_CLT'),
+    fsm_transicoes: getTab('FSM_TRANSICOES')
+  };
+
+  const url = getConfig_('cloud_run_url') + '/internal/sync-all';
+  try {
+    UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    console.log('Cache Global sincronizado.');
+  } catch (e) {
+    console.log('Erro sync global:', e.message);
   }
 }
 
@@ -393,6 +445,46 @@ function sincronizarGruposCache_() {
     muteHttpExceptions: true
   });
   console.log('Grupos sincronizados com Cloud Run.');
+}
+
+/**
+ * Limpeza Automática de Dados (Data Retention)
+ * Remove SLOTS e JORNADAS com mais de 14 dias para evitar lentidão.
+ * Configurar no Google Apps Script: "Gatilhos (Triggers) > time-driven > Semanal > Segunda-feira > 03:00 às 04:00"
+ */
+function limparDadosAntigos_() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const limiteMs = new Date().getTime() - (14 * 24 * 60 * 60 * 1000); // 14 dias atrás
+  
+  const abasParaLimpar = ['SLOTS', 'JORNADAS'];
+  
+  abasParaLimpar.forEach(nomeAba => {
+    const ws = ss.getSheetByName(nomeAba);
+    if (!ws) return;
+    
+    const data = ws.getDataRange().getValues();
+    if (data.length < 2) return;
+    
+    const h = data[0].map(v => String(v).toLowerCase().trim());
+    let indexData = h.indexOf('data');
+    if (indexData === -1) indexData = h.indexOf('atualizado_em'); // fallback para JORNADAS
+    if (indexData === -1) return;
+    
+    let deletadas = 0;
+    
+    // Reverse loop para não quebrar os índices durante a exclusão
+    for (let r = data.length - 1; r >= 1; r--) {
+      let valorData = data[r][indexData];
+      if (!valorData) continue;
+      
+      let dataLinhaMs = new Date(valorData).getTime();
+      if (dataLinhaMs < limiteMs) {
+        ws.deleteRow(r + 1);
+        deletadas++;
+      }
+    }
+    console.log(`Limpeza: ${deletadas} linhas apagadas na aba ${nomeAba}.`);
+  });
 }
 
 /**

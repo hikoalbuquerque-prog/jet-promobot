@@ -1,6 +1,23 @@
 const ui = {
   render(html) { document.getElementById('app').innerHTML = html; },
 
+  initNetworkListeners() {
+    const updateOnlineStatus = () => {
+      const banner = document.getElementById('offline-banner');
+      if (!banner) return;
+      if (navigator.onLine) {
+        banner.style.display = 'none';
+        document.querySelectorAll('.btn-checkin-critical').forEach(btn => btn.disabled = false);
+      } else {
+        banner.style.display = 'block';
+        document.querySelectorAll('.btn-checkin-critical').forEach(btn => btn.disabled = true);
+      }
+    };
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    updateOnlineStatus(); // Set initial state
+  },
+
   toast(msg, type = 'info', duration = 3000) {
     const el = document.getElementById('toast');
     el.textContent = msg;

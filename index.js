@@ -88,6 +88,15 @@ app.post('/internal/send-push', requireAdminSecret, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Cache de Performance ─────────────────────────────────────────────────────
+let GLOBAL_CACHE = {
+  timestamp: 0,
+  promotores: [],
+  jornadas: [],
+  slots: [], // Este substituirá o SLOTS_CACHE gradualmente
+  turnos_clt: [],
+  fsm_transicoes: []
+};
+
 let SLOTS_CACHE = {
   timestamp: 0,
   slots: []
@@ -103,6 +112,21 @@ let GROUPS_CACHE = {
   timestamp: 0,
   data: [] // [{ cidade, operacao, topico_key, chat_id, topic_id }]
 };
+
+app.post('/internal/sync-all', requireAdminSecret, (req, res) => {
+  const { promotores, slots, jornadas, turnos_clt, fsm_transicoes } = req.body || {};
+  GLOBAL_CACHE = {
+    timestamp: Date.now(),
+    promotores: Array.isArray(promotores) ? promotores : GLOBAL_CACHE.promotores,
+    slots: Array.isArray(slots) ? slots : GLOBAL_CACHE.slots,
+    jornadas: Array.isArray(jornadas) ? jornadas : GLOBAL_CACHE.jornadas,
+    turnos_clt: Array.isArray(turnos_clt) ? turnos_clt : GLOBAL_CACHE.turnos_clt,
+    fsm_transicoes: Array.isArray(fsm_transicoes) ? fsm_transicoes : GLOBAL_CACHE.fsm_transicoes
+  };
+  SLOTS_CACHE = { timestamp: Date.now(), slots: GLOBAL_CACHE.slots }; // Backward compatibility
+  console.log(`[CACHE GLOBAL] Atualizado. Promotores: ${GLOBAL_CACHE.promotores.length}, Slots: ${GLOBAL_CACHE.slots.length}, Jornadas: ${GLOBAL_CACHE.jornadas.length}`);
+  res.json({ ok: true });
+});
 
 app.post('/internal/sync-slots', requireAdminSecret, (req, res) => {
   const { slots } = req.body || {};
@@ -157,6 +181,37 @@ app.get('/app/query', async (req, res) => {
   try {
     const evento = String(req.query.evento || req.query.action || '').trim();
     if (!evento) return res.status(400).json({ ok: false, mensagem: 'evento obrigatório.' });
+
+    // ── Cache Global Interception ──
+    if (GLOBAL_CACHE.timestamp > 0 && (Date.now() - GLOBAL_CACHE.timestamp < 300000)) {
+      const token = req.query.token;
+      
+      // Validação básica do token no cache
+      let user = null;
+      if (token && GLOBAL_CACHE.promotores) {
+        user = GLOBAL_CACHE.promotores.find(p => p.token === token && String(p.ativo).toUpperCase() === 'SIM');
+      }
+
+      if (evento === 'GET_ME' && user) {
+        // Remover campos sensíveis
+        const u = { ...user }; delete u.token; delete u.senha_hash;
+        return res.json({ ok: true, user: u, _cache: true });
+      }
+
+      if (evento === 'GET_SLOT_ATUAL' && user) {
+        const jornada = GLOBAL_CACHE.jornadas.find(j => j.user_id === user.user_id && ['ACEITO', 'EM_ATIVIDADE', 'PAUSADO', 'AGUARDANDO_RASTREIO', 'EM_TURNO', 'SEM_SINAL', 'MAPEAMENTO_INTERROMPIDO'].includes(String(j.status).toUpperCase()));
+        if (jornada) {
+          const slot = GLOBAL_CACHE.slots.find(s => s.slot_id === jornada.slot_id);
+          return res.json({ ok: true, jornada, slot, jornadas: [{ jornada, slot }], _cache: true });
+        } else {
+          return res.json({ ok: true, jornada: null, slot: null, jornadas: [], _cache: true });
+        }
+      }
+
+      if (evento === 'GET_PROMOTORES_ATIVOS' && GLOBAL_CACHE.promotores && GLOBAL_CACHE.promotores.length > 0) {
+        return res.json({ ok: true, promotores: GLOBAL_CACHE.promotores.filter(p => String(p.ativo).toUpperCase() === 'SIM').map(p => { const u={...p}; delete u.token; delete u.senha_hash; return u; }), _cache: true });
+      }
+    }
 
     // Se for listagem de slots e tivermos cache recente (menos de 5 min)
     if (evento === 'GET_SLOTS_DISPONIVEIS' && SLOTS_CACHE.slots.length > 0 && (Date.now() - SLOTS_CACHE.timestamp < 300000)) {

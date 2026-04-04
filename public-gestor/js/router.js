@@ -22,7 +22,41 @@ const router = (() => {
 
   const _FISCAL_ALLOWED = ['mapa', 'slots'];
 
+  let _alertInterval = null;
+
+  function checkAlerts() {
+    if (!state.get('gestor')) return;
+    Promise.all([
+      api.get('GET_CADASTROS_PENDENTES').catch(()=>({cadastros:[]})),
+      api.get('GET_SOLICITACOES_ABERTAS').catch(()=>({solicitacoes:[]}))
+    ]).then(([resCad, resSol]) => {
+      const cads = resCad.cadastros ? resCad.cadastros.length : 0;
+      const sols = resSol.solicitacoes ? resSol.solicitacoes.filter(s=>s.status==='ABERTA').length : 0;
+      const total = cads + sols;
+      
+      const badge = document.getElementById('gestor-alert-count');
+      const bCads = document.getElementById('alert-cadastros');
+      const bSols = document.getElementById('alert-solicitacoes');
+      
+      if (badge) {
+        badge.textContent = total;
+        badge.style.display = total > 0 ? 'block' : 'none';
+      }
+      if (bCads) bCads.textContent = cads;
+      if (bSols) bSols.textContent = sols;
+    });
+  }
+
+  function _toggleAlertMenu() {
+    const menu = document.getElementById('gestor-alert-menu');
+    if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+  }
+
   function navigate(screen, pushHistory = true) {
+    if (_alertInterval === null && state.get('gestor')) {
+      checkAlerts();
+      _alertInterval = setInterval(checkAlerts, 60000);
+    }
     const _cargoNav2 = state.get('gestor')?.cargo?.toUpperCase();
     if (_cargoNav2 === 'FISCAL' && screen !== 'login' && !_FISCAL_ALLOWED.includes(screen)) {
       screen = 'mapa';
@@ -105,6 +139,14 @@ const router = (() => {
           </div>
 
           <div style="display:flex;align-items:center;gap:12px;">
+            <div id="gestor-alert-bell" style="position:relative;cursor:pointer;margin-right:10px" onclick="router._toggleAlertMenu()">
+              <span style="font-size:20px">🔔</span>
+              <span id="gestor-alert-count" style="display:none;position:absolute;top:-4px;right:-8px;background:#e53e3e;color:#fff;font-size:10px;font-weight:bold;padding:2px 5px;border-radius:10px;">0</span>
+              <div id="gestor-alert-menu" style="display:none;position:absolute;top:32px;right:0;background:#16213e;border:1px solid #2a3a55;border-radius:8px;padding:8px;width:220px;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:999;">
+                 <div onclick="router.go('cadastros')" style="padding:10px;border-bottom:1px solid #2a3a55;font-size:13px;color:#e2e8f0;cursor:pointer">Cadastros Pendentes: <b id="alert-cadastros" style="color:#f6ad55">0</b></div>
+                 <div onclick="router.go('solicitacoes')" style="padding:10px;font-size:13px;color:#e2e8f0;cursor:pointer">Solicitações Abertas: <b id="alert-solicitacoes" style="color:#63b3ed">0</b></div>
+              </div>
+            </div>
             <div style="
               font-size:12px;color:#a0aec0;
               font-family:'IBM Plex Mono',monospace;
@@ -544,7 +586,7 @@ const router = (() => {
       .catch(function() {});
   }
 
-  return { navigate, back };
+  return { navigate, back, _toggleAlertMenu };
 })();
 
 function _mostrarBannerAtualizacaoGestor(reg) {

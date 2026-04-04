@@ -75,7 +75,10 @@ function _getSlotsMap_(ss) {
 
 
 function getPromotoresAtivos_(token) {
-  _assertGestor_(token);
+  const adminUser = _assertGestor_(token);
+  const isFiscal = (adminUser.cargo_principal || '').toUpperCase() === 'FISCAL';
+  const myCity = normStr_(adminUser.cidade_base || adminUser.cidade || '');
+
   const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   const promMap=_getPromotoresMap_(ss), slotsMap=_getSlotsMap_(ss);
 
@@ -107,9 +110,12 @@ function getPromotoresAtivos_(token) {
       const status=String(jData[r][iStt]).trim();
       if (!['ACEITO','EM_ATIVIDADE','PAUSADO','EM_TURNO'].includes(status)) continue;
       const uid=String(jData[r][iUsr]).trim();
-      // Nota: Não filtramos mais por vistos.has(uid) para permitir ver múltiplos slots por promotor
       const slotId=String(jData[r][iSlt]).trim(), prom=promMap[uid]||{}, slot=slotsMap[slotId]||{}, pos=posMap[uid]||{};
-      result.push({promotor_id:uid,user_id:uid,nome:prom.nome||uid,cargo_principal:prom.cargo_principal||'',tipo_vinculo:(prom.tipo_vinculo||'MEI').toUpperCase(),cidade:prom.cidade||slot.nome||'',operacao:slot.operacao||'PROMO',status_jornada:status,slot_id:slotId,slot_nome:slot.nome||slotId,inicio_real:jData[r][iIni]?new Date(jData[r][iIni]).toISOString():null,lat:pos.lat||null,lng:pos.lng||null,ultima_posicao:pos.ultima_posicao||null,location_trust_score:pos.location_trust_score||null,confirmacao_presenca:jData[r][jh.indexOf('confirmacao_presenca')]||''});
+      
+      const cidadeCard = prom.cidade || slot.nome || '';
+      if (isFiscal && normStr_(cidadeCard) !== myCity && normStr_(slot.cidade || '') !== myCity) continue;
+
+      result.push({promotor_id:uid,user_id:uid,nome:prom.nome||uid,cargo_principal:prom.cargo_principal||'',tipo_vinculo:(prom.tipo_vinculo||'MEI').toUpperCase(),cidade:cidadeCard,operacao:slot.operacao||'PROMO',status_jornada:status,slot_id:slotId,slot_nome:slot.nome||slotId,inicio_real:jData[r][iIni]?new Date(jData[r][iIni]).toISOString():null,lat:pos.lat||null,lng:pos.lng||null,ultima_posicao:pos.ultima_posicao||null,location_trust_score:pos.location_trust_score||null,confirmacao_presenca:jData[r][jh.indexOf('confirmacao_presenca')]||''});
     }
   }
 
@@ -125,14 +131,17 @@ function getPromotoresAtivos_(token) {
       const prom=promMap[uid]||{}, pos=posMap[uid]||{};
       const cargo = String(tData[r][iCar] || prom.cargo_principal || '').toUpperCase();
       const tipoVinc = cargo === 'FISCAL' ? 'FISCAL' : 'CLT';
+      const cidadeCard = prom.cidade || tData[r][iZon] || '';
       
+      if (isFiscal && normStr_(cidadeCard) !== myCity) continue;
+
       result.push({
         promotor_id:uid,
         user_id:uid,
         nome:tData[r][iNom]||prom.nome||uid,
         cargo_principal:cargo,
         tipo_vinculo:tipoVinc,
-        cidade:prom.cidade||tData[r][iZon]||'',
+        cidade:cidadeCard,
         operacao:'LOGISTICA',
         status_jornada:status,
         slot_id:'',
@@ -150,7 +159,10 @@ function getPromotoresAtivos_(token) {
 }
 
 function getSlotsHoje_(token, params) {
-  _assertGestor_(token);
+  const adminUser = _assertGestor_(token);
+  const isFiscal = (adminUser.cargo_principal || '').toUpperCase() === 'FISCAL';
+  const myCity = normStr_(adminUser.cidade_base || adminUser.cidade || '');
+
   const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   const slotsWs = ss.getSheetByName('SLOTS');
   if (!slotsWs) return { ok: true, data: [], stats: {} };
@@ -176,6 +188,9 @@ function getSlotsHoje_(token, params) {
 
     const dataSlot = String(data[r][iData] || '').substring(0, 10);
     if (dataSlot && dataSlot !== dataFiltro) continue;
+
+    const cidade = String(data[r][iCidade] || '');
+    if (isFiscal && normStr_(cidade) !== myCity) continue;
 
     const slotId = String(data[r][iSlotId]).trim(), userId = String(data[r][iUserId]).trim();
     const nome = String(data[r][iNome] || '').trim(), inicio = String(data[r][iInicio] || '').substring(0, 5), fim = String(data[r][iFim] || '').substring(0, 5);
