@@ -256,6 +256,8 @@ const academy = {
       const res = await api.post({ evento: 'CONCLUIR_MODULO', modulo_id: moduloId, score_quiz: scoreMin, pontos });
       if (res.ok) {
         ui.toast(res.ja_concluido ? 'Módulo já concluído!' : `🎊 Parabéns! +${pontos} pontos!`, 'success');
+        this._quizScores = {}; // Limpa scores
+        this._modAtual = null;
         setTimeout(() => this.render(), 1500);
       } else { ui.toast(res.erro, 'error'); btn.disabled = false; btn.textContent = '✅ Finalizar Treinamento'; }
     } catch(e) { ui.toast('Sem conexão', 'error'); btn.disabled = false; }

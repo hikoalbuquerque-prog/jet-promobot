@@ -113,21 +113,49 @@ function sincronizarAcademyCache_() {
 
 
 function concluirModulo_(user, body) {
-  const { modulo_id, score_quiz, pontos } = body;
-  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), wsProg = ss.getSheetByName('ACADEMY_PROGRESSO');
+  const userId = String(user.user_id || body.user_id || '').trim();
+  const moduloId = String(body.modulo_id || '').trim();
+  const scoreQuiz = body.score_quiz;
+  const pontos = parseInt(body.pontos) || 0;
+
+  if (!userId || !moduloId) return { ok: false, erro: 'Dados incompletos para conclusão.' };
+
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const wsProg = ss.getSheetByName('ACADEMY_PROGRESSO');
+  if (!wsProg) return { ok: false, erro: 'Aba de progresso não encontrada.' };
   
-  if (modulo_id.startsWith('APP-')) {
-    const wsJor = ss.getSheetByName('JORNADAS'), dataJ = wsJor.getDataRange().getValues();
-    const count = dataJ.filter(r => String(r[1]).trim() === user.user_id && String(r[4]).trim() === 'ENCERRADO').length;
-    if (count < 3) return { ok: false, erro: '⚠️ Missão Bloqueada: complete pelo menos 3 jornadas reais no campo para finalizar este módulo.' };
+  // Bloqueio especial para módulos de MANUAL APP (exige experiência em campo)
+  if (moduloId.startsWith('APP-')) {
+    const wsJor = ss.getSheetByName('JORNADAS');
+    if (wsJor) {
+      const dataJ = wsJor.getDataRange().getValues();
+      const count = dataJ.filter(r => String(r[1]).trim() === userId && String(r[4]).trim() === 'ENCERRADO').length;
+      if (count < 3) return { ok: false, erro: '⚠️ Missão Bloqueada: complete pelo menos 3 jornadas reais no campo para finalizar este módulo.' };
+    }
   }
 
+  // Verificar se já concluiu (evitar duplicatas)
   const dataP = wsProg.getDataRange().getValues();
-  for (let r = 1; r < dataP.length; r++) { if (String(dataP[r][0]).trim() === user.user_id && String(dataP[r][1]).trim() === modulo_id) return { ok: true, ja_concluido: true }; }
+  const jaConcluiu = dataP.some(r => String(r[0]).trim() === userId && String(r[1]).trim() === moduloId);
+  if (jaConcluiu) return { ok: true, ja_concluido: true };
   
-  wsProg.appendRow([user.user_id, modulo_id, score_quiz || 100, new Date().toISOString()]);
-  if (pontos > 0) registrarScore_(ss, user.user_id, 'ACADEMY_CONCLUSAO', pontos, `Módulo ${modulo_id}`, '');
-  verificarBadgesAcademy_(ss, user.user_id);
+  // Gravar progresso
+  wsProg.appendRow([userId, moduloId, scoreQuiz || 100, new Date().toISOString()]);
+  
+  // Pontuar promotor
+  if (pontos > 0) {
+    registrarScore_(ss, userId, 'ACADEMY_CONCLUSAO', pontos, `Módulo ${moduloId}`, '');
+  }
+
+  // Verificar conquistas de nível (Badges)
+  verificarBadgesAcademy_(ss, userId);
+  
+  // Invalida cache de sincronização global para refletir no Cloud Run
+  try {
+    const cache = CacheService.getScriptCache();
+    cache.remove('academy_progresso_' + userId);
+  } catch(e) {}
+
   return { ok: true };
 }
 
