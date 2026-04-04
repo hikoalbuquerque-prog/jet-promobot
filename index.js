@@ -888,14 +888,46 @@ async function handleCallbackQuery(callbackQuery) {
     const _rawPayload = session?.sessao?.payload_json ? JSON.parse(session.sessao.payload_json) : {};
     const payload = _rawPayload.payload || _rawPayload;
     console.log('[cadastro] payload:', JSON.stringify(payload).substring(0,200));
-    let result; try { result = await callAppsScriptPost({ evento: 'BOT_PRECADASTRO', integration_secret: CFG.appsScriptSharedSecret, telegram_user_id: telegramUserId, telegram_nome: payload.telegram_nome || '', nome_completo: payload.nome_completo || '', cargo: payload.cargo || '', cidade: payload.cidade || '', cpf: payload.cpf || '', data_nascimento: payload.data_nascimento || '' }); } catch(e) { console.log('[cadastro] ERRO callPost:', e.message); result = {ok:false}; }
+    
+    const isUpdate = payload.mode === 'UPDATE';
+    let result;
+    try {
+      if (isUpdate) {
+        result = await callAppsScriptPost({ 
+          evento: 'BOT_UPDATE_PROMOTOR', 
+          integration_secret: CFG.appsScriptSharedSecret, 
+          telegram_user_id: telegramUserId,
+          nome_completo: payload.nome_completo || '',
+          cargo: payload.cargo || '',
+          cidade: payload.cidade || ''
+        });
+      } else {
+        result = await callAppsScriptPost({ 
+          evento: 'BOT_PRECADASTRO', 
+          integration_secret: CFG.appsScriptSharedSecret, 
+          telegram_user_id: telegramUserId, 
+          telegram_nome: payload.telegram_nome || '', 
+          nome_completo: payload.nome_completo || '', 
+          cargo: payload.cargo || '', 
+          cidade: payload.cidade || '', 
+          cpf: payload.cpf || '', 
+          data_nascimento: payload.data_nascimento || '' 
+        });
+      }
+    } catch(e) { 
+      console.log('[cadastro] ERRO callPost:', e.message); 
+      result = {ok:false}; 
+    }
+
     console.log('[cadastro] result:', JSON.stringify(result).substring(0,200));
     await botClearSessionCloudRun(telegramUserId);
-    await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Enviado!' });
+    await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Sucesso!' });
+    
     if (result.ok) {
-      await telegramApi('sendMessage', { chat_id: chat.id, parse_mode: 'HTML', text: '✅ <b>Pré-cadastro enviado!</b>\n\nAguarde a aprovação da gestão. Você será notificado quando seu acesso for liberado.' });
+      const msg = isUpdate ? '✅ <b>Seus dados foram atualizados!</b>' : '✅ <b>Pré-cadastro enviado!</b>\n\nAguarde a aprovação da gestão. Você será notificado quando seu acesso for liberado.';
+      await telegramApi('sendMessage', { chat_id: chat.id, parse_mode: 'HTML', text: msg });
     } else {
-      await telegramApi('sendMessage', { chat_id: chat.id, text: '❌ Erro ao salvar. Tente novamente com /cadastro.' });
+      await telegramApi('sendMessage', { chat_id: chat.id, text: '❌ Erro ao processar. Tente novamente com /start.' });
     }
     return;
   }
@@ -1326,9 +1358,12 @@ async function handleTextMessage(message) {
   }
 
   if (/^\/start\b/i.test(text)) {
+    const perfil = await callAppsScriptPost({ evento: 'BOT_GET_PERFIL', integration_secret: CFG.appsScriptSharedSecret, telegram_user_id: telegramUserId });
+    const isReg = perfil?.ok;
+
     const welcome = `👋 <b>Bem-vindo ao JET Intelligence BOT</b>\n\n` +
       `<b>Comandos principais:</b>\n` +
-      `/cadastro — Vincular Telegram ao promotor\n` +
+      (isReg ? `/update — Atualizar seus dados\n` : `/cadastro — Vincular Telegram ao promotor\n`) +
       `/perfil — Ver meu score, streak e bloqueios\n` +
       `/slots — Ver vagas disponíveis agora\n` +
       `/jornada — Ver minhas vagas aceitas\n` +
@@ -1432,7 +1467,19 @@ async function handleTextMessage(message) {
   const _rawPayload = session?.sessao?.payload_json ? JSON.parse(session.sessao.payload_json) : {};
   const payload = _rawPayload.payload || _rawPayload;
   if (!estado) {
-    await telegramApi('sendMessage', { chat_id: chat.id, text: 'Envie /cadastro para fazer seu pr\u00e9-cadastro.' });
+    const perfil = await callAppsScriptPost({ evento: 'BOT_GET_PERFIL', integration_secret: CFG.appsScriptSharedSecret, telegram_user_id: telegramUserId });
+    if (perfil?.ok) {
+      await telegramApi('sendMessage', { chat_id: chat.id, text: `Olá, ${perfil.nome || 'promotor'}! Use os botões abaixo ou envie /start para ver as opções.`,
+        reply_markup: JSON.stringify({
+          inline_keyboard: [
+            [{ text: '👤 Perfil', callback_data: 'bot:perfil' }, { text: '📅 Minha Jornada', callback_data: 'bot:jornada' }],
+            [{ text: '🔍 Vagas Disponíveis', callback_data: 'bot:slots' }, { text: '🔄 Resetar', callback_data: 'bot:reset_confirm' }]
+          ]
+        })
+      });
+    } else {
+      await telegramApi('sendMessage', { chat_id: chat.id, text: 'Envie /cadastro para fazer seu pré-cadastro.' });
+    }
     return;
   }
   if (estado === 'AWAITING_NOME') {

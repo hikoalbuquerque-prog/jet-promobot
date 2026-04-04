@@ -72,7 +72,7 @@ function botVincularPromotor_(body) {
 }
 
 function botUpdatePromotor_(body) {
-  const { telegram_user_id, nome_completo, cidade } = body;
+  const { telegram_user_id, nome_completo, cidade, cargo } = body;
   if (!telegram_user_id) return { ok: false, erro: 'telegram_user_id obrigatório' };
 
   const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
@@ -83,20 +83,27 @@ function botUpdatePromotor_(body) {
   const iTgId      = headers.indexOf('telegram_user_id');
   const iNome      = headers.indexOf('nome_completo');
   const iCidade    = headers.indexOf('cidade_base');
+  const iCargo     = headers.indexOf('cargo_principal');
   const iUpdatedAt = headers.indexOf('atualizado_em');
 
   for (let r = 1; r < data.length; r++) {
     if (String(data[r][iTgId]).trim() !== String(telegram_user_id)) continue;
     const agora = new Date().toISOString();
+    const regId = data[r][0];
     if (nome_completo) {
       const anterior = data[r][iNome];
       ws.getRange(r + 1, iNome + 1).setValue(nome_completo);
-      registrarAuditoria_({ tabela: 'PROMOTORES', registro_id: data[r][0], campo: 'nome_completo', valor_anterior: anterior, valor_novo: nome_completo, alterado_por: 'bot', origem: 'bot' });
+      registrarAuditoria_({ tabela: 'PROMOTORES', registro_id: regId, campo: 'nome_completo', valor_anterior: anterior, valor_novo: nome_completo, alterado_por: 'bot', origem: 'bot' });
     }
     if (cidade) {
       const anterior = data[r][iCidade];
       ws.getRange(r + 1, iCidade + 1).setValue(cidade);
-      registrarAuditoria_({ tabela: 'PROMOTORES', registro_id: data[r][0], campo: 'cidade_base', valor_anterior: anterior, valor_novo: cidade, alterado_por: 'bot', origem: 'bot' });
+      registrarAuditoria_({ tabela: 'PROMOTORES', registro_id: regId, campo: 'cidade_base', valor_anterior: anterior, valor_novo: cidade, alterado_por: 'bot', origem: 'bot' });
+    }
+    if (cargo) {
+      const anterior = data[r][iCargo];
+      ws.getRange(r + 1, iCargo + 1).setValue(cargo);
+      registrarAuditoria_({ tabela: 'PROMOTORES', registro_id: regId, campo: 'cargo_principal', valor_anterior: anterior, valor_novo: cargo, alterado_por: 'bot', origem: 'bot' });
     }
     ws.getRange(r + 1, iUpdatedAt + 1).setValue(agora);
     return { ok: true, mensagem: 'Dados atualizados com sucesso' };

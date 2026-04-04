@@ -235,7 +235,7 @@ function executarCheckin_(ss, jornada, user, body, horarioServidor) {
       const slotDt   = new Date(dataSlot + 'T' + inicioStr + ':00');
       const diffMin  = (slotDt - agora) / 60000;
       if (diffMin > 60) return { ok: false, erro: `Check-in disponível apenas 1h antes do início. Faltam ${Math.round(diffMin)} minutos.` };
-      if (diffMin < -120) return { ok: false, erro: 'Este slot já encerrou.' };
+      if (diffMin < -480) return { ok: false, erro: 'Este slot já encerrou há mais de 8 horas.' };
     }
 
     const score = calcularLocationTrustScore_({ lat, lng, isMock: body.is_mock === true, accuracy: body.accuracy || 999 });
