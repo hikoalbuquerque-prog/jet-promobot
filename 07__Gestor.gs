@@ -175,16 +175,16 @@ function getSlotsHoje_(token, params) {
     ? String(params.data).substring(0, 10)
     : Utilities.formatDate(new Date(), "GMT-3", "yyyy-MM-dd");
 
-  const statusValidos = ['DISPONIVEL', 'ACEITO', 'EM_ATIVIDADE', 'PAUSADO', 'ENCERRADO', 'CANCELADO'];
   const iSlotId  = h.indexOf('slot_id'), iStatus = h.indexOf('status'), iUserId = h.indexOf('user_id');
   const iNome = h.indexOf('local_nome'), iLat = h.indexOf('lat'), iLng = h.indexOf('lng'), iRaio = h.indexOf('raio_metros');
   const iCidade = h.indexOf('cidade'), iInicio = h.indexOf('inicio'), iFim = h.indexOf('fim'), iData = h.indexOf('data'), iMax = h.indexOf('max_promotores');
 
   const locaisMap = {};
+  let vagos = 0, ocupados = 0;
 
   for (let r = 1; r < data.length; r++) {
-    const status = String(data[r][iStatus]).trim() || 'DISPONIVEL';
-    if (!statusValidos.includes(status)) continue;
+    const statusRaw = String(data[r][iStatus] || 'DISPONIVEL').trim().toUpperCase();
+    if (statusRaw === 'CANCELADO') continue;
 
     const dataSlot = String(data[r][iData] || '').substring(0, 10);
     if (dataSlot && dataSlot !== dataFiltro) continue;
@@ -197,7 +197,12 @@ function getSlotsHoje_(token, params) {
     const lat = data[r][iLat] || null, lng = data[r][iLng] || null, raio = data[r][iRaio] || 100, maxProm = parseInt(data[r][iMax] || '1') || 1;
     const prom = promMap[userId] || {};
 
-    const statusFront = { DISPONIVEL:'DISPONIVEL', ACEITO:'OCUPADO', EM_ATIVIDADE:'ATIVO', PAUSADO:'PAUSADO', ENCERRADO:'ENCERRADO', CANCELADO:'CANCELADO' }[status] || status;
+    // Mapeamento consistente de status para o Gestor
+    const statusFront = (['ACEITO', 'EM_ATIVIDADE', 'PAUSADO', 'EM_TURNO'].includes(statusRaw)) ? 'OCUPADO' : statusRaw;
+    
+    if (statusFront === 'DISPONIVEL') vagos++;
+    else if (statusFront === 'OCUPADO') ocupados++;
+
     const chave = nome + '__' + inicio + '__' + fim + '__' + lat + '__' + lng;
 
     if (!locaisMap[chave]) {
@@ -209,18 +214,84 @@ function getSlotsHoje_(token, params) {
     if (maxProm > local.max_promotores) local.max_promotores = maxProm;
 
     if (userId && prom.nome) {
-      local.promotores.push({ user_id:userId, nome:prom.nome, status:statusFront, slot_id:slotId });
-      if (['OCUPADO', 'ATIVO', 'PAUSADO'].includes(statusFront)) local.vagas_ocupadas++;
+      local.promotores.push({ user_id:userId, nome:prom.nome, status:statusRaw, slot_id:slotId });
+      if (statusFront === 'OCUPADO') local.vagas_ocupadas++;
     }
 
-    const prioridade = { ATIVO:4, OCUPADO:3, PAUSADO:2, DISPONIVEL:1, ENCERRADO:0, CANCELADO:0 };
+    const prioridade = { OCUPADO:3, DISPONIVEL:1, ENCERRADO:0 };
     if ((prioridade[statusFront] || 0) > (prioridade[local.status_geral] || 0)) local.status_geral = statusFront;
   }
 
   const result = Object.values(locaisMap).sort((a, b) => a.inicio_slot < b.inicio_slot ? -1 : 1);
-  const stats = { total:result.length, ocupados:result.filter(s => ['OCUPADO','ATIVO','PAUSADO'].includes(s.status_geral)).length, disponiveis:result.filter(s => s.status_geral === 'DISPONIVEL').length, encerrados:result.filter(s => s.status_geral === 'ENCERRADO').length };
+  return { ok: true, data: result, stats: { total: result.length, ocupados, disponiveis: vagos } };
+}
 
-  return { ok: true, data: result, stats: stats };
+function aprovarCadastro_(token, params) {
+  _assertGestor_(token);
+  const { id, token_override, tipo_vinculo, cpf, dados, status } = params;
+  
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const wsPre = ss.getSheetByName('PRE_CADASTROS');
+  
+  if (status === 'REJEITADO') {
+    if (wsPre) {
+      const dataPre = wsPre.getDataRange().getValues();
+      for (let r = 1; r < dataPre.length; r++) {
+        if (String(dataPre[r][0]).trim() === id) {
+          wsPre.deleteRow(r + 1);
+          return { ok: true, mensagem: 'Cadastro rejeitado e removido.' };
+        }
+      }
+    }
+    return { ok: false, erro: 'Registro não encontrado para rejeição.' };
+  }
+
+  // Lógica de Aprovação (Criar Promotor)
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(15000);
+    
+    const wsPro = ss.getSheetByName('PROMOTORES');
+    if (!wsPro) throw new Error('Aba PROMOTORES não encontrada');
+
+    const novoToken = token_override || gerarId_('TK');
+    const userId = 'USR_' + new Date().getTime();
+    
+    // Adiciona na aba PROMOTORES
+    const headers = wsPro.getRange(1, 1, 1, wsPro.getLastColumn()).getValues()[0].map(v => String(v).toLowerCase().trim());
+    const row = new Array(headers.length).fill('');
+    row[headers.indexOf('user_id')] = userId;
+    row[headers.indexOf('token')] = novoToken;
+    row[headers.indexOf('nome_completo')] = dados.nome_completo;
+    row[headers.indexOf('telegram_user_id')] = dados.telegram_user_id;
+    row[headers.indexOf('telegram_nome')] = dados.telegram_nome;
+    row[headers.indexOf('cidade_base')] = dados.cidade;
+    row[headers.indexOf('cargo_principal')] = dados.cargo;
+    row[headers.indexOf('tipo_vinculo')] = tipo_vinculo || 'MEI';
+    row[headers.indexOf('status')] = 'ATIVO';
+    row[headers.indexOf('score_operacional')] = 100;
+    row[headers.indexOf('criado_em')] = new Date().toISOString();
+    if (cpf && headers.indexOf('cpf') > -1) row[headers.indexOf('cpf')] = cpf;
+
+    wsPro.appendRow(row);
+
+    // REMOVE do pré-cadastro para não aparecer mais como pendente
+    if (wsPre) {
+      const dataPre = wsPre.getDataRange().getValues();
+      for (let r = 1; r < dataPre.length; r++) {
+        if (String(dataPre[r][0]).trim() === id) {
+          wsPre.deleteRow(r + 1);
+          break;
+        }
+      }
+    }
+
+    invalidarCache_();
+    return { ok: true, userId, token: novoToken };
+
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function criarSlot_(token, params) {

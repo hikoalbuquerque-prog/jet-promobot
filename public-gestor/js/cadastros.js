@@ -98,8 +98,8 @@ const cadastrosScreen = (() => {
         const res = await api.aprovarCadastro({ id, token_override: token, tipo_vinculo: vinculo, cpf, dados: cad });
         if (res.ok) {
           modal.remove();
-          _lista[idx].status = 'APROVADO';
-          _render();
+          ui.toast('Cadastro aprovado!', 'success');
+          _load(); // Recarrega a lista do servidor
         } else {
           alert('Erro: ' + (res.erro || res.mensagem));
         }

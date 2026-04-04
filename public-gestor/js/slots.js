@@ -50,7 +50,8 @@ const slotsScreen = (() => {
 
           <!-- Tabs -->
           <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid rgba(255,255,255,.08)">
-            <button class="lote-tab active" data-tab="repetir" style="padding:8px 16px;background:none;border:none;border-bottom:2px solid #63b3ed;color:#63b3ed;cursor:pointer;font-size:13px">📅 Repetição semanal</button>
+            <button class="lote-tab active" data-tab="repetir" style="padding:8px 16px;background:none;border:none;border-bottom:2px solid #63b3ed;color:#63b3ed;cursor:pointer;font-size:13px">📅 Repetição</button>
+            <button class="lote-tab" data-tab="semana" style="padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;color:#718096;cursor:pointer;font-size:13px">🔄 Replicar Semana</button>
             <button class="lote-tab" data-tab="copiar" style="padding:8px 16px;background:none;border:none;border-bottom:2px solid transparent;color:#718096;cursor:pointer;font-size:13px">📋 Copiar slot</button>
           </div>
 
@@ -77,6 +78,23 @@ const slotsScreen = (() => {
               </div>
             </div>
             <div id="lt-preview" style="font-size:12px;color:#718096;margin-bottom:12px"></div>
+          </div>
+
+          <!-- Tab: Replicar Semana -->
+          <div id="tab-semana" style="display:none">
+            <div style="background:rgba(99,179,237,.05);border:1px solid rgba(99,179,237,.2);padding:12px;border-radius:8px;margin-bottom:16px;font-size:12px;color:#a0aec0;line-height:1.5">
+              Copia TODOS os slots de uma semana inteira (7 dias) para uma nova semana de destino. Ideal para manter escalas fixas.
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+              <div>
+                <label class="modal-label">SEGUNDA-FEIRA DE ORIGEM</label>
+                <input id="rs-data-origem" class="modal-textarea" style="height:40px" type="date" />
+              </div>
+              <div>
+                <label class="modal-label">SEGUNDA-FEIRA DE DESTINO</label>
+                <input id="rs-data-destino" class="modal-textarea" style="height:40px" type="date" />
+              </div>
+            </div>
           </div>
 
           <!-- Tab: Copiar slot -->
@@ -192,6 +210,7 @@ const slotsScreen = (() => {
         tab.style.color = '#63b3ed';
         tab.classList.add('active');
         document.getElementById('tab-repetir').style.display = tab.dataset.tab === 'repetir' ? 'block' : 'none';
+        document.getElementById('tab-semana').style.display  = tab.dataset.tab === 'semana'  ? 'block' : 'none';
         document.getElementById('tab-copiar').style.display  = tab.dataset.tab === 'copiar'  ? 'block' : 'none';
       });
     });
@@ -307,6 +326,26 @@ const slotsScreen = (() => {
 
       const datas = _gerarDatas(dataIni, dataFim, dias);
       slots = datas.map(data => ({ ...base, data }));
+
+    } else if (tabAtiva === 'semana') {
+      const origem = document.getElementById('rs-data-origem').value;
+      const destino = document.getElementById('rs-data-destino').value;
+      if (!origem || !destino) { _showError('lote-error', 'Informe as datas de segunda-feira.'); btn.disabled = false; btn.textContent = '✓ Criar Slots'; return; }
+      
+      try {
+        const progEl = document.getElementById('lote-progress');
+        progEl.style.display = 'block'; progEl.textContent = 'Replicando semana...';
+        const res = await api.post('REPLICAR_SEMANA', { data_inicio_origem: origem, data_inicio_destino: destino });
+        if (res.ok) {
+          progEl.textContent = `✅ ${res.count} slots replicados com sucesso!`;
+          setTimeout(async () => { _closeModal('modal-lote'); await _load(); }, 1500);
+          return;
+        } else {
+          _showError('lote-error', res.erro || 'Erro ao replicar semana');
+        }
+      } catch(e) { _showError('lote-error', 'Erro de conexão.'); }
+      btn.disabled = false; btn.textContent = '✓ Criar Slots';
+      return;
 
     } else if (tabAtiva === 'copiar') {
       const slotOrigemId = document.getElementById('cp-slot-origem')?.value;
