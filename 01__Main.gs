@@ -26,7 +26,15 @@ function doGet(e) {
 
     if (evento === 'PING') return jsonResp_({ ok: true, ts: new Date().toISOString() });
 
-    const auth = validarToken_(token);
+    let auth = validarToken_(token);
+    if (!auth.ok && params.telegram_user_id) {
+      const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+      const userByTg = getPromotorByTelegramId_(ss, params.telegram_user_id);
+      if (userByTg) {
+        auth = { ok: true, user: userByTg };
+      }
+    }
+
     if (!auth.ok) return jsonResp_(auth, 401);
     const user = auth.user;
 
@@ -123,7 +131,12 @@ function doPost(e) {
     }
 
     // ── Públicos ─────────────────────────────────────────────
-    const auth = validarToken_(body.token || '');
+    let auth = validarToken_(body.token || '');
+    if (!auth.ok && body.telegram_user_id) {
+      const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+      const userByTg = getPromotorByTelegramId_(ss, body.telegram_user_id);
+      if (userByTg) auth = { ok: true, user: userByTg };
+    }
     if (!auth.ok) return jsonResp_(auth, 401);
     const user = auth.user;
 

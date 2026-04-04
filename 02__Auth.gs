@@ -111,6 +111,22 @@ function botUpdatePromotor_(body) {
   return { ok: false, erro: 'telegram_user_id não encontrado' };
 }
 
+function getPromotorByTelegramId_(ss, telegramUserId) {
+  const ws = ss.getSheetByName('PROMOTORES');
+  if (!ws) return null;
+  const data = ws.getDataRange().getValues();
+  const h = data[0].map(v => String(v).toLowerCase().trim());
+  const iTg = h.indexOf('telegram_user_id');
+  if (iTg < 0) return null;
+
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][iTg]).trim() === String(telegramUserId)) {
+      return rowToUser_(h, data[r]);
+    }
+  }
+  return null;
+}
+
 function verificarTgIdEmUso_(data, headers, tgId, excludeUserId) {
   const iTgId = headers.indexOf('telegram_user_id');
   const iId   = headers.indexOf('user_id');

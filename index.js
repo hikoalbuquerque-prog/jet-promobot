@@ -768,14 +768,30 @@ async function handleCallbackQuery(callbackQuery) {
   if (data.startsWith('accept:')) {
     const slotId = data.split(':')[1];
     if (!slotId) { await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Slot inválido.', show_alert: true }); return; }
-    const promotorResult = await callAppsScriptPost({ evento: 'BOT_GET_SESSION', integration_secret: CFG.appsScriptSharedSecret, telegram_user_id: telegramUserId });
-    const promotorId = promotorResult?.promotor_id || '';
-    const cidade     = promotorResult?.cidade || '';
-    if (!promotorId) { await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Faça /cadastro primeiro.', show_alert: true }); return; }
-    const result = await callAppsScriptPost({ evento: 'ACEITAR_SLOT_TELEGRAM', integration_secret: CFG.appsScriptSharedSecret, slot_id: slotId, promotor_id: promotorId, cidade, telegram_user_id: String(from.id || ''), telegram_nome: [from.first_name, from.last_name].filter(Boolean).join(' ') });
-    if (!result.ok) { await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: result.mensagem || 'Erro ao aceitar.', show_alert: true }); return; }
-    await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Slot aceito com sucesso.' });
-    await processIntegracoes(result.integracoes, { evento: 'ACEITAR_SLOT_TELEGRAM', result });
+    
+    try {
+      const result = await callAppsScriptPost({ 
+        evento: 'ACEITAR_SLOT_TELEGRAM', 
+        integration_secret: CFG.appsScriptSharedSecret, 
+        slot_id: slotId, 
+        telegram_user_id: String(from.id || '')
+      });
+
+      if (!result.ok) { 
+        await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: result.erro || 'Erro ao aceitar.', show_alert: true }); 
+        return; 
+      }
+
+      await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Slot aceito com sucesso!' });
+      await processIntegracoes(result.integracoes, { evento: 'ACEITAR_SLOT_TELEGRAM', result });
+      
+      // Tenta atualizar a mensagem original para remover o botão
+      await reconcileAcceptedSlotMessage(result, { chatId: chat.id, messageId: callbackQuery.message?.message_id, acceptedBy: from.first_name });
+
+    } catch(e) {
+      console.error('[BOT] Error accepting slot:', e.message);
+      await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Erro de conexão.', show_alert: true });
+    }
     return;
   }
 
@@ -1414,9 +1430,11 @@ async function handleTextMessage(message) {
   }
 
   if (/^\/slots\b/i.test(text)) {
+    console.log('[BOT] /slots called by', telegramUserId);
     const auth = await callAppsScriptGet('BOT_GET_SESSION', { integration_secret: CFG.appsScriptSharedSecret, telegram_user_id: telegramUserId });
-    // Busca o perfil para pegar a cidade base do promotor
     const perfil = await callAppsScriptPost({ evento: 'BOT_GET_PERFIL', integration_secret: CFG.appsScriptSharedSecret, telegram_user_id: telegramUserId });
+    
+    console.log('[BOT] /slots perfil:', JSON.stringify(perfil));
     const res = await callAppsScriptGet('GET_SLOTS_DISPONIVEIS', { 
       token: auth?.sessao?.token || '', 
       telegram_user_id: telegramUserId,
@@ -1424,7 +1442,8 @@ async function handleTextMessage(message) {
     });
 
     if (!res.ok || !res.slots?.length) {
-      await telegramApi('sendMessage', { chat_id: chat.id, text: '📭 Nenhuma vaga disponível no momento para sua cidade.' });
+      const cidMsg = perfil?.ok && perfil.cidade ? ` para ${perfil.cidade}` : '';
+      await telegramApi('sendMessage', { chat_id: chat.id, text: `📭 Nenhuma vaga disponível no momento${cidMsg}.` });
       return;
     }
     const lista = res.slots.slice(0, 5).map(s => `📍 <b>${s.local_nome || s.local}</b>\n📅 ${s.data} | 🕐 ${s.inicio}–${s.fim}`).join('\n\n');
@@ -1488,11 +1507,11 @@ async function handleTextMessage(message) {
       await telegramApi('sendMessage', { chat_id: chat.id, text: 'Nome muito curto. Digite seu nome completo.' });
       return;
     }
-    const cargosCLT = ['SCOUT','CHARGER','MOTORISTA','FISCAL'];
-    const ehCLT = cargosCLT.includes((payload.cargo || '').toUpperCase());
-    if (ehCLT) {
-      await botSetSessionCloudRun(telegramUserId, 'AWAITING_CPF', { ...payload, nome_completo: nome });
-      await telegramApi('sendMessage', { chat_id: chat.id, text: 'Digite seu CPF (somente números):' });
+    const isUpdate = payload.mode === 'UPDATE';
+    if (isUpdate) {
+      // No modo UPDATE, pulamos CPF e Nascimento. Vamos direto para a Cidade.
+      await botSetSessionCloudRun(telegramUserId, 'AWAITING_CIDADE', { ...payload, nome_completo: nome });
+      await telegramApi('sendMessage', { chat_id: chat.id, text: 'Em qual cidade você atua?' });
     } else {
       await botSetSessionCloudRun(telegramUserId, 'AWAITING_CPF', { ...payload, nome_completo: nome });
       await telegramApi('sendMessage', { chat_id: chat.id, text: 'Digite seu CPF (só números):' });
@@ -1517,7 +1536,18 @@ async function handleTextMessage(message) {
       await telegramApi('sendMessage', { chat_id: chat.id, text: 'Data inválida. Use o formato ddmmaaaa. Ex: 15031990' });
       return;
     }
-    await _confirmarCadastro(telegramUserId, chat.id, { ...payload, data_nascimento: nasc, senha_inicial: nasc });
+    await botSetSessionCloudRun(telegramUserId, 'AWAITING_CIDADE', { ...payload, data_nascimento: nasc, senha_inicial: nasc });
+    await telegramApi('sendMessage', { chat_id: chat.id, text: 'Em qual cidade você atua?' });
+    return;
+  }
+
+  if (estado === 'AWAITING_CIDADE') {
+    const cidade = text.trim().toUpperCase();
+    if (cidade.length < 2) {
+      await telegramApi('sendMessage', { chat_id: chat.id, text: 'Nome da cidade inválido.' });
+      return;
+    }
+    await _confirmarCadastro(telegramUserId, chat.id, { ...payload, cidade });
     return;
   }
   await telegramApi('sendMessage', { chat_id: chat.id, text: 'Fluxo não reconhecido. Envie /cancel e comece novamente.' });
@@ -1527,9 +1557,15 @@ async function _confirmarCadastro(telegramUserId, chatId, p) {
   await botSetSessionCloudRun(telegramUserId, 'CONFIRMAR_CADASTRO', p);
   const cargosCLT = ['SCOUT','CHARGER','MOTORISTA','FISCAL'];
   const ehCLT = cargosCLT.includes((p.cargo || '').toUpperCase());
-  const extras = ehCLT
-    ? '\n📋 CPF: <b>' + (p.cpf || '') + '</b>\n🎂 Nasc: <b>' + (p.data_nascimento || '') + '</b>'
-    : '';
+  const isUpdate = p.mode === 'UPDATE';
+  
+  let extras = '';
+  if (isUpdate) {
+    extras = '\n<i>(CPF e Nascimento permanecerão inalterados)</i>';
+  } else if (ehCLT) {
+    extras = '\n📋 CPF: <b>' + (p.cpf || '') + '</b>\n🎂 Nasc: <b>' + (p.data_nascimento || '') + '</b>';
+  }
+
   await telegramApi('sendMessage', {
     chat_id: chatId,
     parse_mode: 'HTML',

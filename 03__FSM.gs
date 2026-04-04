@@ -847,10 +847,11 @@ function internalListarSlotsDisponiveis_(params) {
   const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   const ws=ss.getSheetByName('SLOTS'), data=ws.getDataRange().getValues();
   const h=data[0].map(v=>String(v).toLowerCase().trim()), iSt=h.indexOf('status'), iCid=h.indexOf('cidade');
-  const cidade=params.cidade||'', limit=parseInt(params.limit||'50'), slots=[];
+  const cidadeReq=normStr_(params.cidade||''), limit=parseInt(params.limit||'50'), slots=[];
   for (let r=1;r<data.length;r++) {
     if(data[r][iSt]!=='DISPONIVEL') continue;
-    if(cidade&&data[r][iCid]!==cidade) continue;
+    const cidadeSlot = normStr_(data[r][iCid]||'');
+    if(cidadeReq && cidadeSlot && cidadeSlot !== 'todas' && cidadeSlot !== cidadeReq) continue;
     slots.push(rowToObj_(h,data[r]));
     if(slots.length>=limit) break;
   }
@@ -865,17 +866,22 @@ function internalGetSlot_(params) {
 }
 
 function aceitarSlotTelegram_(body) {
-  const{promotor_id,slot_id}=body;
-  if (!promotor_id||!slot_id) return{ok:false,erro:'promotor_id e slot_id obrigatórios'};
-  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const ws=ss.getSheetByName('PROMOTORES'), data=ws.getDataRange().getValues();
-  const h=data[0].map(v=>String(v).toLowerCase().trim()), iId=h.indexOf('user_id');
-  for (let r=1;r<data.length;r++) {
-    if (String(data[r][iId]).trim()!==promotor_id) continue;
-    const user=rowToUser_(h,data[r]);
-    return aceitarSlot_(ss,user,{slot_id},new Date().toISOString());
+  const { promotor_id, telegram_user_id, slot_id } = body;
+  if (!slot_id || (!promotor_id && !telegram_user_id)) return { ok: false, erro: 'slot_id e (promotor_id ou telegram_user_id) obrigatórios' };
+  
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws = ss.getSheetByName('PROMOTORES'), data = ws.getDataRange().getValues();
+  const h = data[0].map(v => String(v).toLowerCase().trim());
+  const iId = h.indexOf('user_id'), iTg = h.indexOf('telegram_user_id');
+  
+  for (let r = 1; r < data.length; r++) {
+    const match = promotor_id ? (String(data[r][iId]).trim() === promotor_id) : (String(data[r][iTg]).trim() === String(telegram_user_id));
+    if (match) {
+      const user = rowToUser_(h, data[r]);
+      return aceitarSlot_(ss, user, { slot_id }, new Date().toISOString());
+    }
   }
-  return{ok:false,erro:'promotor_id não encontrado'};
+  return { ok: false, erro: 'Promotor não encontrado' };
 }
 
 /**
