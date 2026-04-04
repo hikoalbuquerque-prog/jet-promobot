@@ -256,20 +256,44 @@ function executarCheckin_(ss, jornada, user, body, horarioServidor) {
     const slotDt    = slot?.data && slot?.inicio ? new Date(String(slot.data).substring(0,10) + 'T' + String(slot.inicio).substring(0,5) + ':00') : null;
     const atrasoMin = slotDt ? Math.floor((new Date(horarioServidor) - slotDt) / 60000) : 999;
     const pontual   = atrasoMin <= 5;
+    const foraRaio  = distM > raio;
 
     try {
-      registrarScore_(ss, user.user_id, pontual ? 'CHECKIN_PONTUAL' : 'CHECKIN_ATRASADO', pontual ? 10 : 5, pontual ? 'Check-in pontual' : `Check-in com ${atrasoMin}min de atraso`, jornada.jornada_id);
+      // Pontuação padrão
+      let pts = pontual ? 10 : 5;
+      let msg = pontual ? 'Check-in pontual' : `Check-in com ${atrasoMin}min de atraso`;
+      
+      // Penalidade se fora do raio
+      if (foraRaio && forcar) {
+        pts -= 15; // Penalidade de -15 pontos (líquido pode ser negativo)
+        msg += ` | ⚠️ FORA DO RAIO (${Math.round(distM)}m)`;
+      }
+      
+      registrarScore_(ss, user.user_id, foraRaio ? 'CHECKIN_FORA_RAIO' : (pontual ? 'CHECKIN_PONTUAL' : 'CHECKIN_ATRASADO'), pts, msg, jornada.jornada_id);
     } catch(_) {}
+
+    // Notificação para Gestão se fora do raio
+    const resIntegracoes = [];
+    if (foraRaio && forcar) {
+      resIntegracoes.push({
+        canal: 'telegram', tipo: 'group_message',
+        cidade: slot.cidade || '',
+        topic_key: 'ALERTAS',
+        parse_mode: 'HTML',
+        text_html: `⚠️ <b>CHECK-IN FORA DO RAIO</b>\n\n👤 <b>${user.nome_completo || user.nome}</b>\n📍 ${slot.local_nome || slot.slot_id}\n📏 Distância: <b>${Math.round(distM)}m</b> (máx ${raio}m)\n⏰ Horário: ${Utilities.formatDate(new Date(horarioServidor), "GMT-3", "HH:mm")}\n\n<i>O promotor confirmou estar no local apesar da divergência de GPS.</i>`
+      });
+    }
 
     try {
       verificarBadges_(ss, user.user_id, {
         evento: 'CHECKIN',
         pontual,
+        foraRaio,
         streak: getScore_(user.user_id).streak
       });
     } catch(_) {}
 
-    return { ok: true, jornada_id: jornada.jornada_id, slot, distancia_metros: Math.round(distM), location_trust_score: score };
+    return { ok: true, jornada_id: jornada.jornada_id, slot, distancia_metros: Math.round(distM), location_trust_score: score, integracoes: resIntegracoes };
 
   } catch (e) {
     return { ok: false, erro: 'Sistema ocupado, tente novamente.' };

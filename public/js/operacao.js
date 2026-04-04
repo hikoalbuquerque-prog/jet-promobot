@@ -228,27 +228,50 @@ const operacao = {
 
     if (distEl) {
       distEl.textContent = ui.formatDist(dist);
-      distEl.style.color = dentro ? 'var(--green)' : 'var(--red)';
+      distEl.style.color = dentro ? 'var(--green)' : 'var(--yellow)';
     }
-    if (hint)   hint.textContent = dentro ? `✅ Dentro do raio de ${raio}m` : `Chegue a menos de ${raio}m do local`;
-    if (btn)    btn.disabled = !dentro;
-    if (alert)  alert.style.display = dentro ? 'none' : 'block';
-    if (alert && !dentro) alert.innerHTML = `<div class="card" style="border-color:var(--yellow);color:var(--yellow);font-size:13px">📍 Você está a ${ui.formatDist(dist)} do local. Aproxime-se para habilitar o check-in.</div>`;
+    if (hint) {
+      hint.textContent = dentro ? `✅ Dentro do raio de ${raio}m` : `⚠️ Você está fora do raio (${ui.formatDist(dist)})`;
+    }
+    if (btn) {
+      btn.disabled = false;
+      if (dentro) {
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.innerHTML = '✅ Fazer Check-in';
+      } else {
+        btn.style.background = '#f6ad55'; // Orange-ish
+        btn.style.color = '#1a1a2e';
+        btn.innerHTML = '⚠️ Check-in fora do raio';
+      }
+    }
+    if (alert) alert.style.display = 'block';
+    if (alert) {
+      if (dentro) {
+        alert.innerHTML = `<div class="card" style="border-color:var(--green);color:var(--green);font-size:13px;text-align:center">📍 Localização confirmada!</div>`;
+      } else {
+        alert.innerHTML = `<div class="card" style="border-color:var(--yellow);color:var(--yellow);font-size:13px">
+          <b>Atenção:</b> Você está fora do raio permitido. Se você já está no local, pode fazer o check-in, mas a gestão será notificada e haverá penalidade no ranking.
+        </div>`;
+      }
+    }
   },
 
   async _executarCheckin() {
     const slot    = state.get('slot');
     const jornada = state.loadJornada();
     const g       = state.get('gps');
+    let forcar    = false;
 
     if (!g?.ok || !g.lat || !g.lng) {
       if (!confirm('GPS não disponível. Fazer check-in sem validação de localização?')) return;
+      forcar = true;
     } else if (slot?.lat && slot?.lng) {
       const dist = gps.distancia(g.lat, g.lng, parseFloat(slot.lat), parseFloat(slot.lng));
       const raio = parseFloat(slot.raio_metros || 100);
       if (dist > raio) {
-        if (!confirm('⚠️ Você está a ' + Math.round(dist) + 'm do local (máx ' + raio + 'm).\n\nDeseja fazer o check-in fora do raio? A gestão será notificada.')) return;
-        body_fora_raio = true;
+        if (!confirm('⚠️ Você está a ' + Math.round(dist) + 'm do local (máx ' + raio + 'm).\n\nAo continuar, a GESTÃO será notificada e haverá PENALIDADE de pontos no seu ranking.\n\nDeseja prosseguir?')) return;
+        forcar = true;
       }
     }
 
@@ -263,10 +286,11 @@ const operacao = {
         evento:     'CHECKIN',
         jornada_id: jornada?.jornada_id,
         slot_id:    slot?.slot_id,
-        lat:        g.lat,
-        lng:        g.lng,
-        accuracy:   g.accuracy,
-        is_mock:    g.isMock || false,
+        lat:        g?.lat || 0,
+        lng:        g?.lng || 0,
+        accuracy:   g?.accuracy || 999,
+        is_mock:    g?.isMock || false,
+        forcar:     forcar,
         ...(_mc||{}),
       });
 
