@@ -18,9 +18,9 @@ function doGet(e) {
       if (evento === 'INTERNAL_SYNC_ALL')                 return jsonResp_(internalSyncAll());
       if (evento === 'BOT_GET_SESSION')                   return jsonResp_(botGetSession_(params));
       if (evento === 'BOT_SET_SESSION')                   return jsonResp_(botSetSession_({ telegram_user_id: params.telegram_user_id, estado: params.estado, payload_json: params.payload_json }));
-      case 'BOT_CLEAR_SESSION':                 return jsonResp_(botClearSession_({ telegram_user_id: params.telegram_user_id }));
-      case 'BOT_RESET_JORNADA':                 return jsonResp_(botResetJornada_(params));
-      case 'BOT_GET_PERFIL':                    return jsonResp_(botGetPerfil_(params));
+      if (evento === 'BOT_CLEAR_SESSION')                 return jsonResp_(botClearSession_({ telegram_user_id: params.telegram_user_id }));
+      if (evento === 'BOT_RESET_JORNADA')                 return jsonResp_(botResetJornada_(params));
+      if (evento === 'BOT_GET_PERFIL')                    return jsonResp_(botGetPerfil_(params));
       return jsonResp_({ ok: false, erro: 'evento interno GET não reconhecido' }, 400);
     }
 
