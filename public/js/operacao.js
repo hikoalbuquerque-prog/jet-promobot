@@ -147,6 +147,10 @@ const operacao = {
           <button id="btn-checkin" class="btn btn-success" disabled onclick="operacao._executarCheckin()">
             ✅ Fazer Check-in
           </button>
+
+          <button id="btn-cancelar-slot" class="btn btn-ghost" style="margin-top:12px;color:#fc8181;border-color:rgba(252,129,129,0.2)" onclick="operacao._cancelarSlot()">
+            🚫 Cancelar Vaga
+          </button>
         </div>
       </div>
     `);
@@ -306,6 +310,35 @@ const operacao = {
     } catch (_) {
       ui.toast('❌ Sem conexão.', 'error');
       ui.setLoading('btn-checkin', false);
+    }
+  },
+
+  async _cancelarSlot() {
+    if (!confirm('Deseja realmente cancelar o aceite desta vaga? Ela voltará a ficar disponível para outros promotores.')) return;
+    
+    const slot    = state.get('slot');
+    const jornada = state.loadJornada();
+    
+    ui.setLoading('btn-cancelar-slot', true);
+    try {
+      const res = await api.post({
+        evento: 'CANCELAR_SLOT',
+        jornada_id: jornada?.jornada_id,
+        slot_id: slot?.slot_id
+      });
+
+      if (res.ok) {
+        ui.toast('✅ Vaga cancelada!', 'success');
+        state.set('slot', null);
+        state.saveJornada(null);
+        router.go('slot');
+      } else {
+        alert(res.erro || 'Erro ao cancelar');
+        ui.setLoading('btn-cancelar-slot', false);
+      }
+    } catch(e) {
+      alert('Erro de conexão ao cancelar.');
+      ui.setLoading('btn-cancelar-slot', false);
     }
   },
 

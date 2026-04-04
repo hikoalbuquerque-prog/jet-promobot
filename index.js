@@ -139,12 +139,12 @@ app.post('/internal/sync-slots', requireAdminSecret, (req, res) => {
 app.post('/internal/sync-academy', requireAdminSecret, (req, res) => {
   const { modulos, quizzes } = req.body || {};
   if (!Array.isArray(modulos)) return res.status(400).json({ ok: false, erro: 'Array de modulos obrigatório' });
+  console.log(`[CACHE] Syncing Academy: ${modulos.length} modules, ${Object.keys(quizzes || {}).length} quizzes.`);
   ACADEMY_CACHE = {
     timestamp: Date.now(),
     modulos: modulos,
     quizzes: quizzes || {}
   };
-  console.log(`[CACHE] Academy sincronizado: ${modulos.length} módulos.`);
   res.json({ ok: true });
 });
 
