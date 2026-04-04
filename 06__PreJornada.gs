@@ -34,13 +34,18 @@ function dispararPreJornada_(body) {
   return {
     ok: true, confirmacao_id: confId,
     integracoes: [{
-      tipo: 'TELEGRAM_PRE_JORNADA',
-      telegram_user_id: tgId, slot_id, confirmacao_id: confId, texto,
-      botoes: [
-        { label: '✅ Estou a caminho',   callback: 'CONF_A_CAMINHO:' + confId },
-        { label: '❌ Não vou conseguir', callback: 'CONF_NAO_VAI:' + confId },
-        { label: '🆘 Preciso de ajuda',  callback: 'CONF_PRECISA_AJUDA:' + confId },
-      ]
+      canal: 'telegram',
+      tipo: 'private_message',
+      telegram_user_id: tgId,
+      parse_mode: 'HTML',
+      text_html: texto,
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '✅ Estou a caminho',   callback_data: 'CONF_A_CAMINHO:' + confId }],
+          [{ text: '❌ Não vou conseguir', callback_data: 'CONF_NAO_VAI:' + confId }],
+          [{ text: '🆘 Preciso de ajuda',  callback_data: 'CONF_PRECISA_AJUDA:' + confId }]
+        ]
+      }
     }]
   };
 }
@@ -188,13 +193,55 @@ function triggerCheckinHorario() {
     const dataSlot = String(data[r][iData]).substring(0, 10), inicioStr = String(data[r][iIni]).substring(0, 5), fimStr = String(data[r][iFim]).substring(0, 5);
     if (!dataSlot || !inicioStr) continue;
     const slotDt = new Date(dataSlot + 'T' + inicioStr + ':00'), diffMin = (slotDt - agora) / 60000;
-    if (diffMin < -2 || diffMin > 3) continue;
+    // Janela maior: envia se estiver entre 5 min antes e 5 min depois do início do slot
+    if (diffMin < -5 || diffMin > 5) continue;
 
     const tgId = getTelegramUserId_(ss, userId);
     if (tgId) {
-      const payload = { canal:'telegram', tipo:'private_message', telegram_user_id:tgId, parse_mode:'HTML', text_html:`🟡 <b>Hora do seu slot!</b>\n\n📍 <b>${String(data[r][iNome]).trim()}</b>\n🕐 ${inicioStr} – ${fimStr}\n\nCompartilhe sua localização para fazer check-in:` };
+      const payload = { canal:'telegram', tipo:'private_message', telegram_user_id:tgId, parse_mode:'HTML', text_html:`🔔 <b>Hora do seu slot!</b>\n\n📍 <b>${String(data[r][iNome]).trim()}</b>\n🕐 ${inicioStr} – ${fimStr}\n\nAbra o app para fazer seu check-in.` };
       processIntegracoes([payload], { evento:'CHECKIN_REMINDER' });
       botSetSession_({ telegram_user_id:tgId, estado:'AWAITING_CHECKIN_LOCATION', payload:{ slot_id:String(data[r][iId]).trim(), jornada_id:String(data[r][iJrn]||'').trim(), user_id:userId } });
+    }
+  }
+}
+
+/**
+ * Lembrete 10 minutos após o início se o check-in não foi feito.
+ */
+function triggerLembrete10Min() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws = ss.getSheetByName('SLOTS');
+  if (!ws) return;
+  const data = ws.getDataRange().getValues(), h = data[0].map(v => String(v).toLowerCase().trim());
+  const iId = h.indexOf('slot_id'), iUsr = h.indexOf('user_id'), iStt = h.indexOf('status'), iData = h.indexOf('data'), iIni = h.indexOf('inicio'), iNome = h.indexOf('local_nome');
+  const agora = new Date();
+
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][iStt]).trim() !== 'ACEITO') continue;
+    const userId = String(data[r][iUsr]).trim(); if (!userId) continue;
+    
+    const dataSlot = String(data[r][iData]).substring(0, 10), inicioStr = String(data[r][iIni]).substring(0, 5);
+    if (!dataSlot || !inicioStr) continue;
+    
+    const slotDt = new Date(dataSlot + 'T' + inicioStr + ':00');
+    const diffMin = (agora - slotDt) / 60000;
+    
+    // Dispara se estiver entre 10 e 15 minutos de atraso
+    if (diffMin >= 10 && diffMin < 15) {
+      const tgId = getTelegramUserId_(ss, userId);
+      if (tgId) {
+        UrlFetchApp.fetch(getConfig_('cloud_run_url') + '/internal/send-checkin-reminder', {
+          method: 'post', contentType: 'application/json',
+          payload: JSON.stringify({
+            integration_secret: getConfig_('integration_secret'),
+            telegram_user_id: tgId,
+            slot_id: String(data[r][iId]).trim(),
+            local_nome: String(data[r][iNome]).trim(),
+            inicio: inicioStr,
+            tipo: 'LEMBRETE_10MIN'
+          }),
+          muteHttpExceptions: true
+        });
+      }
     }
   }
 }

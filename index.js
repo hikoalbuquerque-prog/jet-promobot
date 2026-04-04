@@ -357,21 +357,26 @@ app.post('/internal/send-checkin-reminder', async (req, res) => {
     if (!telegram_user_id) return res.json({ ok: false, erro: 'telegram_user_id obrigatório' });
 
     const isLembrete = tipo === 'LEMBRETE_10MIN';
-    const texto = isLembrete
-      ? `⚠️ <b>Você ainda não fez check-in!</b>\n\n📍 ${local_nome || slot_id}\n🕐 ${inicio || '—'}\n\nO que deseja fazer?`
-      : `🔔 <b>Hora do seu slot!</b>\n\n📍 <b>${local_nome || slot_id}</b>\n🕐 ${inicio || '—'}\n\nAbra o app para fazer o check-in.`;
+    const isAutoEncerrado = tipo === 'AUTO_ENCERRADO';
 
-    const botoes = isLembrete ? [
-      [
-        { text: '📲 Vou fazer check-in agora', callback_data: 'CHECKIN_APP:' + (confirmacao_id||slot_id) },
-        { text: '🚗 Estou a caminho', callback_data: 'CHECKIN_CAMINHO:' + (confirmacao_id||slot_id) }
-      ],
-      [
-        { text: '❌ Cancelar slot (penalidade)', callback_data: 'CHECKIN_CANCELAR:' + (confirmacao_id||slot_id) }
-      ]
-    ] : [
-      [{ text: '📲 Abrir app para check-in', url: 'https://promo-telegram-gateway-v3-476120210909.southamerica-east1.run.app' }]
-    ];
+    let texto = `🔔 <b>Hora do seu slot!</b>\n\n📍 <b>${local_nome || slot_id}</b>\n🕐 ${inicio || '—'}\n\nAbra o app para fazer o check-in.`;
+    let botoes = [[{ text: '📲 Abrir app para check-in', url: 'https://hikoalbuquerque-prog.github.io/jet-promobot' }]];
+
+    if (isLembrete) {
+      texto = `⚠️ <b>Você ainda não fez check-in!</b>\n\n📍 ${local_nome || slot_id}\n🕐 ${inicio || '—'}\n\nO que deseja fazer?`;
+      botoes = [
+        [
+          { text: '📲 Vou fazer check-in agora', callback_data: 'CHECKIN_APP:' + (confirmacao_id||slot_id) },
+          { text: '🚗 Estou a caminho', callback_data: 'CHECKIN_CAMINHO:' + (confirmacao_id||slot_id) }
+        ],
+        [
+          { text: '❌ Cancelar slot (penalidade)', callback_data: 'CHECKIN_CANCELAR:' + (confirmacao_id||slot_id) }
+        ]
+      ];
+    } else if (isAutoEncerrado) {
+      texto = `🏁 <b>Jornada Encerrada Automaticamente</b>\n\n📍 ${local_nome || slot_id}\n\nSua jornada foi encerrada pelo sistema por ausência de checkout após o horário previsto.`;
+      botoes = [[{ text: '📊 Ver meu histórico', url: 'https://hikoalbuquerque-prog.github.io/jet-promobot' }]];
+    }
 
     await telegramApi('sendMessage', {
       chat_id: telegram_user_id,
