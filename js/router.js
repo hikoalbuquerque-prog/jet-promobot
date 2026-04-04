@@ -113,5 +113,6 @@ window.addEventListener('load', () => {
       })
       .catch(() => {});
   }
+  ui.initNetworkListeners();
   auth.init();
 });

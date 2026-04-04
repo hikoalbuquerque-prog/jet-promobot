@@ -20,7 +20,8 @@ const api = {
   // GET → /app/query?evento=...&token=...
   async get(evento, params = {}) {
     const token = state.get('token');
-    const query = { ...params, evento, token: token || '' };
+    const device_info = navigator.userAgent || 'unknown';
+    const query = { ...params, evento, token: token || '', device_info };
     const qs = new URLSearchParams(query).toString();
     const res = await fetch(`${API_URL}/app/query?${qs}`);
     return _parseResponse(res);
@@ -29,7 +30,8 @@ const api = {
   // POST → /app/event  { evento, token, ...body }
   async post(body, options = {}) {
     const token = options.tokenOverride ?? state.get('token');
-    const payload = options.skipToken ? { ...body } : { ...body, token };
+    const device_info = navigator.userAgent || 'unknown';
+    const payload = options.skipToken ? { ...body, device_info } : { ...body, token, device_info };
     const res = await fetch(`${API_URL}/app/event`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
