@@ -515,3 +515,65 @@ function botClearSession_(params) {
   }
   return { ok: true };
 }
+
+/**
+ * Força o encerramento de qualquer jornada ativa do promotor (Reset)
+ */
+function botResetJornada_(params) {
+  const tgId = String(params.telegram_user_id || '').trim();
+  if (!tgId) return { ok: false, erro: 'telegram_user_id obrigatório' };
+  
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const wsP = ss.getSheetByName('PROMOTORES'), dataP = wsP.getDataRange().getValues();
+  const hP = dataP[0].map(v => String(v).toLowerCase().trim()), iIdP = hP.indexOf('user_id'), iTgP = hP.indexOf('telegram_user_id');
+  
+  let userId = null;
+  for (let r = 1; r < dataP.length; r++) {
+    if (String(dataP[r][iTgP]).trim() === tgId) { userId = String(dataP[r][iIdP]).trim(); break; }
+  }
+  if (!userId) return { ok: false, erro: 'Promotor não vinculado ao Telegram.' };
+
+  const wsJ = ss.getSheetByName('JORNADAS'), dataJ = wsJ.getDataRange().getValues();
+  const hJ = dataJ[0].map(v => String(v).toLowerCase().trim()), iSttJ = hJ.indexOf('status'), iUsrJ = hJ.indexOf('user_id'), iSltJ = hJ.indexOf('slot_id');
+  const ativos = ['ACEITO', 'EM_ATIVIDADE', 'PAUSADO', 'AGUARDANDO_RASTREIO', 'EM_TURNO', 'SEM_SINAL', 'MAPEAMENTO_INTERROMPIDO'];
+  
+  let count = 0;
+  const agora = new Date().toISOString();
+  for (let r = 1; r < dataJ.length; r++) {
+    if (String(dataJ[r][iUsrJ]).trim() === userId && ativos.includes(String(dataJ[r][iSttJ]).trim().toUpperCase())) {
+      const slotId = String(dataJ[r][iSltJ]).trim();
+      wsJ.getRange(r + 1, iSttJ + 1).setValue('RESET_PELO_BOT');
+      if (slotId) atualizarSlotStatus_(ss, slotId, 'DISPONIVEL', agora);
+      count++;
+    }
+  }
+  
+  return { ok: true, resetados: count };
+}
+
+/**
+ * Retorna dados resumidos do perfil para o Bot
+ */
+function botGetPerfil_(params) {
+  const tgId = String(params.telegram_user_id || '').trim();
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const wsP = ss.getSheetByName('PROMOTORES'), dataP = wsP.getDataRange().getValues();
+  const hP = dataP[0].map(v => String(v).toLowerCase().trim()), iId = hP.indexOf('user_id'), iTg = hP.indexOf('telegram_user_id');
+  const iNome = hP.indexOf('nome'), iScore = hP.indexOf('score_operacional'), iStreak = hP.indexOf('streak_dias');
+
+  for (let r = 1; r < dataP.length; r++) {
+    if (String(dataP[r][iTg]).trim() === tgId) {
+      const userId = String(dataP[r][iId]).trim();
+      const bloqueio = verificarBloqueiosPromotores_(ss, userId);
+      return {
+        ok: true,
+        nome: String(dataP[r][iNome] || ''),
+        score: parseFloat(dataP[r][iScore] || '0'),
+        streak: parseInt(dataP[r][iStreak] || '0'),
+        bloqueado: bloqueio.bloqueado,
+        motivo_bloqueio: bloqueio.motivo
+      };
+    }
+  }
+  return { ok: false, erro: 'Perfil não encontrado.' };
+}

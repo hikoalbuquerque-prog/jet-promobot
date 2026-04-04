@@ -808,6 +808,32 @@ async function handleCallbackQuery(callbackQuery) {
     return;
   }
 
+  if (data === 'bot:perfil') {
+    await handleTelegramUpdate({ message: { chat, from, text: '/perfil' } });
+    await telegramApi('answerCallbackQuery', { callback_query_id: callbackId });
+    return;
+  }
+
+  if (data === 'bot:links') {
+    await handleTelegramUpdate({ message: { chat, from, text: '/links' } });
+    await telegramApi('answerCallbackQuery', { callback_query_id: callbackId });
+    return;
+  }
+
+  if (data === 'bot:reset_confirm') {
+    await handleTelegramUpdate({ message: { chat, from, text: '/reset' } });
+    await telegramApi('answerCallbackQuery', { callback_query_id: callbackId });
+    return;
+  }
+
+  if (data === 'bot:reset_exec') {
+    const result = await callAppsScriptPost({ evento: 'BOT_RESET_JORNADA', integration_secret: CFG.appsScriptSharedSecret, telegram_user_id: telegramUserId });
+    const msg = result.ok ? `✅ Jornada resetada com sucesso! (${result.resetados} registros limpos). Agora você pode aceitar novas vagas.` : `❌ Erro: ${result.erro}`;
+    await telegramApi('editMessageText', { chat_id: chat.id, message_id: callbackQuery.message?.message_id, text: msg });
+    await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Reset concluído.' });
+    return;
+  }
+
   if (data.startsWith('CHECKIN_FORCAR:')) {
     const [_, slotId, jornadaId, lat, lng, userId] = data.split(':');
     try {
@@ -1288,7 +1314,85 @@ async function handleTextMessage(message) {
   }
 
   if (/^\/start\b/i.test(text)) {
-    await telegramApi('sendMessage', { chat_id: chat.id, parse_mode: 'HTML', text: '👋 <b>Promo Intelligence BOT</b>\n\nUse estes comandos no privado:\n/cadastro — vincular seu Telegram ao promotor\n/update — trocar promotor_id e/ou cidade\n/cancel — cancelar o fluxo atual' });
+    const welcome = `👋 <b>Bem-vindo ao JET Intelligence BOT</b>\n\n` +
+      `<b>Comandos principais:</b>\n` +
+      `/cadastro — Vincular Telegram ao promotor\n` +
+      `/perfil — Ver meu score, streak e bloqueios\n` +
+      `/reset — Resetar jornada travada\n` +
+      `/links — Links úteis (NF, Newsletter, LinkedIn)\n\n` +
+      `<b>Links Rápidos:</b>\n` +
+      `• <a href="https://hikoalbuquerque-prog.github.io/jet-promobot/">Abrir Aplicativo JET</a>\n` +
+      `• <a href="https://t.me/Promoter_GOJET_BOT">Lançar Vendas (Bot Vendas)</a>`;
+    
+    await telegramApi('sendMessage', { 
+      chat_id: chat.id, 
+      parse_mode: 'HTML', 
+      text: welcome,
+      reply_markup: JSON.stringify({
+        inline_keyboard: [
+          [{ text: '👤 Ver Meu Perfil', callback_data: 'bot:perfil' }, { text: '🔄 Resetar Jornada', callback_data: 'bot:reset_confirm' }],
+          [{ text: '🔗 Links Úteis', callback_data: 'bot:links' }]
+        ]
+      })
+    });
+    return;
+  }
+
+  if (/^\/links\b/i.test(text)) {
+    const linksMsg = `🔗 <b>Links Úteis para Promotores</b>\n\n` +
+      `• <b>Emissão de NF:</b> <a href="https://t.me/TopDoerBrasilBot">Top Doer Brasil Bot</a>\n` +
+      `• <b>Newsletter Promo BR:</b> <a href="https://t.me/Jetnewspromo">Canal de Notícias</a>\n` +
+      `• <b>LinkedIn JET:</b> <a href="https://www.linkedin.com/company/jetazul/">Seguir Página</a>\n` +
+      `• <b>Lançar Vendas:</b> <a href="https://t.me/Promoter_GOJET_BOT">Bot de Vendas</a>`;
+    
+    await telegramApi('sendMessage', { chat_id: chat.id, parse_mode: 'HTML', text: linksMsg });
+    return;
+  }
+
+  if (/^\/perfil\b/i.test(text)) {
+    const res = await callAppsScriptPost({ evento: 'BOT_GET_PERFIL', integration_secret: CFG.appsScriptSharedSecret, telegram_user_id: telegramUserId });
+    if (!res.ok) {
+      await telegramApi('sendMessage', { chat_id: chat.id, text: '❌ ' + (res.erro || 'Perfil não encontrado. Faça o /cadastro primeiro.') });
+      return;
+    }
+    const perfilMsg = `👤 <b>Seu Perfil</b>\n\n` +
+      `<b>Nome:</b> ${res.nome}\n` +
+      `<b>Score:</b> ${res.score.toFixed(1)} pts\n` +
+      `<b>Streak:</b> ${res.streak} dias 🔥\n` +
+      `<b>Status:</b> ${res.bloqueado ? '🔴 BLOQUEADO' : '✅ ATIVO'}` +
+      `${res.bloqueado ? `\n<b>Motivo:</b> ${res.motivo_bloqueio}` : ''}`;
+    
+    await telegramApi('sendMessage', { chat_id: chat.id, parse_mode: 'HTML', text: perfilMsg });
+    return;
+  }
+
+  if (/^\/reset\b/i.test(text)) {
+    await telegramApi('sendMessage', { 
+      chat_id: chat.id, 
+      text: '⚠️ Deseja realmente resetar sua jornada atual? Isso forçará o encerramento no sistema para liberar novas vagas.',
+      reply_markup: JSON.stringify({
+        inline_keyboard: [[
+          { text: '✅ Sim, Resetar', callback_data: 'bot:reset_exec' },
+          { text: '❌ Não', callback_data: 'bot_clear_session' }
+        ]]
+      })
+    });
+    return;
+  }
+
+  if (/^\/vagas\b/i.test(text)) {
+    const auth = await callAppsScriptGet('BOT_GET_SESSION', { integration_secret: CFG.appsScriptSharedSecret, telegram_user_id: telegramUserId });
+    const res = await callAppsScriptGet('GET_SLOTS_DISPONIVEIS', { token: auth?.sessao?.token || '', telegram_user_id: telegramUserId });
+    if (!res.ok || !res.slots?.length) {
+      await telegramApi('sendMessage', { chat_id: chat.id, text: '📭 Nenhuma vaga disponível no momento para sua cidade.' });
+      return;
+    }
+    const lista = res.slots.slice(0, 5).map(s => `📍 <b>${s.local_nome || s.local}</b>\n📅 ${s.data} | 🕐 ${s.inicio}–${s.fim}`).join('\n\n');
+    await telegramApi('sendMessage', { 
+      chat_id: chat.id, 
+      parse_mode: 'HTML', 
+      text: `📅 <b>Vagas Disponíveis:</b>\n\n${lista}\n\n<a href="https://hikoalbuquerque-prog.github.io/jet-promobot/">👉 Abrir App para Aceitar</a>`
+    });
     return;
   }
 
