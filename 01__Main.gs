@@ -126,6 +126,11 @@ function doPost(e) {
         case 'BROADCAST_PROMOTORES':                  return jsonResp_(broadcastPromotor_(body));
         case 'BOT_RESET_JORNADA':                     return jsonResp_(botResetJornada_(body));
         case 'BOT_GET_PERFIL':                        return jsonResp_(botGetPerfil_(body));
+        case 'CONCLUIR_MODULO': {
+          const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+          const user = getPromotorByTelegramId_(ss, body.telegram_user_id) || { user_id: body.user_id };
+          return jsonResp_(concluirModulo_(user, body));
+        }
         default: return jsonResp_({ ok: false, erro: 'evento interno POST não reconhecido' }, 400);
       }
     }

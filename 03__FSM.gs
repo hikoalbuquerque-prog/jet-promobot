@@ -1040,9 +1040,19 @@ function triggerAutoEncerramento() {
 }
 
 function slotsConflitam_(fimExistente, inicioNovo, fimNovo, inicioExistente) {
-  const gap1 = calcularGapMinutos_(fimExistente, inicioNovo);
-  const gap2 = calcularGapMinutos_(fimNovo, inicioExistente);
-  return gap1 < -1 && gap2 < -1;
+  const partsF = String(fimExistente).split(':').map(Number);
+  const partsI = String(inicioNovo).split(':').map(Number);
+  const partsNF = String(fimNovo).split(':').map(Number);
+  const partsNI = String(inicioExistente).split(':').map(Number);
+  
+  const fMin = (partsF[0] || 0) * 60 + (partsF[1] || 0);
+  const iMin = (partsI[0] || 0) * 60 + (partsI[1] || 0);
+  const nfMin = (partsNF[0] || 0) * 60 + (partsNF[1] || 0);
+  const niMin = (partsNI[0] || 0) * 60 + (partsNI[1] || 0);
+
+  // Um conflito ocorre se o novo slot começa antes do fim do existente
+  // E o novo slot termina após o início do existente.
+  return iMin < fMin && nfMin > niMin;
 }
 
 function processarFSMInterno_(body, evento) {
