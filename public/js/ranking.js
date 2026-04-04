@@ -77,7 +77,7 @@ const ranking = {
 
     try {
       var results = await Promise.all([
-        api.get('GET_RANKING_SEMANAL&periodo=' + this._periodo),
+        api.get('GET_RANKING_SEMANAL', { periodo: this._periodo }),
         api.get('GET_BADGES')
       ]);
       var rankRes = results[0], badgeRes = results[1];

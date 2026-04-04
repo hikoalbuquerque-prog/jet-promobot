@@ -311,7 +311,6 @@ const mapaScreen = (() => {
         ` : ''}
       </div>`;
   }
-  }
 
   function _voltarLista() {
     const painel = document.getElementById('mapa-painel');

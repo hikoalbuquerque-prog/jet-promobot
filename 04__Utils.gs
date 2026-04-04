@@ -180,20 +180,27 @@ function getHistorico_(user, params) {
   }
   return { ok: true, historico: registros };
 }
-
 function getMapaPromotor_(user, params) {
   const ss    = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   const ws    = ss.getSheetByName('LOCALIZACAO_TEMPO_REAL');
+  if (!ws) return { ok: true, pontos: [] };
   const data  = ws.getDataRange().getValues();
   const h     = data[0].map(v => String(v).toLowerCase().trim());
   const iUsr  = h.indexOf('user_id');
   const pontos = [];
   const seen   = new Set();
+
+  // Otimização: Carrega nomes dos promotores (usa cache se disponível no 07.Gestor)
+  // Nota: Se _getPromotoresMap_ estiver no 07.Gestor, podemos redefinir aqui ou mover p/ Utils.
+  const promMap = (typeof _getPromotoresMap_ === 'function') ? _getPromotoresMap_(ss) : {};
+
   for (let r = data.length - 1; r >= 1; r--) {
     const uid = String(data[r][iUsr]).trim();
-    if (seen.has(uid)) continue;
+    if (!uid || seen.has(uid)) continue;
     seen.add(uid);
-    pontos.push(rowToObj_(h, data[r]));
+    const obj = rowToObj_(h, data[r]);
+    obj.nome_completo = promMap[uid]?.nome || '';
+    pontos.push(obj);
   }
   return { ok: true, pontos };
 }

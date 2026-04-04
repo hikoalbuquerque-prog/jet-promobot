@@ -276,6 +276,11 @@ const homeScreen = {
 
     document.getElementById('app').innerHTML = `
       <div style="min-height:100dvh;background:#1a1a2e;color:#eaf0fb;font-family:-apple-system,sans-serif;padding-bottom:80px">
+        
+        <div id="push-permission-bar" style="display:none;background:#4f8ef7;padding:10px 16px;text-align:center;font-size:12px;font-weight:700;color:#fff;cursor:pointer" onclick="homeScreen._pedirPush()">
+          🔔 Clique aqui para ativar notificações push e receber alertas!
+        </div>
+
         <div style="background:#16213e;border-bottom:1px solid #2a3a55;padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50">
           <div style="flex:1">
             <div style="font-size:17px;font-weight:700">${p.nome_completo||p.nome||'Promotor'}</div>
@@ -326,5 +331,23 @@ const homeScreen = {
     api.get('GET_SLOT_ATUAL').then(res => {
       if (res.ok && res.jornada) { state.saveJornada(res.jornada); state.set('slot', res.slot); }
     }).catch(() => {});
+
+    // Lógica da Barra de Notificação
+    if (window.Notification && Notification.permission !== 'granted') {
+      const bar = document.getElementById('push-permission-bar');
+      if (bar) bar.style.display = 'block';
+    }
+  },
+
+  async _pedirPush() {
+    if (typeof pushManager === 'undefined') return;
+    const ok = await pushManager.requestPermission();
+    if (ok) {
+      const bar = document.getElementById('push-permission-bar');
+      if (bar) bar.style.display = 'none';
+      ui.toast('Notificações ativadas!', 'success');
+    } else {
+      ui.toast('Permissão negada.', 'error');
+    }
   }
 };
