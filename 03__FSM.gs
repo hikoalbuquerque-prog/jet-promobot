@@ -717,72 +717,27 @@ function getSlotsDisponiveis_(params, user) {
 
     const obj = rowToObj_(h, data[r]);
 
-    // ── Lógica de Preferência Dinâmica (13h-14h do dia anterior) ────────────────
-    if (iSugerido > -1) {
-      const sugeridoId = String(data[r][iSugerido]).trim();
-      if (sugeridoId) {
-        const dataSlotStr = String(data[r][iDt]).substring(0, 10);
-        const dataSlot = new Date(dataSlotStr + 'T00:00:00');
-        
-        // Janela: 13h às 14h do dia ANTERIOR ao slot
-        const inicioPref = new Date(dataSlot.getTime() - 24 * 60 * 60 * 1000);
-        inicioPref.setHours(13, 0, 0, 0);
-        const fimPref = new Date(dataSlot.getTime() - 24 * 60 * 60 * 1000);
-        fimPref.setHours(14, 0, 0, 0);
-
-        // Se estamos na janela de 13h-14h do dia anterior
-        if (agoraMs >= inicioPref.getTime() && agoraMs < fimPref.getTime()) {
-          if (sugeridoId !== userId) continue; // Esconde dos outros
-          obj.is_sugerido = true;
-          obj.preferencia_expira = fimPref.toISOString();
-        }
-        
-        // Fallback: se preencheu preferencia_ate manualmente (ou se já passou das 14h mas quer manter reserva)
-        if (iPrefAte > -1 && data[r][iPrefAte]) {
-          const prefManual = new Date(data[r][iPrefAte]).getTime();
-          if (agoraMs < prefManual) {
-            if (sugeridoId !== userId) continue;
-            obj.is_sugerido = true;
-            obj.preferencia_expira = data[r][iPrefAte];
-          }
-        }
-      }
-    }
-
-    // Filtra por cidade do promotor (Relaxado p/ depuração)
-    if (cidadeUser) {
+    // Filtra por cidade do promotor (Insensível a acento e caso)
+    if (cidadeUser && cidadeUser.toUpperCase() !== 'ADMIN') {
       const cidadeSlot = String(data[r][iCid] || '').trim();
-      // Se a cidade do slot for "TODAS" ou se houver um "match" parcial, permite
       if (cidadeSlot && cidadeSlot.toUpperCase() !== 'TODAS') {
-        if (normStr_(cidadeSlot) !== normStr_(cidadeUser) && !normStr_(cidadeSlot).includes(normStr_(cidadeUser))) continue;
+        if (normStr_(cidadeSlot) !== normStr_(cidadeUser)) continue;
       }
     }
-
-    // Permite MEI e FISCAL verem slots
-    const vinc = (user?.tipo_vinculo || '').toUpperCase();
-    if (vinc !== 'MEI' && vinc !== 'FISCAL' && vinc !== 'GESTOR') continue;
 
     // Normalização de Data para comparação segura
     let dataSlotRaw = data[r][iDt];
     if (dataSlotRaw instanceof Date) {
-      dataSlotRaw = dataSlotRaw.toISOString().split('T')[0];
+      dataSlotRaw = Utilities.formatDate(dataSlotRaw, "GMT-3", "yyyy-MM-dd");
     }
     const dataSlot = String(dataSlotRaw || '').substring(0, 10);
-    
-    if (dataSlot && dataSlot !== hojeStr && dataSlot !== amanhaStr) continue;
 
-    if (dataSlot === hojeStr && iFim > -1) {
-      const fimStr = String(data[r][iFim] || '').substring(0, 5);
-      if (fimStr) {
-        const parts  = fimStr.split(':');
-        const fimMin = parseInt(parts[0] || 0) * 60 + parseInt(parts[1] || 0);
-        if (fimMin < agoraMin) continue;
-      }
-    }
+    // Mostra slots de hoje e amanhã (ou qualquer slot se for Admin/Gestor)
+    const isGestor = (user?.tipo_vinculo || '').toUpperCase() === 'GESTOR';
+    if (!isGestor && dataSlot !== hojeStr && dataSlot !== amanhaStr) continue;
 
     slots.push(obj);
-  }
-
+    }
   slots.sort((a, b) => {
     if (a.is_sugerido && !b.is_sugerido) return -1;
     if (!a.is_sugerido && b.is_sugerido) return 1;
