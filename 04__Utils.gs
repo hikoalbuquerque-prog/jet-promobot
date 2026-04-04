@@ -302,10 +302,13 @@ function enviarPush_(userId, titulo, mensagem, url = '/') {
 function internalSyncAll() {
   try {
     sincronizarGruposCache_();
-    if (typeof sincronizarAcademyCache_ === 'function') sincronizarAcademyCache_();
+    if (typeof sincronizarAcademyCache_ === 'function') {
+      sincronizarAcademyCache_();
+    }
     sincronizarCacheGlobal();
-    return { ok: true, mensagem: 'Sincronização global disparada.' };
+    return { ok: true, mensagem: 'Sincronização global disparada com sucesso.' };
   } catch (e) {
+    Logger.log('Erro internalSyncAll: ' + e.message);
     return { ok: false, erro: e.message };
   }
 }
@@ -314,50 +317,51 @@ function internalSyncAll() {
  * Sincroniza dados das abas principais para o Cloud Run.
  */
 function sincronizarCacheGlobal() {
-  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  
-  function getTab(name) {
-    const ws = ss.getSheetByName(name);
-    if (!ws) return [];
-    const data = ws.getDataRange().getValues();
-    if (data.length < 2) return [];
-    const h = data[0].map(v => String(v).toLowerCase().trim());
-    const rows = [];
-    for (let r = 1; r < data.length; r++) {
-      // Remover valores vazios no fim
-      if (data[r].join('').trim() === '') continue;
-      
-      const obj = {};
-      h.forEach((col, i) => {
-        let val = data[r][i];
-        if (val instanceof Date) val = val.toISOString();
-        obj[col] = val;
-      });
-      rows.push(obj);
-    }
-    return rows;
-  }
-
-  const payload = {
-    integration_secret: getConfig_('integration_secret'),
-    promotores: getTab('PROMOTORES'),
-    slots: getTab('SLOTS'),
-    jornadas: getTab('JORNADAS'),
-    turnos_clt: getTab('TURNOS_CLT'),
-    fsm_transicoes: getTab('FSM_TRANSICOES')
-  };
-
-  const url = getConfig_('cloud_run_url') + '/internal/sync-all';
   try {
+    const ssId = getConfig_('spreadsheet_id_master');
+    if (!ssId) throw new Error('spreadsheet_id_master não configurado em CONFIG');
+    const ss = SpreadsheetApp.openById(ssId);
+    
+    function getTab(name) {
+      const ws = ss.getSheetByName(name);
+      if (!ws) return [];
+      const data = ws.getDataRange().getValues();
+      if (data.length < 2) return [];
+      const h = data[0].map(v => String(v).toLowerCase().trim());
+      const rows = [];
+      for (let r = 1; r < data.length; r++) {
+        if (data[r].join('').trim() === '') continue;
+        const obj = {};
+        h.forEach((col, i) => {
+          let val = data[r][i];
+          if (val instanceof Date) val = val.toISOString();
+          obj[col] = val;
+        });
+        rows.push(obj);
+      }
+      return rows;
+    }
+
+    const payload = {
+      integration_secret: getConfig_('integration_secret'),
+      promotores: getTab('PROMOTORES'),
+      slots: getTab('SLOTS'),
+      jornadas: getTab('JORNADAS'),
+      turnos_clt: getTab('TURNOS_CLT'),
+      fsm_transicoes: getTab('FSM_TRANSICOES')
+    };
+
+    const url = getConfig_('cloud_run_url') + '/internal/sync-all';
     UrlFetchApp.fetch(url, {
       method: 'post',
       contentType: 'application/json',
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     });
-    console.log('Cache Global sincronizado.');
+    Logger.log('Sincronização global (Cache) concluída.');
   } catch (e) {
-    console.log('Erro sync global:', e.message);
+    Logger.log('Erro sincronizarCacheGlobal: ' + e.message);
+    throw e;
   }
 }
 
@@ -447,4 +451,67 @@ function normStr_(str) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
+}
+
+// ==========================================
+// Sessões do Bot (Via Sheet BOT_SESSIONS)
+// ==========================================
+function botGetSession_(params) {
+  const tgId = String(params.telegram_user_id || '').trim();
+  if (!tgId) return { ok: false, sessao: null };
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  let ws = ss.getSheetByName('BOT_SESSIONS');
+  if (!ws) {
+    ws = ss.insertSheet('BOT_SESSIONS');
+    ws.appendRow(['telegram_user_id', 'estado', 'payload_json', 'atualizado_em']);
+    return { ok: true, sessao: null };
+  }
+  const data = ws.getDataRange().getValues();
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][0]).trim() === tgId) {
+      return { ok: true, sessao: { estado: String(data[r][1] || ''), payload_json: String(data[r][2] || '') } };
+    }
+  }
+  return { ok: true, sessao: null };
+}
+
+function botSetSession_(params) {
+  const tgId = String(params.telegram_user_id || '').trim();
+  if (!tgId) return { ok: false };
+  const payloadJson = params.payload_json ? String(params.payload_json) : (params.payload ? JSON.stringify(params.payload) : '{}');
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  let ws = ss.getSheetByName('BOT_SESSIONS');
+  if (!ws) {
+    ws = ss.insertSheet('BOT_SESSIONS');
+    ws.appendRow(['telegram_user_id', 'estado', 'payload_json', 'atualizado_em']);
+  }
+  const data = ws.getDataRange().getValues();
+  let found = false;
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][0]).trim() === tgId) {
+      ws.getRange(r + 1, 2, 1, 3).setValues([[params.estado || '', payloadJson, new Date().toISOString()]]);
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    ws.appendRow([tgId, params.estado || '', payloadJson, new Date().toISOString()]);
+  }
+  return { ok: true };
+}
+
+function botClearSession_(params) {
+  const tgId = String(params.telegram_user_id || '').trim();
+  if (!tgId) return { ok: false };
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  let ws = ss.getSheetByName('BOT_SESSIONS');
+  if (!ws) return { ok: true };
+  const data = ws.getDataRange().getValues();
+  for (let r = data.length - 1; r >= 1; r--) {
+    if (String(data[r][0]).trim() === tgId) {
+      ws.deleteRow(r + 1);
+      return { ok: true };
+    }
+  }
+  return { ok: true };
 }

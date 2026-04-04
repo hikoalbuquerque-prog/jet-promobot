@@ -220,7 +220,8 @@ function executarCheckin_(ss, jornada, user, body, horarioServidor) {
     lock.waitLock(15000);
 
     const slot  = getSlot_(ss, jornada.slot_id);
-    const raio  = parseFloat(slot ? slot.raio_metros : getConfig_('raio_checkin_metros') || 200);
+    if (!slot) return { ok: false, erro: 'Slot não encontrado' };
+    const raio  = parseFloat(slot.raio_metros || getConfig_('raio_checkin_metros') || 200);
     const distM = haversineMetros_(lat, lng, parseFloat(slot.lat), parseFloat(slot.lng));
     
     if (distM > raio && !forcar) {
