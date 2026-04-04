@@ -89,7 +89,7 @@ const slotScreen = {
     if (!confirm('Deseja aceitar esta vaga?')) return;
     btn.disabled = true; btn.textContent = '...';
     try {
-      const res = await api.post('ACEITAR_SLOT', { slot_id: slotId });
+      const res = await api.post({ evento: 'ACEITAR_SLOT', slot_id: slotId });
       if (res.ok) {
         ui.toast('✅ Vaga aceita!', 'success');
         router.go('operacao');
@@ -105,7 +105,7 @@ const slotScreen = {
     if (!local) return;
     ui.toast('Registrando...', 'info');
     try {
-      const res = await api.post('CRIAR_SLOT_REFORCO', { local_referencia: local });
+      const res = await api.post({ evento: 'CRIAR_SLOT_REFORCO', local_referencia: local });
       if (res.ok) { ui.toast('✅ Reforço ok!', 'success'); router.go('operacao'); }
       else alert(res.erro);
     } catch(e) { alert('Erro de conexão.'); }
