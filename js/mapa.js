@@ -150,16 +150,22 @@ const mapa = {
         if (!p.lat || !p.lng) return;
         if (p.user_id === meuId) return; // minha posição vem do GPS ao vivo
 
+        const primeiroNome = p.nome_completo ? p.nome_completo.split(' ')[0] : (p.user_id || 'Promotor');
+
         const icon = L.divIcon({
-          html: `<div style="background:#2ecc71;border:2px solid #fff;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 6px rgba(0,0,0,.3)"></div>`,
+          html: `
+            <div style="display:flex;flex-direction:column;align-items:center">
+              <div style="background:#2ecc71;border:2px solid #fff;border-radius:50%;width:16px;height:14px;box-shadow:0 2px 6px rgba(0,0,0,.3)"></div>
+              <div style="background:rgba(13,21,38,0.8);color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:4px;margin-top:2px;white-space:nowrap">${primeiroNome}</div>
+            </div>`,
           className: '',
-          iconSize: [14, 14],
-          iconAnchor: [7, 7],
+          iconSize: [40, 30],
+          iconAnchor: [20, 7],
         });
 
         L.marker([parseFloat(p.lat), parseFloat(p.lng)], { icon })
           .addTo(this._map)
-          .bindPopup(`<b>🟢 ${p.nome_completo ? p.nome_completo.split(' ')[0] : (p.user_id || 'Promotor')}</b><br>Em atividade`);
+          .bindPopup(`<b>🟢 ${primeiroNome}</b><br>Em atividade`);
       });
     } catch(_) {}
   },

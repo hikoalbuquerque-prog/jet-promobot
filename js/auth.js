@@ -340,14 +340,27 @@ const homeScreen = {
   },
 
   async _pedirPush() {
-    if (typeof pushManager === 'undefined') return;
-    const ok = await pushManager.requestPermission();
-    if (ok) {
-      const bar = document.getElementById('push-permission-bar');
-      if (bar) bar.style.display = 'none';
-      ui.toast('Notificações ativadas!', 'success');
-    } else {
-      ui.toast('Permissão negada.', 'error');
+    if (typeof pushManager === 'undefined') {
+      alert('Sistema de notificações não carregado.');
+      return;
+    }
+    if (!window.Notification) {
+      alert('Este navegador não suporta notificações nativas.');
+      return;
+    }
+    
+    try {
+      ui.toast('Solicitando permissão...', 'info');
+      const ok = await pushManager.requestPermission();
+      if (ok) {
+        const bar = document.getElementById('push-permission-bar');
+        if (bar) bar.style.display = 'none';
+        ui.toast('Notificações ativadas!', 'success');
+      } else {
+        alert('Permissão de notificação negada pelo usuário ou navegador.');
+      }
+    } catch(e) {
+      alert('Erro ao ativar notificações: ' + e.message);
     }
   }
 };
