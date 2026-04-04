@@ -180,6 +180,29 @@ function getHistorico_(user, params) {
   }
   return { ok: true, historico: registros };
 }
+
+function _getPromotoresMap_(ss) {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get('promotores_map');
+  if (cached) {
+    try { return JSON.parse(cached); } catch(_) {}
+  }
+  const ws   = ss.getSheetByName('PROMOTORES'); if (!ws) return {};
+  const data = ws.getDataRange().getValues();
+  const h    = data[0].map(v => String(v).toLowerCase().trim());
+  const iId  = h.indexOf('user_id'), iNome = h.indexOf('nome_completo');
+  const map = {};
+  for (let r = 1; r < data.length; r++) {
+    const id = String(data[r][iId]).trim();
+    if (id) map[id] = {
+      nome: data[r][iNome] || id,
+      user_id: id
+    };
+  }
+  try { cache.put('promotores_map', JSON.stringify(map), 600); } catch(_) {}
+  return map;
+}
+
 function getMapaPromotor_(user, params) {
   const ss    = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   const ws    = ss.getSheetByName('LOCALIZACAO_TEMPO_REAL');
@@ -190,16 +213,14 @@ function getMapaPromotor_(user, params) {
   const pontos = [];
   const seen   = new Set();
 
-  // Otimização: Carrega nomes dos promotores (usa cache se disponível no 07.Gestor)
-  // Nota: Se _getPromotoresMap_ estiver no 07.Gestor, podemos redefinir aqui ou mover p/ Utils.
-  const promMap = (typeof _getPromotoresMap_ === 'function') ? _getPromotoresMap_(ss) : {};
+  const promMap = _getPromotoresMap_(ss);
 
   for (let r = data.length - 1; r >= 1; r--) {
     const uid = String(data[r][iUsr]).trim();
     if (!uid || seen.has(uid)) continue;
     seen.add(uid);
     const obj = rowToObj_(h, data[r]);
-    obj.nome_completo = promMap[uid]?.nome || '';
+    obj.nome_completo = promMap[uid]?.nome || uid;
     pontos.push(obj);
   }
   return { ok: true, pontos };
