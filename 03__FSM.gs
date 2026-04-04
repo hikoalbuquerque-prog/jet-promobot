@@ -730,13 +730,23 @@ function getSlotsDisponiveis_(params, user) {
       dataSlotRaw = Utilities.formatDate(dataSlotRaw, "GMT-3", "yyyy-MM-dd");
     }
     const dataSlot = String(dataSlotRaw || '').substring(0, 10);
-
+    
     // Mostra slots de hoje e amanhã (ou qualquer slot se for Admin/Gestor)
     const isGestor = (user?.tipo_vinculo || '').toUpperCase() === 'GESTOR';
     if (!isGestor && dataSlot !== hojeStr && dataSlot !== amanhaStr) continue;
 
-    slots.push(obj);
+    // Se for hoje, verifica se o horário de fim já passou
+    if (!isGestor && dataSlot === hojeStr && iFim > -1) {
+      const fimStr = String(data[r][iFim] || '').substring(0, 5);
+      if (fimStr && fimStr.includes(':')) {
+        const parts = fimStr.split(':');
+        const fimMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        if (fimMin < agoraMin) continue; // Pula slots que já terminaram
+      }
     }
+
+    slots.push(obj);
+  }
   slots.sort((a, b) => {
     if (a.is_sugerido && !b.is_sugerido) return -1;
     if (!a.is_sugerido && b.is_sugerido) return 1;
