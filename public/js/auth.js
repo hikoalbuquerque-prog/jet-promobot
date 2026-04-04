@@ -30,15 +30,12 @@ const auth = {
     } else {
       router.replace('home');
     }
-    // Carrega score e badge
     this._atualizarScore();
     this._atualizarBadgeSlots();
     this._atualizarBadgesHome();
     setInterval(() => this._atualizarScore(), 60000);
     setInterval(() => this._atualizarBadgeSlots(), 30000);
   },
-
-
 
   async _atualizarBadgesHome() {
     try {
@@ -47,15 +44,16 @@ const auth = {
         api.get('GET_ME')
       ]);
       const badges = badgeRes?.badges || [];
-      const score  = meRes?.user?.score_operacional || 0;
-      const streak = meRes?.user?.streak_dias || 0;
+      const user = meRes?.user || meRes?.dados || {};
+      const score  = user.score_operacional || 0;
+      const streak = user.streak_dias || 0;
       const el = document.getElementById('home-badges');
       if (!el) return;
       let html = '';
-      if (score > 0) html += '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(246,173,85,0.15);color:#f6ad55;border:1px solid rgba(246,173,85,0.3)">⭐ ' + score + ' pts</span>';
-      if (streak >= 3) html += '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(246,173,85,0.15);color:#f6ad55;border:1px solid rgba(246,173,85,0.3)">🔥 ' + streak + 'd</span>';
+      if (score > 0) html += `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(246,173,85,0.15);color:#f6ad55;border:1px solid rgba(246,173,85,0.3)">⭐ ${score} pts</span>`;
+      if (streak >= 3) html += `<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;background:rgba(246,173,85,0.15);color:#f6ad55;border:1px solid rgba(246,173,85,0.3)">🔥 ${streak}d</span>`;
       badges.slice(0, 3).forEach(b => {
-        html += '<span style="font-size:14px" title="' + b.descricao + '">' + b.descricao.split(' ')[0] + '</span>';
+        html += `<span style="font-size:14px" title="${b.descricao}">${b.descricao.split(' ')[0]}</span>`;
       });
       el.innerHTML = html;
     } catch(_) {}
@@ -64,7 +62,8 @@ const auth = {
   async _atualizarScore() {
     try {
       const me = await api.get('GET_ME');
-      const score = me?.user?.score_operacional ?? me?.user?.score ?? null;
+      const user = me?.user || me?.dados || {};
+      const score = user.score_operacional ?? user.score ?? null;
       document.querySelectorAll('#hdr-score').forEach(el => {
         if (score !== null) { el.textContent = '⭐ ' + score; el.style.display = 'block'; }
       });
@@ -110,88 +109,24 @@ const auth = {
             📲 Instalar app na tela inicial
           </button>
         </div>
-        <div id="pwa-ios-wrap" style="width:100%;max-width:340px;display:none">
-          <div style="border:1px solid #2a3a55;border-radius:10px;padding:12px 14px;font-size:12px;color:#a0aec0;text-align:center;line-height:1.6">
-            Para instalar: toque em <strong style="color:#4f8ef7">Compartilhar</strong> → <strong style="color:#4f8ef7">Adicionar à Tela Inicial</strong>
-          </div>
-        </div>
       </div>`;
-    const inp = document.getElementById("inp-cpf");
-    if (inp) {
-      inp.focus();
-      inp.onkeydown = e => { if (e.key === "Enter") document.getElementById("inp-senha")?.focus(); };
-    }
-    const inpSenha = document.getElementById("inp-senha");
-    if (inpSenha) inpSenha.onkeydown = e => { if (e.key === "Enter") auth._loginCPF(); };
-  },
-
-  _switchTab(tab) {
-    const isToken = tab === 'token';
-    document.getElementById('tab-token').style.background = isToken ? '#4f8ef7' : 'none';
-    document.getElementById('tab-token').style.color      = isToken ? '#fff' : '#6c7a8d';
-    document.getElementById('tab-clt').style.background   = isToken ? 'none' : '#2ecc71';
-    document.getElementById('tab-clt').style.color        = isToken ? '#6c7a8d' : '#fff';
-    document.getElementById('form-token').style.display   = isToken ? 'flex' : 'none';
-    document.getElementById('form-clt').style.display     = isToken ? 'none' : 'flex';
-    if (isToken) document.getElementById('inp-token')?.focus();
-    else document.getElementById('inp-cpf')?.focus();
   },
 
   async _loginCPF() {
     const cpf   = (document.getElementById("inp-cpf")?.value || "").replace(/\D/g, "");
     const senha = (document.getElementById("inp-senha")?.value || "").replace(/\D/g, "");
-    if (!cpf || !senha) { this._renderLogin("Informe CPF e data de nascimento."); return; }
+    if (!cpf || !senha) { alert("Informe CPF e data de nascimento."); return; }
     const btn = document.getElementById("btn-entrar");
     if (btn) { btn.textContent = "Verificando..."; btn.disabled = true; }
     try {
       const res = await api.post({ evento: "LOGIN_CLT", cpf, senha }, { skipToken: true });
-      if (!res.ok) { this._renderLogin(res.erro || res.mensagem || "CPF ou senha incorretos."); return; }
+      if (!res.ok) { alert(res.erro || res.mensagem || "CPF ou senha incorretos."); this._renderLogin(""); return; }
       state.saveToken(res.token);
       state.setPromotor(res.user);
       this._rotearPorPerfil(res.user);
     } catch (_) {
-      this._renderLogin("Sem conexao. Verifique sua internet.");
-    }
-  },
-
-  async _loginToken() {
-    const input = document.getElementById('inp-token');
-    const token = (input?.value || '').trim();
-    if (!token) { this._renderLogin('Digite seu token.'); return; }
-    const btn = document.getElementById('btn-token');
-    if (btn) { btn.textContent = 'Verificando...'; btn.disabled = true; }
-    try {
-      const res = await api.post({ evento: 'VALIDAR_TOKEN', token }, { skipToken: true, tokenOverride: token });
-      if (!res.ok) { this._renderLogin(res.mensagem || res.erro || 'Token inválido.'); return; }
-      state.saveToken(token);
-      const me = await api.get('GET_ME');
-      if (!me.ok) { this._renderLogin(me.mensagem || 'Erro ao carregar perfil.'); return; }
-      state.setPromotor(me.dados || me.user);
-      this._rotearPorPerfil(me.dados || me.user);
-    } catch (_) {
-      this._renderLogin('Sem conexão. Verifique sua internet.');
-    }
-  },
-
-  async _loginCLT() {
-    const cpf   = (document.getElementById('inp-cpf')?.value || '').replace(/\D/g, '');
-    const senha = (document.getElementById('inp-senha')?.value || '').trim();
-    if (!cpf || !senha) { this._renderLogin('Informe CPF e senha.'); auth._switchTab('clt'); return; }
-    const btn = document.getElementById('btn-clt');
-    if (btn) { btn.textContent = 'Verificando...'; btn.disabled = true; }
-    try {
-      const res = await api.post({ evento: 'LOGIN_CLT', cpf, senha }, { skipToken: true });
-      if (!res.ok) {
-        this._renderLogin(res.erro || res.mensagem || 'CPF ou senha incorretos.');
-        auth._switchTab('clt');
-        return;
-      }
-      state.saveToken(res.token);
-      state.setPromotor(res.user);
-      this._rotearPorPerfil(res.user);
-    } catch (_) {
-      this._renderLogin('Sem conexão. Verifique sua internet.');
-      auth._switchTab('clt');
+      alert("Sem conexão.");
+      if (btn) { btn.textContent = "Entrar →"; btn.disabled = false; }
     }
   },
 
@@ -201,19 +136,15 @@ const auth = {
         <div style="font-size:32px;font-weight:800;color:#4f8ef7">JET·OPS</div>
         <div style="width:36px;height:36px;border:3px solid #2a3a55;border-top-color:#4f8ef7;border-radius:50%;animation:spin .7s linear infinite"></div>
         <div style="color:#a0aec0;font-size:14px">Verificando acesso...</div>
-        <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
       </div>`;
   },
 
   renderSplash() { this._renderSplash(); },
-  renderAcesso(tipo, msg) { this._renderLogin(msg); },
-  loginComTokenManual() { this._loginToken(); },
 
   _instalarPWA() {
     if (window.__pwaPrompt) {
       window.__pwaPrompt.prompt();
       window.__pwaPrompt.userChoice.then((result) => {
-        console.log('[PWA] Install choice:', result.outcome);
         window.__pwaPrompt = null;
         document.getElementById('pwa-install-wrap') && (document.getElementById('pwa-install-wrap').style.display = 'none');
       });
@@ -224,7 +155,6 @@ const auth = {
     state.clearToken();
     state.set('promotor', null);
     state.set('slot', null);
-    state.set('turno_clt_ativo', null);
     try { sessionStorage.clear(); } catch(_) {}
     this._renderLogin('');
   },
@@ -237,8 +167,6 @@ const homeScreen = {
     const link = 'https://promo-telegram-gateway-v3-476120210909.southamerica-east1.run.app/indicacao?ref=' + p.user_id;
     if (navigator.share) {
       navigator.share({ title: 'Seja um Promotor JET', text: 'Olha essa vaga de promotor!', url: link });
-    } else if (navigator.clipboard) {
-      navigator.clipboard.writeText(link).then(function() { ui.toast('Link copiado!', 'success'); });
     } else {
       prompt('Copie o link:', link);
     }
@@ -246,33 +174,6 @@ const homeScreen = {
   render() {
     const p = state.get('promotor');
     if (!p) return router.go('splash');
-    const vinculo = (p.tipo_vinculo || '').toUpperCase();
-    if (vinculo === 'CLT') return router.replace('home-clt');
-
-    // Carregar todas as jornadas para mostrar na home
-    api.get('GET_SLOT_ATUAL').then(res => {
-      const container = document.getElementById('home-jornada-container');
-      if (!container) return;
-      if (res.ok && res.jornadas?.length) {
-        container.innerHTML = res.jornadas.map(item => `
-          <div onclick="state.set('slot', ${JSON.stringify(item.slot).replace(/"/g,'&quot;')}); state.saveJornada(${JSON.stringify(item.jornada).replace(/"/g,'&quot;')}); router.go('operacao')" 
-            style="background:#1e2a45;border:1px solid #2ecc7144;border-radius:14px;padding:16px;cursor:pointer;border-left:3px solid ${item.jornada.status === 'EM_ATIVIDADE' ? '#2ecc71' : '#4f8ef7'};margin-bottom:10px">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-              <div style="font-size:11px;color:${item.jornada.status === 'EM_ATIVIDADE' ? '#2ecc71' : '#4f8ef7'};font-weight:700;letter-spacing:1px">${item.jornada.status.replace(/_/g,' ')}</div>
-              <div style="font-size:10px;color:#a0aec0">${item.slot?.slot_id || ''}</div>
-            </div>
-            <div style="font-size:16px;font-weight:700">${item.slot?.local_nome||item.slot?.local||'Slot ativo'}</div>
-            <div style="font-size:13px;color:#a0aec0;margin-top:4px">${item.slot?.cidade||''} · ${item.slot?.inicio || ''} - ${item.slot?.fim || ''}</div>
-            <div style="margin-top:10px;color:#4f8ef7;font-size:13px;font-weight:600">Abrir jornada →</div>
-          </div>
-        `).join('');
-      } else {
-        container.innerHTML = `
-          <div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:14px;padding:20px;text-align:center;color:#a0aec0;font-size:14px">
-            Nenhuma jornada ativa
-          </div>`;
-      }
-    }).catch(() => {});
 
     document.getElementById('app').innerHTML = `
       <div style="min-height:100dvh;background:#1a1a2e;color:#eaf0fb;font-family:-apple-system,sans-serif;padding-bottom:80px">
@@ -293,6 +194,7 @@ const homeScreen = {
           <div id="home-jornada-container">
             <div style="text-align:center;padding:20px;color:#a0aec0;font-size:13px">Carregando jornada...</div>
           </div>
+          
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <button onclick="router.go('slot')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
               <span style="font-size:24px">📍</span>Slots
@@ -301,6 +203,7 @@ const homeScreen = {
               <span style="font-size:24px">🗺️</span>Mapa
             </button>
           </div>
+
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
             <button onclick="router.go('solicitacoes-lista')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px 8px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:600">
               <span style="font-size:20px">🆘</span>Suporte
@@ -312,6 +215,7 @@ const homeScreen = {
               <span style="font-size:20px">🧮</span>Calculadora
             </button>
           </div>
+
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <button onclick="router.go('historico')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600">
               <span style="font-size:24px">📋</span>Histórico
@@ -320,6 +224,7 @@ const homeScreen = {
               <span style="font-size:24px">🤝</span>Indicar
             </button>
           </div>
+
           <button onclick="router.go('academy')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:10px;font-size:13px;font-weight:700">
             <span style="font-size:24px">🎓</span>JET Academy
           </button>
@@ -327,12 +232,27 @@ const homeScreen = {
         ${ui.bottomNav('home')}
       </div>`;
 
-    // Atualizar slot em background
     api.get('GET_SLOT_ATUAL').then(res => {
-      if (res.ok && res.jornada) { state.saveJornada(res.jornada); state.set('slot', res.slot); }
-    }).catch(() => {});
+      const container = document.getElementById('home-jornada-container');
+      if (!container) return;
+      if (res.ok && res.jornadas?.length) {
+        container.innerHTML = res.jornadas.map(item => `
+          <div onclick="state.set('slot', ${JSON.stringify(item.slot).replace(/"/g,'&quot;')}); state.saveJornada(${JSON.stringify(item.jornada).replace(/"/g,'&quot;')}); router.go('operacao')" 
+            style="background:#1e2a45;border:1px solid #2ecc7144;border-radius:14px;padding:16px;cursor:pointer;border-left:3px solid ${item.jornada.status === 'EM_ATIVIDADE' ? '#2ecc71' : '#4f8ef7'};margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <div style="font-size:11px;color:${item.jornada.status === 'EM_ATIVIDADE' ? '#2ecc71' : '#4f8ef7'};font-weight:700;letter-spacing:1px">${item.jornada.status.replace(/_/g,' ')}</div>
+              <div style="font-size:10px;color:#a0aec0">${item.slot?.slot_id || ''}</div>
+            </div>
+            <div style="font-size:16px;font-weight:700">${item.slot?.local_nome||item.slot?.local||'Slot ativo'}</div>
+            <div style="font-size:13px;color:#a0aec0;margin-top:4px">${item.slot?.cidade||''} · ${item.slot?.inicio || ''} - ${item.slot?.fim || ''}</div>
+            <div style="margin-top:10px;color:#4f8ef7;font-size:13px;font-weight:600">Abrir jornada →</div>
+          </div>
+        `).join('');
+      } else {
+        container.innerHTML = `<div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:14px;padding:20px;text-align:center;color:#a0aec0;font-size:14px">Nenhuma jornada ativa</div>`;
+      }
+    });
 
-    // Lógica da Barra de Notificação
     if (window.Notification && Notification.permission !== 'granted') {
       const bar = document.getElementById('push-permission-bar');
       if (bar) bar.style.display = 'block';
@@ -340,27 +260,13 @@ const homeScreen = {
   },
 
   async _pedirPush() {
-    if (typeof pushManager === 'undefined') {
-      alert('Sistema de notificações não carregado.');
-      return;
-    }
-    if (!window.Notification) {
-      alert('Este navegador não suporta notificações nativas.');
-      return;
-    }
-    
+    if (typeof pushManager === 'undefined') { alert('Notificações não carregadas.'); return; }
     try {
-      ui.toast('Solicitando permissão...', 'info');
       const ok = await pushManager.requestPermission();
       if (ok) {
-        const bar = document.getElementById('push-permission-bar');
-        if (bar) bar.style.display = 'none';
+        document.getElementById('push-permission-bar').style.display = 'none';
         ui.toast('Notificações ativadas!', 'success');
-      } else {
-        alert('Permissão de notificação negada pelo usuário ou navegador.');
       }
-    } catch(e) {
-      alert('Erro ao ativar notificações: ' + e.message);
-    }
+    } catch(e) { alert('Erro: ' + e.message); }
   }
 };

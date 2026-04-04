@@ -14,6 +14,14 @@ const broadcast = {
       + '<div style="font-size:13px;color:#a0aec0">Envia mensagem no privado do Telegram para todos os promotores vinculados. Suporta HTML basico: &lt;b&gt;negrito&lt;/b&gt;, &lt;i&gt;italico&lt;/i&gt;.</div>'
       + '</div>'
 
+      // Filtros
+      + '<div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;display:flex;gap:10px">'
+      + '<div style="flex:1"><div style="font-size:11px;color:#a0aec0;margin-bottom:4px">CIDADE (OPCIONAL)</div>'
+      + '<input id="bc-cidade" placeholder="Ex: São Paulo" style="width:100%;background:#0a0f1e;border:1px solid #2a3a55;border-radius:8px;color:#eaf0fb;font-size:13px;padding:10px;box-sizing:border-box" /></div>'
+      + '<div style="flex:1"><div style="font-size:11px;color:#a0aec0;margin-bottom:4px">CARGO (OPCIONAL)</div>'
+      + '<input id="bc-cargo" placeholder="Ex: FISCAL" style="width:100%;background:#0a0f1e;border:1px solid #2a3a55;border-radius:8px;color:#eaf0fb;font-size:13px;padding:10px;box-sizing:border-box" /></div>'
+      + '</div>'
+
       // Campo de mensagem
       + '<div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px">'
       + '<div style="font-size:12px;font-weight:700;color:#a0aec0;margin-bottom:8px">MENSAGEM</div>'
@@ -28,7 +36,7 @@ const broadcast = {
 
       // Botao
       + '<button onclick="broadcast._enviar()" id="bc-btn" style="background:linear-gradient(135deg,#4f8ef7,#2b6cb0);border:none;color:#fff;padding:14px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer">'
-      + '&#128226; Enviar para todos os promotores</button>'
+      + '&#128226; Enviar Broadcast</button>'
 
       + '<div id="bc-result" style="display:none;padding:14px;border-radius:12px;font-size:14px;text-align:center"></div>'
       + '</div></div>';
@@ -41,18 +49,35 @@ const broadcast = {
 
   async _enviar() {
     const msg = document.getElementById('bc-msg').value.trim();
+    const cidade = document.getElementById('bc-cidade').value.trim();
+    const cargo = document.getElementById('bc-cargo').value.trim();
+
     if (!msg) { alert('Digite uma mensagem'); return; }
-    if (!confirm('Enviar para TODOS os promotores com Telegram vinculado?')) return;
+    
+    let confirmMsg = 'Deseja enviar este broadcast?';
+    if (cidade || cargo) {
+      confirmMsg = `Deseja enviar este broadcast apenas para:\n${cidade ? '📍 Cidade: ' + cidade : ''}\n${cargo ? '🔧 Cargo: ' + cargo : ''}`;
+    } else {
+      confirmMsg = 'Deseja enviar para TODOS os promotores ativos?';
+    }
+    
+    if (!confirm(confirmMsg)) return;
 
     const btn = document.getElementById('bc-btn');
     btn.disabled = true;
     btn.textContent = 'Enviando...';
 
     try {
-      const res = await fetch(CONFIG.CLOUD_RUN_URL + '/gestor/broadcast', {
+      const res = await fetch(CONFIG.API_URL + '/app/event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mensagem: msg, token: state.getToken() })
+        body: JSON.stringify({ 
+          evento: 'BROADCAST_PROMOTOR', 
+          mensagem: msg, 
+          cidade: cidade, 
+          cargo: cargo, 
+          token: state.get('token') 
+        })
       });
       const data = await res.json();
       const result = document.getElementById('bc-result');
