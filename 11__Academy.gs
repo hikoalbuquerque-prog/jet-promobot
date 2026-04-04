@@ -67,6 +67,17 @@ function getAcademyModulo_(params, user) {
 function concluirModulo_(user, body) {
   const { modulo_id, score_quiz, pontos } = body;
   const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), wsProg = ss.getSheetByName('ACADEMY_PROGRESSO');
+  
+  // ── Verificação de Missão Operacional ──────────────────────
+  if (modulo_id.startsWith('APP-')) {
+    const wsJor = ss.getSheetByName('JORNADAS');
+    const dataJ = wsJor.getDataRange().getValues();
+    const count = dataJ.filter(r => String(r[1]).trim() === user.user_id && String(r[4]).trim() === 'ENCERRADO').length;
+    if (count < 3) {
+      return { ok: false, erro: '⚠️ Missão Bloqueada: você precisa completar pelo menos 3 jornadas reais no ponto para finalizar este módulo do App.' };
+    }
+  }
+
   const dataP = wsProg.getDataRange().getValues();
   for (let r = 1; r < dataP.length; r++) { if (String(dataP[r][0]).trim() === user.user_id && String(dataP[r][1]).trim() === modulo_id) return { ok: true, ja_concluido: true }; }
   wsProg.appendRow([user.user_id, modulo_id, score_quiz || 100, new Date().toISOString()]);
