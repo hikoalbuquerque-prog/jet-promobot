@@ -98,88 +98,38 @@ function gerarConviteCalendar_(user, slot, jornadaId) {
     return evento.getId();
   } catch (e) {
     logErro_('gerarConviteCalendar_', e);
-    return null;
   }
 }
 
-function botGetSession_(params) {
-  const tgId = params.telegram_user_id || '';
-  if (!tgId) return { ok: false, erro: 'telegram_user_id obrigatório' };
-  const ss   = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const ws   = ss.getSheetByName('BOT_SESSOES');
+function getTelegramUserId_(ss, userId) {
+  const ws = ss.getSheetByName('PROMOTORES');
   const data = ws.getDataRange().getValues();
-  const h    = data[0].map(v => String(v).toLowerCase().trim());
-  const iId  = h.indexOf('telegram_user_id');
+  const h = data[0].map(v => String(v).toLowerCase().trim());
+  const iId = h.indexOf('user_id'), iTg = h.indexOf('telegram_user_id');
   for (let r = 1; r < data.length; r++) {
-    if (String(data[r][iId]).trim() === String(tgId)) return { ok: true, sessao: rowToObj_(h, data[r]) };
+    if (String(data[r][iId]).trim() === userId) return data[r][iTg] || null;
   }
-  return { ok: true, sessao: null };
+  return null;
 }
 
-function botSetSession_(body) {
-  const telegram_user_id = body.telegram_user_id;
-  const estado = body.estado;
-  const payload_json = body.payload || body.payload_json || {};
-  if (!telegram_user_id) return { ok: false, erro: 'telegram_user_id obrigatório' };
-  const ss   = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const ws   = ss.getSheetByName('BOT_SESSOES');
-  const data = ws.getDataRange().getValues();
-  const h    = data[0].map(v => String(v).toLowerCase().trim());
-  const iId  = h.indexOf('telegram_user_id');
-  const iEst = h.indexOf('estado');
-  const iPay = h.indexOf('payload_json');
-  const iUpd = h.indexOf('atualizado_em');
-  const agora = new Date().toISOString();
-  for (let r = 1; r < data.length; r++) {
-    if (String(data[r][iId]).trim() === String(telegram_user_id)) {
-      ws.getRange(r+1, iEst+1).setValue(estado || '');
-      ws.getRange(r+1, iPay+1).setValue(typeof payload_json === 'string' ? payload_json : JSON.stringify(payload_json || {}));
-      ws.getRange(r+1, iUpd+1).setValue(agora);
-      return { ok: true };
-    }
-  }
-  ws.appendRow([String(telegram_user_id), estado || '', typeof payload_json === 'string' ? payload_json : JSON.stringify(payload_json || {}), agora, agora]);
+function registrarFotoEvidencia_(user, params) {
+  const { url, tipo } = params;
+  if (!url) return { ok: false, erro: 'URL obrigatória' };
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws = ss.getSheetByName('EVIDENCIAS_FOTOS');
+  if (ws) ws.appendRow([gerarId_('IMG'), user.user_id, tipo || 'GERAL', url, new Date().toISOString()]);
   return { ok: true };
 }
 
-function botClearSession_(body) {
-  return botSetSession_({ telegram_user_id: body.telegram_user_id, estado: '', payload_json: '{}' });
-}
-
-function internalRegistrarSlotTgMeta_(body) {
-  const { slot_id, tipo, chat_id, topic_key, message_id } = body;
-  const ss   = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const ws   = ss.getSheetByName('SLOTS');
-  const data = ws.getDataRange().getValues();
-  const h    = data[0].map(v => String(v).toLowerCase().trim());
-  const iId  = h.indexOf('slot_id');
-  const prefix = tipo === 'disponivel' ? 'tg_disponivel_' : 'tg_ocupado_';
+function internalGetSlot_(params) {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws = ss.getSheetByName('SLOTS');
+  const data = ws.getDataRange().getValues(), h = data[0].map(v => String(v).toLowerCase().trim());
+  const iId = h.indexOf('slot_id');
   for (let r = 1; r < data.length; r++) {
-    if (String(data[r][iId]).trim() !== slot_id) continue;
-    ['chat_id','topic_key','message_id'].forEach(f => {
-      const col = h.indexOf(prefix + f);
-      if (col > -1) ws.getRange(r+1, col+1).setValue({ chat_id, topic_key, message_id }[f] || '');
-    });
-    return { ok: true };
+    if (String(data[r][iId]).trim() === params.slot_id) return { ok: true, slot: rowToObj_(h, data[r]) };
   }
   return { ok: false, erro: 'slot não encontrado' };
-}
-
-function internalLimparSlotTgMeta_(body) {
-  return internalRegistrarSlotTgMeta_({ ...body, chat_id: '', topic_key: '', message_id: '' });
-}
-
-function getHistorico_(user, params) {
-  const ss   = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const ws   = ss.getSheetByName('JORNADAS');
-  const data = ws.getDataRange().getValues();
-  const h    = data[0].map(v => String(v).toLowerCase().trim());
-  const iUsr = h.indexOf('user_id');
-  const registros = [];
-  for (let r = 1; r < data.length; r++) {
-    if (String(data[r][iUsr]).trim() === user.user_id) registros.push(rowToObj_(h, data[r]));
-  }
-  return { ok: true, historico: registros };
 }
 
 function getMapaPromotor_(user, params) {
@@ -239,10 +189,10 @@ function getBroadcastFilters_() {
   const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   const ws = ss.getSheetByName('PROMOTORES');
   if (!ws) return { ok: false, erro: 'Aba PROMOTORES não encontrada' };
-  
+
   const data = ws.getDataRange().getValues();
   const h = data[0].map(v => String(v).toLowerCase().trim());
-  
+
   // Busca flexível de colunas
   const iCid = h.findIndex(v => v.includes('cidade'));
   const iCar = h.findIndex(v => v.includes('cargo') || v.includes('função'));
@@ -257,10 +207,10 @@ function getBroadcastFilters_() {
     }
   }
 
-  return { 
-    ok: true, 
-    cidades: Array.from(cidades).sort(), 
-    cargos: Array.from(cargos).sort() 
+  return {
+    ok: true,
+    cidades: Array.from(cidades).sort(),
+    cargos: Array.from(cargos).sort()
   };
 }
 
@@ -353,7 +303,7 @@ function internalSyncAll() {
   try {
     sincronizarGruposCache_();
     if (typeof sincronizarAcademyCache_ === 'function') sincronizarAcademyCache_();
-    sincronizarCacheGlobal_();
+    sincronizarCacheGlobal();
     return { ok: true, mensagem: 'Sincronização global disparada.' };
   } catch (e) {
     return { ok: false, erro: e.message };
@@ -363,7 +313,7 @@ function internalSyncAll() {
 /**
  * Sincroniza dados das abas principais para o Cloud Run.
  */
-function sincronizarCacheGlobal_() {
+function sincronizarCacheGlobal() {
   const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   
   function getTab(name) {
@@ -450,9 +400,9 @@ function sincronizarGruposCache_() {
 /**
  * Limpeza Automática de Dados (Data Retention)
  * Remove SLOTS e JORNADAS com mais de 14 dias para evitar lentidão.
- * Configurar no Google Apps Script: "Gatilhos (Triggers) > time-driven > Semanal > Segunda-feira > 03:00 às 04:00"
+ * Configurar no Google Apps Script: "Gatilhos (Triggers) > Baseado no tempo > Semanal > Segunda-feira > 03:00 às 04:00"
  */
-function limparDadosAntigos_() {
+function limparDadosAntigos() {
   const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   const limiteMs = new Date().getTime() - (14 * 24 * 60 * 60 * 1000); // 14 dias atrás
   

@@ -194,7 +194,7 @@ function getSlotsHoje_(token, params) {
 
     const slotId = String(data[r][iSlotId]).trim(), userId = String(data[r][iUserId]).trim();
     const nome = String(data[r][iNome] || '').trim(), inicio = String(data[r][iInicio] || '').substring(0, 5), fim = String(data[r][iFim] || '').substring(0, 5);
-    const lat = data[r][iLat] || null, lng = data[r][iLng] || null, raio = data[r][iRaio] || 100, cidade = String(data[r][iCidade] || ''), maxProm = parseInt(data[r][iMax] || '1') || 1;
+    const lat = data[r][iLat] || null, lng = data[r][iLng] || null, raio = data[r][iRaio] || 100, maxProm = parseInt(data[r][iMax] || '1') || 1;
     const prom = promMap[userId] || {};
 
     const statusFront = { DISPONIVEL:'DISPONIVEL', ACEITO:'OCUPADO', EM_ATIVIDADE:'ATIVO', PAUSADO:'PAUSADO', ENCERRADO:'ENCERRADO', CANCELADO:'CANCELADO' }[status] || status;
