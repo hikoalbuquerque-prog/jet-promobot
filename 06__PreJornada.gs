@@ -210,7 +210,18 @@ function triggerCheckinHorario() {
 
     const tgId = getTelegramUserId_(ss, userId);
     if (tgId) {
-      const payload = { canal:'telegram', tipo:'private_message', telegram_user_id:tgId, parse_mode:'HTML', text_html:`🔔 <b>Hora do seu slot!</b>\n\n📍 <b>${String(data[r][iNome]).trim()}</b>\n🕐 ${inicioStr} – ${fimStr}\n\nAbra o app para fazer seu check-in.` };
+      const payload = { 
+        canal:'telegram', 
+        tipo:'private_message', 
+        telegram_user_id:tgId, 
+        parse_mode:'HTML', 
+        text_html:`🔔 <b>Hora do seu slot!</b>\n\n📍 <b>${String(data[r][iNome]).trim()}</b>\n🕐 ${inicioStr} – ${fimStr}\n\nClique no botão abaixo para enviar sua localização e fazer o check-in automaticamente, ou abra o app.`,
+        reply_markup: {
+          keyboard: [[{ text: '📍 Enviar Localização', request_location: true }]],
+          resize_keyboard: true,
+          one_time_keyboard: true
+        }
+      };
       processIntegracoes([payload], { evento:'CHECKIN_REMINDER' });
       botSetSession_({ telegram_user_id:tgId, estado:'AWAITING_CHECKIN_LOCATION', payload:{ slot_id:String(data[r][iId]).trim(), jornada_id:String(data[r][iJrn]||'').trim(), user_id:userId } });
     }

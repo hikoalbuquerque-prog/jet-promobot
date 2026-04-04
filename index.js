@@ -360,7 +360,7 @@ app.post('/internal/send-checkin-reminder', async (req, res) => {
     const isAutoEncerrado = tipo === 'AUTO_ENCERRADO';
 
     let texto = `🔔 <b>Hora do seu slot!</b>\n\n📍 <b>${local_nome || slot_id}</b>\n🕐 ${inicio || '—'}\n\nAbra o app para fazer o check-in.`;
-    let botoes = [[{ text: '📲 Abrir app para check-in', url: 'https://hikoalbuquerque-prog.github.io/jet-promobot' }]];
+    let botoes = [[{ text: '📲 Abrir app para check-in', url: 'https://hikoalbuquerque-prog.github.io/jet-promobot/' }]];
 
     if (isLembrete) {
       texto = `⚠️ <b>Você ainda não fez check-in!</b>\n\n📍 ${local_nome || slot_id}\n🕐 ${inicio || '—'}\n\nO que deseja fazer?`;
@@ -375,7 +375,7 @@ app.post('/internal/send-checkin-reminder', async (req, res) => {
       ];
     } else if (isAutoEncerrado) {
       texto = `🏁 <b>Jornada Encerrada Automaticamente</b>\n\n📍 ${local_nome || slot_id}\n\nSua jornada foi encerrada pelo sistema por ausência de checkout após o horário previsto.`;
-      botoes = [[{ text: '📊 Ver meu histórico', url: 'https://hikoalbuquerque-prog.github.io/jet-promobot' }]];
+      botoes = [[{ text: '📊 Ver meu histórico', url: 'https://hikoalbuquerque-prog.github.io/jet-promobot/' }]];
     }
 
     await telegramApi('sendMessage', {
@@ -407,7 +407,7 @@ app.post('/internal/send-jornada-status', async (req, res) => {
       botoes = [[
         { text: '📍 Compartilhar localização', request_location: true }
       ], [
-        { text: '🌐 Abrir app', url: 'https://hikoalbuquerque-prog.github.io/jet-promobot' }
+        { text: '🌐 Abrir app', url: 'https://hikoalbuquerque-prog.github.io/jet-promobot/' }
       ]];
       // Salva estado para processar a localização quando o usuário enviar
       await botSetSessionCloudRun(telegram_user_id, 'AWAITING_CHECKIN_LOCATION', { slot_id, jornada_id, user_id: req.body.user_id });
@@ -1224,7 +1224,7 @@ async function handleCallbackQuery(callbackQuery) {
         await telegramApi('sendMessage', { chat_id: from.id, text: '👍 Registrado! Faça o check-in pelo app assim que chegar.' });
         await telegramApi('editMessageReplyMarkup', { chat_id: from.id, message_id: callbackQuery.message?.message_id, reply_markup: { inline_keyboard: [] } });
       } else {
-        await telegramApi('sendMessage', { chat_id: from.id, text: '📲 Acesse o app para fazer o check-in:\nhttps://hikoalbuquerque-prog.github.io/jet-promobot' });
+        await telegramApi('sendMessage', { chat_id: from.id, text: '📲 Acesse o app para fazer o check-in:\nhttps://hikoalbuquerque-prog.github.io/jet-promobot/' });
       }
       await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Registrado!' });
     } catch(e) {
