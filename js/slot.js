@@ -12,9 +12,39 @@ const slotScreen = {
       </div>`;
 
     try {
-      const res = await api.get('GET_SLOTS_DISPONIVEIS');
+      const [res, resAtuais] = await Promise.all([
+        api.get('GET_SLOTS_DISPONIVEIS'),
+        api.get('GET_SLOT_ATUAL')
+      ]);
+      
       const container = document.getElementById('slot-content');
       if (!container) return;
+
+      let acceptedHtml = '';
+      if (resAtuais.ok && resAtuais.jornadas?.length > 0) {
+        const aceitos = resAtuais.jornadas.filter(j => j.jornada.status === 'ACEITO');
+        if (aceitos.length > 0) {
+          acceptedHtml = `
+            <div style="font-size:11px;font-weight:800;color:#68d391;margin:0 0 10px 4px;letter-spacing:1px;display:flex;align-items:center;gap:8px">
+              <span style="width:12px;height:2px;background:#68d391;border-radius:2px"></span> MINHAS VAGAS ACEITAS
+            </div>`;
+          aceitos.forEach(j => {
+            const s = j.slot || {};
+            acceptedHtml += `
+              <div style="background:rgba(104,211,145,0.05);border:1px solid rgba(104,211,145,0.2);border-radius:16px;padding:16px;margin-bottom:12px;position:relative">
+                <div style="font-size:13px;color:#68d391;font-weight:700;margin-bottom:4px">VAGA CONFIRMADA</div>
+                <div style="font-size:16px;font-weight:700;margin-bottom:4px">${s.local_nome || s.local || 'Local desconhecido'}</div>
+                <div style="font-size:13px;color:#a0aec0;margin-bottom:12px">📅 ${s.data || '—'} | ⏰ ${s.inicio || '—'} - ${s.fim || '—'}</div>
+                
+                <div style="display:flex;gap:10px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.05)">
+                  <button onclick="slotScreen._irParaJornada('${s.slot_id}')" style="flex:2;background:#4f8ef7;color:#fff;border:none;padding:8px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Iniciar / Check-in</button>
+                  <button onclick="slotScreen._cancelarVaga('${s.slot_id}', '${j.jornada.jornada_id}')" style="flex:1;background:rgba(252,129,129,0.1);border:1px solid rgba(252,129,129,0.2);color:#fc8181;padding:8px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Cancelar</button>
+                </div>
+              </div>`;
+          });
+          acceptedHtml += '<div style="margin-bottom:30px"></div>';
+        }
+      }
 
       if (!res.ok) {
         container.innerHTML = `
@@ -73,7 +103,7 @@ const slotScreen = {
           </div>`;
       });
 
-      container.innerHTML = slotsHtml + `
+      container.innerHTML = acceptedHtml + slotsHtml + `
         <div style="text-align:center;padding:20px 0">
           <button onclick="slotScreen._solicitarReforco()" style="background:transparent;border:1px solid #4a5568;color:#a0aec0;padding:10px 16px;border-radius:10px;font-size:12px;cursor:pointer">
             ✨ Vim trabalhar sem slot (Reforço)
@@ -98,6 +128,26 @@ const slotScreen = {
         btn.disabled = false; btn.textContent = 'Aceitar Vaga';
       }
     } catch(e) { alert('Erro de conexão.'); btn.disabled = false; btn.textContent = 'Aceitar Vaga'; }
+  },
+
+  _irParaJornada(slotId) {
+    state.set('slot', { slot_id: slotId }); // Indica ao operacao.renderCheckin qual carregar
+    router.go('checkin');
+  },
+
+  async _cancelarVaga(slotId, jornadaId) {
+    if (!confirm('Deseja realmente cancelar o aceite desta vaga? Ela voltará a ficar disponível.')) return;
+    try {
+      const res = await api.post({ evento: 'CANCELAR_SLOT', slot_id: slotId, jornada_id: jornadaId });
+      if (res.ok) {
+        ui.toast('✅ Vaga cancelada!', 'success');
+        this.render();
+      } else {
+        alert(res.erro || 'Erro ao cancelar');
+      }
+    } catch(e) {
+      alert('Erro de conexão ao cancelar.');
+    }
   },
 
   async _solicitarReforco() {

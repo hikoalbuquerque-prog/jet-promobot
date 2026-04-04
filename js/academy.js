@@ -15,11 +15,21 @@ const academy = {
         ${ui.bottomNav("academy")}
       </div>`;
     try {
+      // Tenta carregar do cache primeiro para evitar 0/0
+      const cached = localStorage.getItem('academy_trilha');
+      if (cached) {
+        academy._modulos = JSON.parse(cached);
+        academy._renderTrilha();
+      }
+
       const res = await api.get('GET_ACADEMY_TRILHA');
       academy._modulos = res.modulos || [];
+      localStorage.setItem('academy_trilha', JSON.stringify(academy._modulos));
       academy._renderTrilha();
     } catch(e) {
-      document.getElementById('academy-content').innerHTML = '<div style="text-align:center;padding:40px;color:#e74c3c">Erro ao carregar trilha.</div>';
+      if (!academy._modulos.length) {
+        document.getElementById('academy-content').innerHTML = '<div style="text-align:center;padding:40px;color:#e74c3c">Erro ao carregar trilha.</div>';
+      }
     }
   },
 
