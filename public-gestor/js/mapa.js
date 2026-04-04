@@ -1,6 +1,6 @@
 const mapaScreen = (() => {
   let _map = null, _interval = null, _layerSlots = null, _layerPromotores = null, _layerRaios = null, _layerRota = null;
-  let _todosSlots = [], _todosPromotores = [], _stats = {}, _dataFiltroAtual = new Date().toISOString().split('T')[0];
+  let _todosSlots = [], _todosPromotores = [], _stats = {}, _dataFiltroAtual = new Date().toLocaleDateString('en-CA');
   const _visible = { promotores: true, slots: true, raios: false };
 
   function render() {
@@ -50,44 +50,8 @@ const mapaScreen = (() => {
     _initMap();
     _load();
     _interval = setInterval(_load, 15000);
-    const hoje = new Date().toISOString().split('T')[0];
-    const inp = document.getElementById('mapa-filtro-data'); if (inp) inp.value = hoje;
-  }
-
-  function _initMap() {
-    if (_map) { _map.remove(); _map = null; }
-    _map = L.map('leaflet-map', { zoomControl: true }).setView([-23.55, -46.63], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(_map);
-    _layerSlots = L.markerClusterGroup().addTo(_map);
-    _layerPromotores = L.layerGroup().addTo(_map);
-    _layerRaios = L.layerGroup();
-    _layerRota = L.layerGroup().addTo(_map);
-  }
-
-  async function _load() {
-    try {
-      const [slotsRes, promRes] = await Promise.all([
-        api.getSlotsHoje(_dataFiltroAtual || ''),
-        api.get('GET_MAPA_PROMOTOR')
-      ]);
-      _todosSlots = slotsRes?.data || [];
-      _todosPromotores = promRes?.pontos || [];
-      _stats = slotsRes?.stats || {};
-      _atualizarStats();
-      _atualizarFiltroCidades();
-      _renderSlots(_aplicarFiltrosLocais(_todosSlots));
-      _renderPromotores(_aplicarFiltrosPromotores(_todosPromotores));
-      _renderListaLateral(_aplicarFiltrosPromotores(_todosPromotores));
-      const ts = document.getElementById('mapa-ts');
-    if (ts) ts.textContent = 'Atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
-    
-    // Garantir que o filtro de data use o fuso local correto
-    const hoje = new Date().toLocaleDateString('en-CA'); // yyyy-mm-dd local
     const inp = document.getElementById('mapa-filtro-data');
-    if (inp && !inp.value) {
-      inp.value = hoje;
-      _dataFiltroAtual = hoje;
-    }
+    if (inp) inp.value = _dataFiltroAtual;
   }
 
   function _initMap() {
@@ -107,8 +71,6 @@ const mapaScreen = (() => {
 
   async function _load() {
     try {
-      if (!_dataFiltroAtual) _dataFiltroAtual = new Date().toLocaleDateString('en-CA');
-      
       const [slotsRes, promRes] = await Promise.all([
         api.getSlotsHoje(_dataFiltroAtual),
         api.get('GET_MAPA_PROMOTOR')
@@ -123,7 +85,9 @@ const mapaScreen = (() => {
       _renderListaLateral(_aplicarFiltrosPromotores(_todosPromotores));
       const ts = document.getElementById('mapa-ts');
       if (ts) ts.textContent = 'Atualizado ' + new Date().toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
-    } catch(e) { console.error('[mapa]', e.message); }
+    } catch(e) {
+      console.error('[mapa] Erro ao carregar dados:', e.message);
+    }
   }
 
   function _atualizarStats() {
@@ -154,7 +118,6 @@ const mapaScreen = (() => {
   function _renderSlots(slots) {
     if (!_layerSlots) return; _layerSlots.clearLayers(); _layerRaios.clearLayers();
     slots.forEach(s => {
-      // Cores: Disponível=Azul, Aceito/Ocupado=Laranja, Ativo=Verde
       const cor = { DISPONIVEL:'#3182ce', OCUPADO:'#ed8936', ATIVO:'#48bb78' }[s.status_geral] || '#718096';
       const label = s.status_geral === 'DISPONIVEL' ? 'VAGO' : (s.promotores[0]?.nome.split(' ')[0] || 'OK');
       
@@ -232,5 +195,10 @@ const mapaScreen = (() => {
     } catch(e) { console.error(e); }
   }
 
-  return { _setDataFiltro, _toggleLayer, _aplicarFiltros, _limparFiltros, _focarPromotor, _voltarLista, _verRota, render };
+  function destroy() {
+    if (_interval) clearInterval(_interval);
+    if (_map) { _map.remove(); _map = null; }
+  }
+
+  return { _setDataFiltro, _toggleLayer, _aplicarFiltros, _limparFiltros, _focarPromotor, _voltarLista, _verRota, render, destroy };
 })();
