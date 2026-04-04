@@ -11,37 +11,19 @@ function getAcademyTrilha_(user) {
   const wsMod = ss.getSheetByName('MODULOS'), wsProg = ss.getSheetByName('ACADEMY_PROGRESSO');
   if (!wsMod || !wsProg) return { ok: false, erro: 'Abas do Academy não encontradas' };
 
-  const dataMod = wsMod.getDataRange().getValues(), hMod = dataMod[0].map(v => String(v).toLowerCase().trim());
   const dataProg = wsProg.getDataRange().getValues();
-  const concluidos = new Set();
-  for (let r = 1; r < dataProg.length; r++) { if (String(dataProg[r][0]).trim() === user.user_id) concluidos.add(String(dataProg[r][1]).trim()); }
+  const concluidos = [];
+  for (let r = 1; r < dataProg.length; r++) { 
+    if (String(dataProg[r][0]).trim() === user.user_id) concluidos.push(String(dataProg[r][1]).trim()); 
+  }
   
-  const modulosRaw = [];
-  for (let r = 1; r < dataMod.length; r++) { if (String(dataMod[r][hMod.indexOf('ativo')]).toUpperCase() === 'TRUE') modulosRaw.push(rowToObj_(hMod, dataMod[r])); }
-  
-  const ordemNiveis = ['MANUAL APP', 'BASICO', 'INTERMEDIARIO', 'AVANCADO', 'ESPECIALISTA', 'MASTER'];
-  modulosRaw.sort((a, b) => {
-    const na = ordemNiveis.indexOf(a.nivel), nb = ordemNiveis.indexOf(b.nivel);
-    if (na !== nb) return na - nb;
-    return parseInt(a.ordem || 0) - parseInt(b.ordem || 0);
-  });
-
-  const trilha = [];
-  modulosRaw.forEach((m, idx) => {
-    const isConcluido = concluidos.has(m.modulo_id);
-    let isDesbloqueado = false;
-    if (idx === 0) isDesbloqueado = true;
-    else {
-      const reqs = m.pre_requisitos_json ? JSON.parse(m.pre_requisitos_json) : {};
-      if (reqs.must_complete_modulos && reqs.must_complete_modulos.length) isDesbloqueado = reqs.must_complete_modulos.every(id => concluidos.has(id));
-      else isDesbloqueado = concluidos.has(modulosRaw[idx - 1].modulo_id);
-    }
-    trilha.push({ modulo_id: m.modulo_id, nivel: m.nivel, titulo: m.titulo, pontos: m.pontos, concluido: isConcluido, desbloqueado: isDesbloqueado });
-  });
-  return { ok: true, modulos: trilha };
+  // Se o Cloud Run já tem o cache dos módulos, ele só precisa dos IDs concluídos
+  return { ok: true, progresso_ids: concluidos, modulos: [] }; 
 }
 
 function getAcademyModulo_(params, user) {
+  // O Cloud Run agora serve os módulos via CACHE. 
+  // Esta função só é chamada se o cache falhar ou para fallback.
   const moduloId = params.modulo_id, ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   const wsMod = ss.getSheetByName('MODULOS'), wsQuiz = ss.getSheetByName('QUIZ');
   const dataMod = wsMod.getDataRange().getValues(), hMod = dataMod[0].map(v => String(v).toLowerCase().trim());
@@ -67,6 +49,51 @@ function getAcademyModulo_(params, user) {
   modulo.quizzes = quizzesData;
   return { ok: true, modulo };
 }
+
+/**
+ * Sincroniza todos os módulos e quizzes com o cache do Cloud Run
+ */
+function sincronizarAcademyCache_() {
+  try {
+    const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+    const wsMod = ss.getSheetByName('MODULOS'), wsQuiz = ss.getSheetByName('QUIZ');
+    if (!wsMod || !wsQuiz) return;
+
+    const dataMod = wsMod.getDataRange().getValues(), hMod = dataMod[0].map(v => String(v).toLowerCase().trim());
+    const modulos = [];
+    for (let r = 1; r < dataMod.length; r++) {
+      if (String(dataMod[r][hMod.indexOf('ativo')]).toUpperCase() === 'TRUE') {
+        const m = rowToObj_(hMod, dataMod[r]);
+        m.blocks = m.blocks_json ? JSON.parse(m.blocks_json) : [];
+        modulos.push(m);
+      }
+    }
+
+    const dataQ = wsQuiz.getDataRange().getValues(), hQ = dataQ[0].map(v => String(v).toLowerCase().trim());
+    const quizzes = {};
+    for (let r = 1; r < dataQ.length; r++) {
+      const qid = String(dataQ[r][hQ.indexOf('quiz_id')]).trim();
+      if (!quizzes[qid]) quizzes[qid] = [];
+      quizzes[qid].push(rowToObj_(hQ, dataQ[r]));
+    }
+
+    const url = getConfig_('cloud_run_url') + '/internal/sync-academy';
+    UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({
+        integration_secret: getConfig_('integration_secret'),
+        modulos: modulos,
+        quizzes: quizzes
+      }),
+      muteHttpExceptions: true
+    });
+    console.log('Academy sincronizada com Cloud Run.');
+  } catch (e) {
+    console.log('Erro ao sincronizar Academy:', e.message);
+  }
+}
+
 
 function concluirModulo_(user, body) {
   const { modulo_id, score_quiz, pontos } = body;

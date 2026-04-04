@@ -162,21 +162,54 @@ app.get('/app/query', async (req, res) => {
 
     if (evento === 'GET_ACADEMY_TRILHA' && ACADEMY_CACHE.modulos.length > 0) {
       console.log('[CACHE] Servindo trilha Academy via memória.');
-      const result = await callAppsScriptGet(evento, req.query); // Ainda chama para pegar progresso do user
+      const result = await callAppsScriptGet(evento, req.query); 
       if (result.ok) {
-        result.modulos = ACADEMY_CACHE.modulos.map(m => ({
-          ...m,
-          concluido: result.progresso_ids?.includes(m.modulo_id) || false
-        }));
+        const concluidos = new Set(result.progresso_ids || []);
+        const ordemNiveis = ['MANUAL APP', 'BASICO', 'INTERMEDIARIO', 'AVANCADO', 'ESPECIALISTA', 'MASTER'];
+        
+        // Ordenar módulos do cache
+        const modulosOrdenados = [...ACADEMY_CACHE.modulos].sort((a, b) => {
+          const na = ordemNiveis.indexOf(a.nivel), nb = ordemNiveis.indexOf(b.nivel);
+          if (na !== nb) return na - nb;
+          return parseInt(a.ordem || 0) - parseInt(b.ordem || 0);
+        });
+
+        result.modulos = modulosOrdenados.map((m, idx) => {
+          const isConcluido = concluidos.has(m.modulo_id);
+          let isDesbloqueado = false;
+          if (idx === 0) isDesbloqueado = true;
+          else {
+            const reqs = m.pre_requisitos_json ? JSON.parse(m.pre_requisitos_json) : {};
+            if (reqs.must_complete_modulos && reqs.must_complete_modulos.length) {
+              isDesbloqueado = reqs.must_complete_modulos.every(id => concluidos.has(id));
+            } else {
+              isDesbloqueado = concluidos.has(modulosOrdenados[idx - 1].modulo_id);
+            }
+          }
+          return {
+            modulo_id: m.modulo_id,
+            nivel: m.nivel,
+            titulo: m.titulo,
+            pontos: m.pontos,
+            concluido: isConcluido,
+            desbloqueado: isDesbloqueado
+          };
+        });
         return res.json(result);
       }
     }
 
-    if (evento === 'GET_ACADEMY_MODULO' && req.query.modulo_id && ACADEMY_CACHE.quizzes) {
+    if (evento === 'GET_ACADEMY_MODULO' && req.query.modulo_id && ACADEMY_CACHE.modulos.length > 0) {
       const mod = ACADEMY_CACHE.modulos.find(m => m.modulo_id === req.query.modulo_id);
       if (mod) {
         console.log('[CACHE] Servindo módulo Academy via memória.');
-        return res.json({ ok: true, modulo: { ...mod, quizzes: ACADEMY_CACHE.quizzes } });
+        // Filtrar apenas quizzes deste módulo
+        const quizzesModulo = {};
+        const qids = (mod.blocks || []).filter(b => b.type === 'quiz').map(b => b.quiz_id);
+        qids.forEach(qid => {
+          if (ACADEMY_CACHE.quizzes[qid]) quizzesModulo[qid] = ACADEMY_CACHE.quizzes[qid];
+        });
+        return res.json({ ok: true, modulo: { ...mod, quizzes: quizzesModulo } });
       }
     }
 
