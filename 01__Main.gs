@@ -148,6 +148,7 @@ function doPost(e) {
     switch (evento) {
       // ── Auth ────────────────────────────────────────────────
       case 'VALIDAR_TOKEN': return jsonResp_(auth);
+      case 'ACEITAR_LGPD':  return jsonResp_(aceitarLGPD_(user, body));
 
       // ── FSM MEI ─────────────────────────────────────────────
       case 'ACEITAR_SLOT':                return jsonResp_(processarFSM_(user, body, 'ACEITAR_SLOT'));

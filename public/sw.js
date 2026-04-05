@@ -1,4 +1,4 @@
-const SW_VERSION = 'jet-ops-gh-v1.3.1';
+const SW_VERSION = 'jet-ops-gh-v1.3.5';
 const BASE = ''; // Servido da raiz do public no Cloud Run
 
 const ASSETS = [
@@ -50,7 +50,7 @@ self.addEventListener('fetch', e => {
   
   // Estratégia: Cache First para Assets, Network First para API (futuro)
   e.respondWith(
-    caches.match(e.request).then(cached => {
+    caches.match(e.request, { ignoreSearch: true }).then(cached => {
       return cached || fetch(e.request).catch(() => {
         // Fallback offline para navegação
         if (e.request.mode === 'navigate') return caches.match('index.html');
@@ -84,3 +84,55 @@ self.addEventListener('notificationclick', e => {
     })
   );
 });
+
+// ── Background Heartbeat (Rastreamento em 2º Plano) ──────────────────────────
+let heartbeatState = null;
+
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SALVAR_HEARTBEAT_STATE') {
+    heartbeatState = e.data.payload;
+  }
+});
+
+self.addEventListener('periodicsync', e => {
+  if (e.tag === 'jet-heartbeat') {
+    e.waitUntil(doHeartbeat());
+  }
+});
+
+async function doHeartbeat() {
+  if (!heartbeatState) return;
+  const { gasUrl, token, jornada_id, lat, lng, accuracy, is_mock } = heartbeatState;
+  
+  // Tenta pegar localização fresca se possível (navegadores modernos em BG)
+  let currentLat = lat, currentLng = lng, currentAcc = accuracy;
+  try {
+    // Alguns browsers permitem isso em periodicsync
+    if ('geolocation' in navigator) {
+      const pos = await new Promise((res, rej) => 
+        navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: false, timeout: 5000 })
+      );
+      currentLat = pos.coords.latitude;
+      currentLng = pos.coords.longitude;
+      currentAcc = pos.coords.accuracy;
+    }
+  } catch(e) {}
+
+  try {
+    await fetch(gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        evento: 'HEARTBEAT',
+        token,
+        jornada_id,
+        lat: currentLat,
+        lng: currentLng,
+        accuracy: currentAcc,
+        is_mock: is_mock || false,
+        bg: true,
+        horario_dispositivo: new Date().toISOString()
+      })
+    });
+  } catch(e) {}
+}

@@ -23,7 +23,7 @@ app.get('/sw.js', (_req, res) => {
 });
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.get('/version', (_req, res) => res.json({ ok: true, service: 'promo-telegram-gateway', version: '1.3.1', now: new Date().toISOString() }));
+app.get('/version', (_req, res) => res.json({ ok: true, service: 'promo-telegram-gateway', version: '1.3.5', now: new Date().toISOString() }));
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.use(express.json({ limit: '1mb' }));
@@ -361,7 +361,7 @@ app.post('/internal/send-checkin-reminder', async (req, res) => {
     const isAutoEncerrado = tipo === 'AUTO_ENCERRADO';
 
     let texto = `🔔 <b>Hora do seu slot!</b>\n\n📍 <b>${local_nome || slot_id}</b>\n🕐 ${inicio || '—'}\n\nAbra o app para fazer o check-in.`;
-    let botoes = [[{ text: '📲 Abrir app para check-in', url: 'https://hikoalbuquerque-prog.github.io/jet-promobot/' }]];
+    let botoes = [[{ text: '📲 Abrir app para check-in', url: CFG.appUrl }]];
 
     if (isLembrete) {
       texto = `⚠️ <b>Você ainda não fez check-in!</b>\n\n📍 ${local_nome || slot_id}\n🕐 ${inicio || '—'}\n\nO que deseja fazer?`;
@@ -376,7 +376,7 @@ app.post('/internal/send-checkin-reminder', async (req, res) => {
       ];
     } else if (isAutoEncerrado) {
       texto = `🏁 <b>Jornada Encerrada Automaticamente</b>\n\n📍 ${local_nome || slot_id}\n\nSua jornada foi encerrada pelo sistema por ausência de checkout após o horário previsto.`;
-      botoes = [[{ text: '📊 Ver meu histórico', url: 'https://hikoalbuquerque-prog.github.io/jet-promobot/' }]];
+      botoes = [[{ text: '📊 Ver meu histórico', url: CFG.appUrl }]];
     }
 
     await telegramApi('sendMessage', {
@@ -408,7 +408,7 @@ app.post('/internal/send-jornada-status', async (req, res) => {
       botoes = [[
         { text: '📍 Compartilhar localização', request_location: true }
       ], [
-        { text: '🌐 Abrir app', url: 'https://hikoalbuquerque-prog.github.io/jet-promobot/' }
+        { text: '🌐 Abrir app', url: CFG.appUrl }
       ]];
       // Salva estado para processar a localização quando o usuário enviar
       await botSetSessionCloudRun(telegram_user_id, 'AWAITING_CHECKIN_LOCATION', { slot_id, jornada_id, user_id: req.body.user_id });
@@ -1083,7 +1083,7 @@ async function handleCallbackQuery(callbackQuery) {
         await telegramApi('sendMessage', { chat_id: from.id, text: '👍 Registrado! Faça o check-in pelo app assim que chegar.' });
         await telegramApi('editMessageReplyMarkup', { chat_id: from.id, message_id: callbackQuery.message?.message_id, reply_markup: { inline_keyboard: [] } });
       } else {
-        await telegramApi('sendMessage', { chat_id: from.id, text: '📲 Acesse o app para fazer o check-in:\nhttps://hikoalbuquerque-prog.github.io/jet-promobot/' });
+        await telegramApi('sendMessage', { chat_id: from.id, text: `📲 Acesse o app para fazer o check-in:\n${CFG.appUrl}` });
       }
       await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Registrado!' });
     } catch(e) {
@@ -1150,7 +1150,7 @@ async function handleTextMessage(message) {
       `/reset — Resetar jornada travada\n` +
       `/links — Links úteis (NF, Newsletter, LinkedIn)\n\n` +
       `<b>Links Rápidos:</b>\n` +
-      `• <a href="https://hikoalbuquerque-prog.github.io/jet-promobot/">JET Promo Web Bot</a>\n` +
+      `• <a href="${CFG.appUrl}">JET Promo Web Bot</a>\n` +
       `• <a href="https://t.me/Promoter_GOJET_BOT">Lançar Vendas (Bot Vendas)</a>`;
     
     await telegramApi('sendMessage', { 
@@ -1188,7 +1188,7 @@ async function handleTextMessage(message) {
     await telegramApi('sendMessage', { 
       chat_id: chat.id, 
       parse_mode: 'HTML', 
-      text: `📅 <b>Sua Agenda Atual:</b>\n\n${lista}\n\n<a href="https://hikoalbuquerque-prog.github.io/jet-promobot/">👉 Abrir App para Operar</a>`
+      text: `📅 <b>Sua Agenda Atual:</b>\n\n${lista}\n\n<a href="${CFG.appUrl}">👉 Abrir App para Operar</a>`
     });
     return;
   }
@@ -1214,7 +1214,7 @@ async function handleTextMessage(message) {
     await telegramApi('sendMessage', { 
       chat_id: chat.id, 
       parse_mode: 'HTML', 
-      text: `🔍 <b>Vagas Disponíveis (Próximas):</b>\n\n${lista}\n\n<a href="https://hikoalbuquerque-prog.github.io/jet-promobot/">👉 Abrir App para Aceitar</a>`
+      text: `🔍 <b>Vagas Disponíveis (Próximas):</b>\n\n${lista}\n\n<a href="${CFG.appUrl}">👉 Abrir App para Aceitar</a>`
     });
     return;
   }
@@ -1549,6 +1549,7 @@ function loadConfig() {
     corsOrigin: process.env.CORS_ORIGIN || '*',
     publishMaxSlots: Number(process.env.PUBLISH_MAX_SLOTS || 50),
     defaultCity: process.env.DEFAULT_CITY || '',
+    appUrl: process.env.APP_URL || 'https://hikoalbuquerque-prog.github.io/jet-promobot/',
     cityGroups: normalizedMap,
   };
 }

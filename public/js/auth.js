@@ -11,9 +11,15 @@ const auth = {
           state.saveToken(token);
           const me = await api.get('GET_ME');
           if (me.ok) {
-            state.setPromotor(me.dados || me.user);
+            const user = me.dados || me.user;
+            state.setPromotor(user);
             if (typeof pushManager !== 'undefined') pushManager.init();
-            this._rotearPorPerfil(me.dados || me.user);
+            
+            if (user.lgpd_aceite) {
+              this._rotearPorPerfil(user);
+            } else {
+              this._renderLGPD(user);
+            }
             return;
           }
         }
@@ -117,8 +123,14 @@ const auth = {
       const res = await api.post({ evento: "LOGIN_CLT", cpf, senha }, { skipToken: true });
       if (!res.ok) { alert(res.erro || res.mensagem || "CPF ou senha incorretos."); this._renderLogin(""); return; }
       state.saveToken(res.token);
-      state.setPromotor(res.user);
-      this._rotearPorPerfil(res.user);
+      const user = res.user;
+      state.setPromotor(user);
+      
+      if (user.lgpd_aceite) {
+        this._rotearPorPerfil(user);
+      } else {
+        this._renderLGPD(user);
+      }
     } catch (_) {
       alert("Sem conexão.");
       if (btn) { btn.textContent = "Entrar →"; btn.disabled = false; }
@@ -135,6 +147,79 @@ const auth = {
   },
 
   renderSplash() { this._renderSplash(); },
+
+  _renderLGPD(user) {
+    const isCLT = (user.tipo_vinculo || '').toUpperCase() === 'CLT';
+    const textoRastreio = isCLT 
+      ? 'Como colaborador CLT, seu rastreamento de localização será contínuo durante o turno para fins de registro de jornada e segurança operacional.'
+      : 'Para promotores MEI, você pode optar pelo rastreamento contínuo durante o turno (melhor para sua pontuação e visibilidade do gestor) ou apenas nos registros de entrada e saída.';
+
+    document.getElementById('app').innerHTML = `
+      <div style="min-height:100dvh;background:#1a1a2e;color:#eaf0fb;padding:24px;font-family:-apple-system,sans-serif;display:flex;flex-direction:column">
+        <div style="font-size:24px;font-weight:800;color:#4f8ef7;margin-bottom:20px;text-align:center">Termos de Uso e LGPD</div>
+        
+        <div style="flex:1;background:#1e2a45;border-radius:14px;padding:20px;overflow-y:auto;border:1px solid #2a3a55;margin-bottom:20px;font-size:14px;line-height:1.6;color:#a0aec0">
+          <p style="margin-bottom:12px;color:#eaf0fb;font-weight:600">Olá, ${user.nome_completo || 'Promotor'}!</p>
+          <p style="margin-bottom:12px">Para operar no sistema JET·OPS, precisamos tratar alguns de seus dados pessoais em conformidade com a Lei Geral de Proteção de Dados (LGPD).</p>
+          
+          <div style="background:rgba(79,142,247,0.1);border-left:4px solid #4f8ef7;padding:12px;margin-bottom:16px;border-radius:0 8px 8px 0">
+            <strong style="color:#4f8ef7;display:block;margin-bottom:4px">📍 Localização (GPS)</strong>
+            ${textoRastreio}
+          </div>
+
+          <p style="margin-bottom:12px">Utilizamos seus dados para:
+            <br>• Validar presença nos pontos de venda.
+            <br>• Gerar indicadores de performance.
+            <br>• Garantir a segurança durante o turno.
+          </p>
+
+          <p>Você pode revogar este consentimento a qualquer momento entrando em contato com a gestão, porém isso impedirá o uso do aplicativo para operação.</p>
+        </div>
+
+        ${!isCLT ? `
+        <div style="background:#1e2a45;border-radius:14px;padding:16px;margin-bottom:16px;border:1px solid #2a3a55">
+          <label style="display:flex;align-items:center;gap:12px;cursor:pointer">
+            <input type="checkbox" id="check-continuo" checked style="width:20px;height:20px;accent-color:#4f8ef7"/>
+            <span style="font-size:14px;color:#eaf0fb">Desejo habilitar o <b>rastreamento contínuo</b> (Recomendado)</span>
+          </label>
+        </div>
+        ` : ''}
+
+        <button id="btn-aceitar-lgpd" onclick="auth._aceitarLGPD()"
+          style="background:#4f8ef7;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;padding:18px;width:100%;cursor:pointer">
+          Concordo e Desejo Continuar
+        </button>
+      </div>
+    `;
+  },
+
+  async _aceitarLGPD() {
+    const btn = document.getElementById('btn-aceitar-lgpd');
+    const checkContinuo = document.getElementById('check-continuo');
+    const rastreioContinuo = checkContinuo ? checkContinuo.checked : true; // CLT sempre true
+
+    if (btn) { btn.disabled = true; btn.textContent = 'Gravando...'; }
+
+    try {
+      const res = await api.post({ evento: 'ACEITAR_LGPD' });
+      if (res.ok) {
+        const me = await api.get('GET_ME');
+        if (me.ok) {
+          const user = me.user || me.dados;
+          // Salva preferência local de rastreio para MEIs
+          state.set('pref_rastreio_continuo', rastreioContinuo);
+          state.setPromotor(user);
+          this._rotearPorPerfil(user);
+        }
+      } else {
+        alert('Erro ao salvar aceite: ' + (res.erro || res.mensagem || 'Erro desconhecido.'));
+        if (btn) { btn.disabled = false; btn.textContent = 'Concordo e Desejo Continuar'; }
+      }
+    } catch(e) {
+      alert('Sem conexão.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Concordo e Desejo Continuar'; }
+    }
+  },
 
   logout() {
     state.clearToken();

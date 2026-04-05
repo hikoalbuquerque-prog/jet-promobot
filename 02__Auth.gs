@@ -171,3 +171,41 @@ function loginCLT_(params) {
 
   return { ok: false, erro: 'CPF não encontrado.' };
 }
+
+function aceitarLGPD_(user, body) {
+  if (!user) return { ok: false, erro: 'Usuário não autenticado (sessão inválida).' };
+  
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws = ss.getSheetByName('PROMOTORES');
+  if (!ws) return { ok: false, erro: 'Aba PROMOTORES não encontrada.' };
+  
+  const data = ws.getDataRange().getValues();
+  const headers = data[0].map(h => String(h).toLowerCase().trim());
+  
+  const iId      = headers.indexOf('user_id');
+  const iToken   = headers.indexOf('token');
+  const iLgpd    = headers.indexOf('lgpd_aceite');
+  const iLgpdEm  = headers.indexOf('lgpd_aceite_em');
+  
+  if (iLgpd < 0 || iLgpdEm < 0) {
+    return { ok: false, erro: 'Colunas de LGPD (lgpd_aceite/lgpd_aceite_em) não encontradas na aba PROMOTORES.' };
+  }
+  
+  const targetId = String(user.user_id || '').trim();
+  const targetToken = String(body.token || '').trim();
+  
+  for (let r = 1; r < data.length; r++) {
+    const row = data[r];
+    const matchId = iId >= 0 && targetId && String(row[iId]).trim() === targetId;
+    const matchToken = iToken >= 0 && targetToken && String(row[iToken]).trim() === targetToken;
+    
+    if (matchId || matchToken) {
+      ws.getRange(r + 1, iLgpd + 1).setValue(true);
+      ws.getRange(r + 1, iLgpdEm + 1).setValue(new Date().toISOString());
+      
+      return { ok: true, mensagem: 'LGPD aceita com sucesso.' };
+    }
+  }
+  
+  return { ok: false, erro: 'Usuário não localizado na base para salvar o aceite.' };
+}
