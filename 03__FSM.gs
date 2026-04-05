@@ -245,11 +245,19 @@ function executarCheckin_(ss, jornada, user, body, horarioServidor) {
       return { ok: false, erro: '⛔ GPS FALSO DETECTADO. O uso de simuladores de localização é proibido e pode gerar suspensão.' };
     }
 
+    // ALERTA DE FRAUDE (Device ID e Score Baixo)
+    const deviceId = body.device_id || '';
+    const fraudRes = verificarAlertasFraude_(ss, user, { score, deviceId, lat, lng });
+    if (fraudRes.alerta && fraudRes.integracoes) {
+      resIntegracoes.push(...fraudRes.integracoes);
+    }
+
     atualizarJornada_(ss, jornada.jornada_id, {
       status: 'EM_ATIVIDADE', inicio_real: horarioServidor,
       checkin_lat: lat, checkin_lng: lng, location_trust_score: score,
       horario_servidor_checkin: horarioServidor, evidencia_checkin: body.foto_url || '', atualizado_em: horarioServidor,
-      checkin_fora_raio: distM > raio
+      checkin_fora_raio: distM > raio,
+      device_id: deviceId
     });
 
     consolidarPromocode_(ss, jornada.slot_id, user.user_id);

@@ -591,3 +591,108 @@ function botGetPerfil_(params) {
   }
   return { ok: false, erro: 'Perfil não encontrado.' };
 }
+
+// ============================================================
+//  Auditoria e Segurança (Anti-Fraude)
+// ============================================================
+
+function verificarAlertasFraude_(ss, user, dados) {
+  const { score, deviceId, lat, lng } = dados;
+  const integracoes = [];
+  let alerta = false;
+  let motivo = [];
+
+  // 1. Verificar Score de Localização Baixo (Potencial Mock ou GPS ruim)
+  if (score < 60) {
+    alerta = true;
+    motivo.push(`Baixa confiança de localização (Score: ${score}%)`);
+  }
+
+  // 2. Verificar duplicidade de Device ID (Mesmo aparelho para usuários diferentes hoje)
+  if (deviceId) {
+    const wsJ = ss.getSheetByName('JORNADAS');
+    if (wsJ) {
+      const dataJ = wsJ.getDataRange().getValues(), hJ = dataJ[0].map(v => String(v).toLowerCase().trim());
+      const iDev = hJ.indexOf('device_id'), iUsr = hJ.indexOf('user_id'), iStt = hJ.indexOf('status'), iCri = hJ.indexOf('criado_em');
+      const hoje = new Date().toISOString().substring(0, 10);
+      
+      for (let r = 1; r < dataJ.length; r++) {
+        const dId = String(dataJ[r][iDev]).trim();
+        const uId = String(dataJ[r][iUsr]).trim();
+        const cri = String(dataJ[r][iCri]).substring(0, 10);
+        const stt = String(dataJ[r][iStt]).toUpperCase();
+
+        if (dId === deviceId && uId !== user.user_id && cri === hoje && !['CANCELADO', 'RESET_PELO_BOT'].includes(stt)) {
+          alerta = true;
+          motivo.push(`Dispositivo (Device ID) já utilizado hoje pelo usuário ${uId}`);
+          break;
+        }
+      }
+    }
+  }
+
+  if (alerta) {
+    const lideres = _getLideresDoUsuario_(ss, user.user_id);
+    const msg = `🚩 <b>ALERTA DE AUDITORIA</b>\n\n👤 <b>${user.nome_completo || user.nome}</b>\n⚠️ Motivo: ${motivo.join('; ')}\n📍 Lat/Lng: ${lat},${lng}\n📱 Device: ${deviceId || 'N/A'}`;
+
+    if (lideres.length > 0) {
+      lideres.forEach(lid => {
+        if (lid.telegram_user_id) {
+          integracoes.push({
+            canal: 'telegram',
+            tipo: 'private_message',
+            telegram_user_id: String(lid.telegram_user_id),
+            parse_mode: 'HTML',
+            text_html: msg
+          });
+        }
+      });
+    }
+
+    // Também envia para o canal de alertas da cidade
+    integracoes.push({
+      canal: 'telegram',
+      tipo: 'group_message',
+      cidade: user.cidade_base || user.cidade || '',
+      topic_key: 'ALERTAS',
+      parse_mode: 'HTML',
+      text_html: msg
+    });
+  }
+
+  return { alerta, integracoes };
+}
+
+function _getLideresDoUsuario_(ss, userId) {
+  const wsMem = ss.getSheetByName('EQUIPE_MEMBROS');
+  if (!wsMem) return [];
+
+  const dataMem = wsMem.getDataRange().getValues(), hMem = dataMem[0].map(v => String(v).toLowerCase().trim());
+  const iEq = hMem.indexOf('equipe_id'), iUsr = hMem.indexOf('user_id'), iPpl = hMem.indexOf('papel_na_equipe'), iAto = hMem.indexOf('ativo');
+  
+  const equipeIds = [];
+  for (let r = 1; r < dataMem.length; r++) {
+    if (String(dataMem[r][iUsr]).trim() === userId && String(dataMem[r][iAto]).toUpperCase() === 'TRUE') {
+      equipeIds.push(String(dataMem[r][iEq]).trim());
+    }
+  }
+
+  if (equipeIds.length === 0) return [];
+
+  const lideres = [];
+  const promMap = _getPromotoresMap_(ss);
+
+  for (let r = 1; r < dataMem.length; r++) {
+    const eqId = String(dataMem[r][iEq]).trim();
+    const uId = String(dataMem[r][iUsr]).trim();
+    const papel = String(dataMem[r][iPpl]).toUpperCase();
+    const ativo = String(dataMem[r][iAto]).toUpperCase() === 'TRUE';
+
+    if (equipeIds.includes(eqId) && papel === 'LIDER' && ativo) {
+      const p = promMap[uId];
+      if (p) lideres.push({ user_id: uId, telegram_user_id: p.telegram_user_id });
+    }
+  }
+
+  return lideres;
+}
