@@ -23,7 +23,7 @@ app.get('/sw.js', (_req, res) => {
 });
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.get('/version', (_req, res) => res.json({ ok: true, service: 'promo-telegram-gateway', version: '1.3.0', now: new Date().toISOString() }));
+app.get('/version', (_req, res) => res.json({ ok: true, service: 'promo-telegram-gateway', version: '1.3.1', now: new Date().toISOString() }));
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.use(express.json({ limit: '1mb' }));
@@ -1063,234 +1063,6 @@ async function handleCallbackQuery(callbackQuery) {
     return;
   }
 
-  // ── Jornada via bot (pausa/retorno/checkout) ────────────────────────────────
-  if (data.startsWith('PILULA_')) {
-    const match = data.match(/PILULA_([0-9]{4}-[0-9]{2}-[0-9]{2})_([0-9]+)_([a-d])_(.+)/);
-    if (match) {
-      const dataPilula = match[1];
-      const questaoIdx = parseInt(match[2]);
-      const resposta   = match[3];
-      const usuarioId  = match[4];
-      try {
-        await callAppsScriptPost({
-          evento: 'PILULA_RESPOSTA',
-          integration_secret: CFG.appsScriptSharedSecret,
-          usuario_id: usuarioId,
-          data_pilula: dataPilula,
-          questao_idx: questaoIdx,
-          resposta
-        });
-        await telegramApi('answerCallbackQuery', { callback_query_id: callbackQuery.id });
-      } catch(e) { console.error('[pilula]', e.message); }
-    }
-    return res.sendStatus(200);
-  }
-  if (data.startsWith('JORNADA_PAUSAR:') || data.startsWith('JORNADA_RETOMAR:') || data.startsWith('JORNADA_CHECKOUT:')) {
-    const parts   = data.split(':');
-    const tipo    = parts[0];
-    const slotId  = parts[1];
-    const jornId  = parts[2] || '';
-    try {
-      if (tipo === 'JORNADA_PAUSAR') {
-        // Pede motivo antes de pausar
-        await telegramApi('sendMessage', {
-          chat_id: from.id,
-          text: '⏸️ Qual o motivo da pausa?',
-          reply_markup: { inline_keyboard: [
-            [{ text: '🍽️ Almoço/Refeição', callback_data: 'JORNADA_PAUSAR_MOTIVO:' + slotId + ':' + jornId + ':almoco' }],
-            [{ text: '🚽 Banheiro', callback_data: 'JORNADA_PAUSAR_MOTIVO:' + slotId + ':' + jornId + ':banheiro' }],
-            [{ text: '⚙️ Problema técnico', callback_data: 'JORNADA_PAUSAR_MOTIVO:' + slotId + ':' + jornId + ':tecnico' }],
-            [{ text: '📦 Reposição de estoque', callback_data: 'JORNADA_PAUSAR_MOTIVO:' + slotId + ':' + jornId + ':estoque' }],
-            [{ text: '🔧 Outro', callback_data: 'JORNADA_PAUSAR_MOTIVO:' + slotId + ':' + jornId + ':outro' }]
-          ]}
-        });
-      } else if (tipo === 'JORNADA_RETOMAR') {
-        const result = await callAppsScriptPost({
-          evento: 'RESUME_BOT',
-          integration_secret: CFG.appsScriptSharedSecret,
-          slot_id: slotId, jornada_id: jornId
-        });
-        await telegramApi('sendMessage', { chat_id: from.id, text: result.ok ? '▶️ Jornada retomada! Bom trabalho.' : '❌ Erro: ' + (result.erro || 'tente pelo app') });
-        await telegramApi('editMessageReplyMarkup', { chat_id: from.id, message_id: callbackQuery.message?.message_id, reply_markup: { inline_keyboard: [] } });
-      } else if (tipo === 'JORNADA_CHECKOUT') {
-        const result = await callAppsScriptPost({
-          evento: 'CHECKOUT_BOT',
-          integration_secret: CFG.appsScriptSharedSecret,
-          slot_id: slotId, jornada_id: jornId,
-          lat: 0, lng: 0
-        });
-        await telegramApi('sendMessage', { chat_id: from.id, text: result.ok ? '🏁 Jornada encerrada! Obrigado pelo trabalho.' : '❌ Erro: ' + (result.erro || 'tente pelo app') });
-        await telegramApi('editMessageReplyMarkup', { chat_id: from.id, message_id: callbackQuery.message?.message_id, reply_markup: { inline_keyboard: [] } });
-      }
-      await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Registrado!' });
-    } catch(e) {
-      await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Erro.', show_alert: true });
-    }
-    return;
-  }
-
-  // ── Pausa com motivo ─────────────────────────────────────────────────────────
-  if (data.startsWith('JORNADA_PAUSAR_MOTIVO:')) {
-    const parts  = data.split(':');
-    const slotId = parts[1], jornId = parts[2], motivo = parts[3];
-    try {
-      const result = await callAppsScriptPost({
-        evento: 'PAUSE',
-        integration_secret: CFG.appsScriptSharedSecret,
-        slot_id: slotId, jornada_id: jornId, motivo
-      });
-      await telegramApi('sendMessage', {
-        chat_id: from.id,
-        text: result.ok ? '⏸️ Pausa registrada! Motivo: ' + motivo + '\n\nRetorne quando estiver pronto.' : '❌ Erro: ' + (result.erro || 'tente pelo app'),
-        reply_markup: result.ok ? { inline_keyboard: [[{ text: '▶️ Retomar jornada', callback_data: 'JORNADA_RETOMAR:' + slotId + ':' + jornId }]] } : undefined
-      });
-      await telegramApi('editMessageReplyMarkup', { chat_id: from.id, message_id: callbackQuery.message?.message_id, reply_markup: { inline_keyboard: [] } });
-      await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Pausa registrada!' });
-    } catch(e) {
-      await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Erro.', show_alert: true });
-    }
-    return;
-  }
-
-  // ── Fim de turno callbacks ───────────────────────────────────────────────────
-  if (data.startsWith('FIM_ENCERRAR:') || data.startsWith('FIM_CONTINUAR:')) {
-    const parts = data.split(':');
-    const tipo = parts[0], slotId = parts[1], userId = parts[2] || '';
-    try {
-      if (tipo === 'FIM_ENCERRAR') {
-        await callAppsScriptPost({
-          evento: 'CHECKOUT_EXCEPCIONAL',
-          integration_secret: CFG.appsScriptSharedSecret,
-          slot_id: slotId,
-          user_id: userId,
-          motivo: 'checkout via bot'
-        });
-        await telegramApi('sendMessage', { chat_id: from.id, text: '✅ Turno encerrado! Obrigado pelo trabalho.' });
-      } else {
-        await telegramApi('sendMessage', { chat_id: from.id, text: '⏱️ Ok! Lembraremos novamente em 30 minutos.' });
-      }
-      await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Registrado!' });
-      await telegramApi('editMessageReplyMarkup', { chat_id: from.id, message_id: callbackQuery.message?.message_id, reply_markup: { inline_keyboard: [] } });
-    } catch(e) {
-      await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Erro.', show_alert: true });
-    }
-    return;
-  }
-
-  // ── Jornada via bot (pausa/retorno/checkout) ────────────────────────────────
-  if (data.startsWith('PILULA_')) {
-    const match = data.match(/PILULA_([0-9]{4}-[0-9]{2}-[0-9]{2})_([0-9]+)_([a-d])_(.+)/);
-    if (match) {
-      const dataPilula = match[1];
-      const questaoIdx = parseInt(match[2]);
-      const resposta   = match[3];
-      const usuarioId  = match[4];
-      try {
-        await callAppsScriptPost({
-          evento: 'PILULA_RESPOSTA',
-          integration_secret: CFG.appsScriptSharedSecret,
-          usuario_id: usuarioId,
-          data_pilula: dataPilula,
-          questao_idx: questaoIdx,
-          resposta
-        });
-        await telegramApi('answerCallbackQuery', { callback_query_id: callbackQuery.id });
-      } catch(e) { console.error('[pilula]', e.message); }
-    }
-    return res.sendStatus(200);
-  }
-  if (data.startsWith('JORNADA_PAUSAR:') || data.startsWith('JORNADA_RETOMAR:') || data.startsWith('JORNADA_CHECKOUT:')) {
-    const parts   = data.split(':');
-    const tipo    = parts[0];
-    const slotId  = parts[1];
-    const jornId  = parts[2] || '';
-    try {
-      if (tipo === 'JORNADA_PAUSAR') {
-        // Pede motivo antes de pausar
-        await telegramApi('sendMessage', {
-          chat_id: from.id,
-          text: '⏸️ Qual o motivo da pausa?',
-          reply_markup: { inline_keyboard: [
-            [{ text: '🍽️ Almoço/Refeição', callback_data: 'JORNADA_PAUSAR_MOTIVO:' + slotId + ':' + jornId + ':almoco' }],
-            [{ text: '🚽 Banheiro', callback_data: 'JORNADA_PAUSAR_MOTIVO:' + slotId + ':' + jornId + ':banheiro' }],
-            [{ text: '⚙️ Problema técnico', callback_data: 'JORNADA_PAUSAR_MOTIVO:' + slotId + ':' + jornId + ':tecnico' }],
-            [{ text: '📦 Reposição de estoque', callback_data: 'JORNADA_PAUSAR_MOTIVO:' + slotId + ':' + jornId + ':estoque' }],
-            [{ text: '🔧 Outro', callback_data: 'JORNADA_PAUSAR_MOTIVO:' + slotId + ':' + jornId + ':outro' }]
-          ]}
-        });
-      } else if (tipo === 'JORNADA_RETOMAR') {
-        const result = await callAppsScriptPost({
-          evento: 'RESUME_BOT',
-          integration_secret: CFG.appsScriptSharedSecret,
-          slot_id: slotId, jornada_id: jornId
-        });
-        await telegramApi('sendMessage', { chat_id: from.id, text: result.ok ? '▶️ Jornada retomada! Bom trabalho.' : '❌ Erro: ' + (result.erro || 'tente pelo app') });
-        await telegramApi('editMessageReplyMarkup', { chat_id: from.id, message_id: callbackQuery.message?.message_id, reply_markup: { inline_keyboard: [] } });
-      } else if (tipo === 'JORNADA_CHECKOUT') {
-        const result = await callAppsScriptPost({
-          evento: 'CHECKOUT_BOT',
-          integration_secret: CFG.appsScriptSharedSecret,
-          slot_id: slotId, jornada_id: jornId,
-          lat: 0, lng: 0
-        });
-        await telegramApi('sendMessage', { chat_id: from.id, text: result.ok ? '🏁 Jornada encerrada! Obrigado pelo trabalho.' : '❌ Erro: ' + (result.erro || 'tente pelo app') });
-        await telegramApi('editMessageReplyMarkup', { chat_id: from.id, message_id: callbackQuery.message?.message_id, reply_markup: { inline_keyboard: [] } });
-      }
-      await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Registrado!' });
-    } catch(e) {
-      await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Erro.', show_alert: true });
-    }
-    return;
-  }
-
-  // ── Pausa com motivo ─────────────────────────────────────────────────────────
-  if (data.startsWith('JORNADA_PAUSAR_MOTIVO:')) {
-    const parts  = data.split(':');
-    const slotId = parts[1], jornId = parts[2], motivo = parts[3];
-    try {
-      const result = await callAppsScriptPost({
-        evento: 'PAUSE',
-        integration_secret: CFG.appsScriptSharedSecret,
-        slot_id: slotId, jornada_id: jornId, motivo
-      });
-      await telegramApi('sendMessage', {
-        chat_id: from.id,
-        text: result.ok ? '⏸️ Pausa registrada! Motivo: ' + motivo + '\n\nRetorne quando estiver pronto.' : '❌ Erro: ' + (result.erro || 'tente pelo app'),
-        reply_markup: result.ok ? { inline_keyboard: [[{ text: '▶️ Retomar jornada', callback_data: 'JORNADA_RETOMAR:' + slotId + ':' + jornId }]] } : undefined
-      });
-      await telegramApi('editMessageReplyMarkup', { chat_id: from.id, message_id: callbackQuery.message?.message_id, reply_markup: { inline_keyboard: [] } });
-      await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Pausa registrada!' });
-    } catch(e) {
-      await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Erro.', show_alert: true });
-    }
-    return;
-  }
-
-  // ── Fim de turno callbacks ───────────────────────────────────────────────────
-  if (data.startsWith('FIM_ENCERRAR:') || data.startsWith('FIM_CONTINUAR:')) {
-    const parts = data.split(':');
-    const tipo = parts[0], slotId = parts[1], userId = parts[2] || '';
-    try {
-      if (tipo === 'FIM_ENCERRAR') {
-        await callAppsScriptPost({
-          evento: 'CHECKOUT_EXCEPCIONAL',
-          integration_secret: CFG.appsScriptSharedSecret,
-          slot_id: slotId,
-          user_id: userId,
-          motivo: 'checkout via bot'
-        });
-        await telegramApi('sendMessage', { chat_id: from.id, text: '✅ Turno encerrado! Obrigado pelo trabalho.' });
-      } else {
-        await telegramApi('sendMessage', { chat_id: from.id, text: '⏱️ Ok! Lembraremos novamente em 30 minutos.' });
-      }
-      await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Registrado!' });
-      await telegramApi('editMessageReplyMarkup', { chat_id: from.id, message_id: callbackQuery.message?.message_id, reply_markup: { inline_keyboard: [] } });
-    } catch(e) {
-      await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Erro.', show_alert: true });
-    }
-    return;
-  }
-
   // ── Checkin reminder callbacks ──────────────────────────────────────────────
   if (data.startsWith('CHECKIN_APP:') || data.startsWith('CHECKIN_CAMINHO:') || data.startsWith('CHECKIN_CANCELAR:')) {
     const [tipo, refId] = data.split(':');
@@ -1325,7 +1097,6 @@ async function handleCallbackQuery(callbackQuery) {
     const [tipo, confirmacaoId] = data.split(':');
     const resposta = tipo.replace('CONF_', '');
     try {
-      console.log('[T60] confirmacaoId:', confirmacaoId, 'resposta:', resposta);
       const result = await callAppsScriptPost({
         evento: 'INTERNAL_CONFIRMAR_PRE_JORNADA',
         integration_secret: CFG.appsScriptSharedSecret,
@@ -1337,21 +1108,13 @@ async function handleCallbackQuery(callbackQuery) {
       if (tipo === 'CONF_NAO_VAI' || tipo === 'CONF_PRECISA_AJUDA') {
         await callAppsScriptPost({ evento: 'CANCELAR_SLOT_PRE_JORNADA', integration_secret: CFG.appsScriptSharedSecret, confirmacao_id: confirmacaoId }).catch(() => {});
       }
-      console.log('[T60] result:', JSON.stringify(result).substring(0,300));
-      // Processa integrações retornadas (mensagens de resposta)
+      // Processa integrações retornadas
       for (const integ of (result.integracoes || [])) {
         if (integ.tipo === 'TELEGRAM_MSG' && integ.telegram_user_id) {
           await telegramApi('sendMessage', { chat_id: integ.telegram_user_id, text: integ.texto, parse_mode: 'Markdown' });
         }
-        if (integ.tipo === 'TELEGRAM_GESTAO' && integ.cidade) {
-          const grupos = getCityGroups(integ.cidade);
-          if (grupos?.group_id) {
-            await telegramApi('sendMessage', { chat_id: grupos.group_id, text: `⚠️ Alerta: ${integ.alerta} — Promotor: ${integ.user_id}` });
-          }
-        }
       }
       await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Resposta registrada!' });
-      // Edita a mensagem original para não mostrar botões novamente
       await telegramApi('editMessageReplyMarkup', { chat_id: from.id, message_id: callbackQuery.message?.message_id, reply_markup: { inline_keyboard: [] } });
     } catch(e) {
       await telegramApi('answerCallbackQuery', { callback_query_id: callbackId, text: 'Erro ao registrar.', show_alert: true });

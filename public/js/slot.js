@@ -1,3 +1,11 @@
+// helper local
+function _fmtHora(v) {
+  if (!v) return '—';
+  const s = String(v);
+  if (/^\d{2}:\d{2}/.test(s)) return s.substring(0, 5);
+  try { return new Date(v).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}); } catch(_) { return '—'; }
+}
+
 const slotScreen = {
   async render() {
     document.getElementById('app').innerHTML = `
@@ -98,7 +106,7 @@ const slotScreen = {
             
             <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;border-top:1px solid rgba(255,255,255,0.05)">
               <div style="font-size:11px;color:#718096">📍 ${s.cidade || ''}</div>
-              <button onclick="slotScreen._aceitar('${s.slot_id}', this)" style="background:#4f8ef7;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Aceitar Vaga</button>
+              <button onclick="slotScreen._aceitar('${s.slot_id}', this)" data-inicio="${s.inicio}" style="background:#4f8ef7;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">Aceitar Vaga</button>
             </div>
           </div>`;
       });
@@ -116,13 +124,41 @@ const slotScreen = {
   },
 
   async _aceitar(slotId, btn) {
+    // Verificar atraso
+    const inicio = btn.getAttribute('data-inicio');
+    if (inicio) {
+      const iniParts = inicio.split(':');
+      const iniD = new Date(); iniD.setHours(parseInt(iniParts[0]), parseInt(iniParts[1]), 0, 0);
+      const atrasoMin = Math.floor((Date.now() - iniD.getTime()) / 60000);
+      if (atrasoMin > 5) {
+        if (!confirm('⚠️ Este slot começou há ' + atrasoMin + ' minutos.\n\nVocê irá fazer check-in com atraso. Deseja continuar?')) return;
+      }
+    }
+
     if (!confirm('Deseja aceitar esta vaga?')) return;
     btn.disabled = true; btn.textContent = '...';
     try {
       const res = await api.post({ evento: 'ACEITAR_SLOT', slot_id: slotId });
       if (res.ok) {
         ui.toast('✅ Vaga aceita!', 'success');
-        router.go('operacao');
+        state.saveJornada({ jornada_id: res.jornada_id, slot_id: slotId, status: 'ACEITO' });
+        
+        // Estiliza botão de aceito
+        btn.textContent = '✅ Aceita!';
+        btn.style.background = '#1e2a45';
+        btn.style.border = '1px solid #68d39144';
+        btn.style.color = '#68d391';
+        btn.disabled = true;
+
+        // Banner de ação rápida
+        const card = btn.closest('div[style*="border-radius:16px"]');
+        if (card) {
+          const banner = document.createElement('div');
+          banner.style.cssText = 'margin-top:12px;background:rgba(104,211,145,0.08);border:1px solid rgba(104,211,145,0.3);border-radius:12px;padding:12px;display:flex;justify-content:space-between;align-items:center;animation:fadeIn 0.3s ease';
+          banner.innerHTML = '<span style="font-size:13px;color:#68d391;font-weight:700">✅ Vaga confirmada!</span>'
+            + '<button onclick="router.go(\'operacao\')" style="background:#4f8ef7;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(79,142,247,0.3)">⚡ Iniciar Jornada</button>';
+          card.appendChild(banner);
+        }
       } else {
         alert(res.erro || 'Erro ao aceitar');
         btn.disabled = false; btn.textContent = 'Aceitar Vaga';
