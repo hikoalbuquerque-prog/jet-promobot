@@ -27,68 +27,6 @@ function _selecionarMotivo(titulo,msg){
 function _minutosAtraso(s){if(!s)return 0;var a=new Date(),p=String(s).substring(0,5).split(':'),b=new Date();b.setHours(parseInt(p[0]),parseInt(p[1]),0,0);return Math.floor((a-b)/60000);}
 function _minutosAntecipado(s){if(!s)return 0;var a=new Date(),p=String(s).substring(0,5).split(':'),b=new Date();b.setHours(parseInt(p[0]),parseInt(p[1]),0,0);return Math.floor((b-a)/60000);}
 
-// ── GPS ────────────────────────────────────────────────────────
-const gps = (() => {
-  let _watchId = null;
-  let _cbs = [];
-
-  function iniciar() {
-    if (!navigator.geolocation || _watchId !== null) return;
-    _watchId = navigator.geolocation.watchPosition(
-      pos => {
-        const g = { ok: true, lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, isMock: false };
-        state.patch('gps', g);
-        _cbs.forEach(fn => fn(g));
-      },
-      err => {
-        const g = { ok: false, erro: err.message };
-        state.patch('gps', g);
-        _cbs.forEach(fn => fn(g));
-      },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 12000 }
-    );
-  }
-
-  function parar() {
-    if (_watchId !== null) { navigator.geolocation.clearWatch(_watchId); _watchId = null; }
-    _cbs = [];
-  }
-
-  function onChange(fn) { _cbs.push(fn); return () => { _cbs = _cbs.filter(f => f !== fn); }; }
-
-  function distancia(lat1, lng1, lat2, lng2) {
-    const R = 6371000;
-    const d1 = lat1 * Math.PI / 180, d2 = lat2 * Math.PI / 180;
-    const dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(d1)*Math.cos(d2)*Math.sin(dLng/2)**2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  }
-
-  function trustScore({ accuracy, isMock }) {
-    let s = 100;
-    if (isMock) s -= 80;
-    if (accuracy > 500) s -= 40; else if (accuracy > 200) s -= 20; else if (accuracy > 100) s -= 10;
-    return Math.max(0, Math.min(100, s));
-  }
-
-  return { iniciar, parar, onChange, distancia, trustScore };
-})();
-
-// ── Timer ──────────────────────────────────────────────────────
-const timer = (() => {
-  let _acc = 0, _startTs = null, _interval = null, _cbs = [];
-
-  function iniciar()  { _startTs = Date.now(); _interval = setInterval(() => _cbs.forEach(fn => fn(segundos())), 1000); }
-  function pausar()   { _acc += Math.floor((Date.now() - _startTs) / 1000); _startTs = null; clearInterval(_interval); _interval = null; }
-  function retomar()  { _startTs = Date.now(); _interval = setInterval(() => _cbs.forEach(fn => fn(segundos())), 1000); }
-  function parar()    { if (_interval) { clearInterval(_interval); _interval = null; } _acc = 0; _startTs = null; }
-  function segundos() { return _acc + (_startTs ? Math.floor((Date.now() - _startTs) / 1000) : 0); }
-  function onTick(fn) { _cbs.push(fn); return () => { _cbs = _cbs.filter(f => f !== fn); }; }
-
-  function setAcc(v) { _acc = v; }
-  return { iniciar, pausar, retomar, parar, segundos, onTick, setAcc };
-})();
-
 // ── operacao (telas de checkin → pausa → resume → checkout) ───
 const operacao = {
 
@@ -354,25 +292,40 @@ const operacao = {
 
           ${ui.statusBadge('EM_ATIVIDADE')}
 
+          <div class="card" style="text-align:center;padding:24px 20px">
+            <div class="section-label" style="margin-bottom:8px">TEMPO ATIVO</div>
+            <div id="timer-display" style="font-size:48px;font-weight:800;color:var(--green);letter-spacing:-2px;line-height:1">00:00:00</div>
+          </div>
+
+          <div id="progress-wrap" style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2)">
+              <span>Progresso</span><span id="progress-pct">0%</span>
+            </div>
+            <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden">
+              <div id="progress-fill" style="height:100%;background:var(--green);width:0%;transition:width 1s linear;border-radius:2px"></div>
+            </div>
+          </div>
+
           <div class="card">
             <div class="info-row"><span class="info-label">Local</span><span class="info-value">${slot?.local || slot?.local_nome || '—'}</span></div>
             <div class="info-row"><span class="info-label">Check-in</span><span class="info-value" id="at-checkin">${ui.hora(jornada?.inicio_real)}</span></div>
             <div class="info-row"><span class="info-label">Término previsto</span><span class="info-value">${_fmtHora(slot?.fim)}</span></div>
+            <div class="info-row"><span class="info-label">Restante</span><span class="info-value" id="at-restante">—</span></div>
           </div>
 
           <div class="gps-indicator">
             <div class="gps-dot ok"></div>
-            <div style="flex:1"><div style="font-weight:600;font-size:13px">GPS Ativo</div><div id="gps-coords-at" style="font-size:11px;color:var(--text2)">—</div></div>
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:13px">Monitoramento Ativo</div>
+              <div id="gps-coords-at" style="font-size:11px;color:var(--text2)">—</div>
+            </div>
             <div id="gps-acc-at" style="font-size:11px;color:var(--text2)"></div>
           </div>
 
-          <div style="display:flex;gap:10px">
-            <button class="btn btn-warning" style="flex:1" onclick="router.go('pausa')">⏸ Pausar</button>
-            <button class="btn btn-ghost"   style="flex:1" onclick="solicitacoes.renderNova()">🔔 Solicitar</button>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <button class="btn btn-warning" onclick="router.go('pausa')">⏸ Pausar</button>
+            <button class="btn btn-danger" onclick="router.go('checkout')">🏁 Encerrar</button>
           </div>
-          <button class="btn btn-ghost" onclick="solicitacoes.renderRealocacao()">📍 Estou aqui — Atualizar localização</button>
-          <button class="btn btn-ghost" onclick="vendas.render()">📊 Registrar resultado</button>
-          <button class="btn btn-danger" onclick="router.go('checkout')">🏁 Encerrar jornada</button>
 
         </div>
       </div>
@@ -389,11 +342,49 @@ const operacao = {
     });
     state.set('_gpsUnsub', unsubGps);
 
+    // Iniciar timer
+    const diffCheckin = Math.floor((Date.now() - new Date(jornada.inicio_real).getTime()) / 1000);
+    timer.setAcc(diffCheckin);
+    timer.iniciar();
+
+    const unsubTimer = timer.onTick(s => {
+      const el = document.getElementById('timer-display');
+      if (el) el.textContent = ui.formatTimer(s);
+      operacao._atualizarProgress(s);
+    });
+    state.set('_timerUnsub', unsubTimer);
+
     const _jorn = state.loadJornada();
-    if (_jorn?.jornada_id) _heartbeatTimer.iniciar(_jorn.jornada_id);
+    if (_jorn?.jornada_id) heartbeat.iniciar(_jorn.jornada_id);
     
     let _avisoFimMostrado = false;
-    // O timer visual foi removido, mas mantemos o aviso de fim de slot via verificação pontual se necessário
+    const timerAviso = setInterval(() => {
+      if (!_avisoFimMostrado) {
+        const _slot = state.get('slot');
+        const _jorn = state.loadJornada();
+        if (_slot?.fim && _jorn?.inicio_real) {
+          const _fimParts = String(_slot.fim).substring(0,5).split(':');
+          const _fimD = new Date(_jorn.inicio_real);
+          _fimD.setHours(parseInt(_fimParts[0]), parseInt(_fimParts[1]), 0, 0);
+          if (_fimD < new Date(_jorn.inicio_real)) _fimD.setDate(_fimD.getDate()+1);
+          const _restMs = _fimD.getTime() - Date.now();
+          if (_restMs <= 0 && !document.getElementById('banner-fim-slot')) {
+            _avisoFimMostrado = true;
+            const banner = document.createElement('div');
+            banner.id = 'banner-fim-slot';
+            banner.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:398px;background:#1e2a45;border:1px solid rgba(241,196,15,.4);border-radius:14px;padding:16px;z-index:500;box-shadow:0 8px 32px rgba(0,0,0,.5)';
+            banner.innerHTML = '<div style="font-size:15px;font-weight:700;color:#f1c40f;margin-bottom:6px">⌛ Seu slot terminou às ' + String(_slot.fim).substring(0,5) + '</div>'
+              + '<div style="font-size:13px;color:#a0aec0;margin-bottom:14px">Você ainda está ativo. O que deseja fazer?</div>'
+              + '<div style="display:flex;gap:10px">'
+              + '<button onclick="document.getElementById(\'banner-fim-slot\').remove();router.go(\'checkout\')" style="flex:1;background:#e74c3c;color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer">🏁 Encerrar agora</button>'
+              + '<button onclick="document.getElementById(\'banner-fim-slot\').remove()" style="flex:1;background:rgba(241,196,15,.15);border:1px solid rgba(241,196,15,.3);color:#f1c40f;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer">⏰ Continuar</button>'
+              + '</div>';
+            document.body.appendChild(banner);
+          }
+        }
+      }
+    }, 10000);
+    state.set('_avisoFimInterval', timerAviso);
   },
 
   _atualizarProgress(s) {
@@ -586,7 +577,7 @@ const operacao = {
       const res = await api.post({ evento: excepcional ? 'CHECKOUT_EXCEPCIONAL' : 'CHECKOUT', ...payload });
       if (res.ok) {
         timer.parar();
-        _heartbeatTimer.parar();
+        heartbeat.parar();
         gps.parar();
         state.saveJornada({ ...jornada, status: 'ENCERRADO' });
         state.set('slot', null);
@@ -663,92 +654,6 @@ operacao._calcularDuracaoReal = function() {
 };
 
 // ── Heartbeat: GPS a cada 2min + BG Sync + WakeLock (Sessão 4)
-const _heartbeatTimer = (() => {
-  const INTERVAL_MS = 2 * 60 * 1000;
-  const SYNC_TAG    = 'jet-heartbeat';
-  let _interval = null, _wakeLock = null, _jornadaId = null;
-
-  function _salvarEstadoSW(jornadaId) {
-    const g = state.get('gps') || {};
-    const sw = navigator.serviceWorker && navigator.serviceWorker.controller;
-    if (!sw) return;
-    sw.postMessage({ type: 'SALVAR_HEARTBEAT_STATE', payload: {
-      token: state.get('token'),
-      gasUrl: (window.APP_CONFIG && window.APP_CONFIG.API_URL) + '/app/event',
-      jornada_id: jornadaId, lat: g.lat||null, lng: g.lng||null,
-      accuracy: g.accuracy||null, is_mock: g.isMock||false,
-    }});
-  }
-
-  function _limparEstadoSW() {
-    const sw = navigator.serviceWorker && navigator.serviceWorker.controller;
-    if (sw) sw.postMessage({ type: 'SALVAR_HEARTBEAT_STATE', payload: null });
-  }
-
-  async function _ping(jornadaId) {
-    let g = state.get('gps') || {};
-    try {
-      const pos = await new Promise((res, rej) =>
-        navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 })
-      );
-      g = { ok: true, lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, isMock: false };
-      state.patch('gps', g);
-    } catch(_) {}
-    _salvarEstadoSW(jornadaId);
-    try {
-      await api.post({ evento: 'HEARTBEAT', jornada_id: jornadaId,
-        lat: g.lat||null, lng: g.lng||null, accuracy: g.accuracy||null,
-        is_mock: g.isMock||false, horario_dispositivo: new Date().toISOString() });
-    } catch(_) {}
-  }
-
-  async function _adquirirWakeLock() {
-    if (!navigator.wakeLock) return;
-    try { _wakeLock = await navigator.wakeLock.request('screen');
-      _wakeLock.addEventListener('release', () => { _wakeLock = null; }); } catch(_) {}
-  }
-
-  function _liberarWakeLock() {
-    if (_wakeLock) { _wakeLock.release().catch(()=>{}); _wakeLock = null; }
-  }
-
-  async function _registrarBGSync() {
-    const reg = window.__swReg;
-    if (reg && 'sync' in reg) { try { await reg.sync.register(SYNC_TAG); } catch(_) {} }
-  }
-
-  function _onVisibility() {
-    if (document.hidden) {
-      clearInterval(_interval); _interval = null;
-      _liberarWakeLock(); _registrarBGSync();
-    } else { _iniciarTimer(_jornadaId); _adquirirWakeLock(); }
-  }
-
-  function _iniciarTimer(jornadaId) {
-    if (_interval) return;
-    _ping(jornadaId);
-    _interval = setInterval(() => _ping(jornadaId), INTERVAL_MS);
-  }
-
-  function iniciar(jornadaId) {
-    if (_jornadaId) return;
-    _jornadaId = jornadaId;
-    _salvarEstadoSW(jornadaId);
-    _iniciarTimer(jornadaId);
-    _adquirirWakeLock();
-    document.addEventListener('visibilitychange', _onVisibility);
-  }
-
-  function parar() {
-    if (_interval) { clearInterval(_interval); _interval = null; }
-    _liberarWakeLock(); _limparEstadoSW();
-    document.removeEventListener('visibilitychange', _onVisibility);
-    _jornadaId = null;
-  }
-
-  return { iniciar, parar };
-})();
-
 function _fmtHora(v) {
   if (!v) return '-';
   var s = String(v);

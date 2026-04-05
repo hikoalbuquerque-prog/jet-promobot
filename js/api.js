@@ -1,5 +1,4 @@
-const API_URL = (window.APP_CONFIG && window.APP_CONFIG.API_URL)
-  || 'https://promo-telegram-gateway-v3-476120210909.southamerica-east1.run.app';
+const API_URL = (window.APP_CONFIG && window.APP_CONFIG.API_URL) || '';
 
 async function _parseResponse(res) {
   const isJson = res.headers.get('content-type')?.includes('application/json');

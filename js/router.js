@@ -97,8 +97,8 @@ window.addEventListener('load', () => {
 
   // ── Service Worker (Sessão 4) ──────────────────────────────────────────
   if ('serviceWorker' in navigator) {
-    const swPath = location.pathname.startsWith('/jet-promobot') ? '/jet-promobot/sw.js' : '/sw.js';
-    navigator.serviceWorker.register(swPath, { updateViaCache: 'none', scope: location.pathname.startsWith('/jet-promobot') ? '/jet-promobot/' : '/' })
+    const swPath = '/sw.js';
+    navigator.serviceWorker.register(swPath, { updateViaCache: 'none', scope: '/' })
       .then((reg) => {
         window.__swReg = reg;
         reg.addEventListener('updatefound', () => {

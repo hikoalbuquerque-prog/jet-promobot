@@ -149,19 +149,8 @@ const turnoCLT = {
         ${_navBottom('turno-ativo')}
       </div>`;
 
-    // Heartbeat GPS a cada 60s
-    this._heartbeatCLT = setInterval(() => {
-      if (!navigator.geolocation) return;
-      navigator.geolocation.getCurrentPosition(pos => {
-        api.post({
-          evento: 'HEARTBEAT_CLT',
-          turno_id: turno.turno_id,
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-        }).catch(() => {});
-      }, () => {}, { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 });
-    }, 60000);
+    // Heartbeat GPS (Global + Background)
+    heartbeat.iniciar(turno.turno_id);
 
     // Timer
     if (turno.checkin_hora) {
@@ -177,27 +166,19 @@ const turnoCLT = {
   },
 
   _iniciarGPS() {
-    if (!navigator.geolocation) {
-      this._liberarCheckin(null);
-      return;
-    }
-    this._watchId = navigator.geolocation.watchPosition(
-      pos => {
-        const el = document.getElementById('gps-status-clt');
-        if (el) el.innerHTML = `<div style="width:10px;height:10px;border-radius:50%;background:#2ecc71"></div><span style="font-size:13px;color:#2ecc71">GPS ativo · ±${Math.round(pos.coords.accuracy)}m</span>`;
-        state.set('gps_clt', { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, ok: true });
-        // Verificar raio se CLT tiver zona configurada
-    const turno = state.get('turno_clt_ativo');
-    state.set('gps_clt', { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, ok: true });
-    this._liberarCheckin(pos);
-      },
-      () => {
-        const el = document.getElementById('gps-status-clt');
+    gps.iniciar();
+    const unsub = gps.onChange(g => {
+      const el = document.getElementById('gps-status-clt');
+      if (g.ok) {
+        if (el) el.innerHTML = `<div style="width:10px;height:10px;border-radius:50%;background:#2ecc71"></div><span style="font-size:13px;color:#2ecc71">GPS ativo · ±${Math.round(g.accuracy)}m</span>`;
+        state.set('gps_clt', g);
+        this._liberarCheckin(g);
+      } else {
         if (el) el.innerHTML = `<div style="width:10px;height:10px;border-radius:50%;background:#f1c40f"></div><span style="font-size:13px;color:#f1c40f">GPS indisponível — checkin sem localização</span>`;
         this._liberarCheckin(null);
-      },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 }
-    );
+      }
+    });
+    state.set('_gpsUnsubCLT', unsub);
 
     // Timeout 15s — liberar mesmo sem GPS
     setTimeout(() => {
@@ -289,6 +270,8 @@ const turnoCLT = {
       const res = await api.post({ evento: 'PAUSAR_TURNO_CLT', turno_id: turnoId });
       if (res.ok) {
         clearInterval(this._timer);
+        heartbeat.parar();
+        gps.parar();
         ui.toast('⏸️ Turno pausado', 'success');
         // Recarregar tela mostrando estado pausado
         const turno = state.get('turno_clt_ativo') || {};
@@ -355,6 +338,8 @@ const turnoCLT = {
       const res = await api.post(Object.assign({evento:'CHECKOUT_TURNO_CLT',turno_id:turnoId},_mchoclt||{}));
       if (res.ok) {
         clearInterval(this._timer);
+        heartbeat.parar();
+        gps.parar();
         state.set('turno_clt_ativo', null);
         const h = res.duracao_real_horas || 0;
         const extra = res.hora_extra || 0;
