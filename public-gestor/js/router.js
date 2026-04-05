@@ -18,13 +18,15 @@ const router = (() => {
     historicoMEI: { module: historicoMEIScreen,  method: 'render',     hasNav: true,  navId: 'nav-hist-mei' },
     cadastros:    { module: cadastrosScreen,     method: 'render',     hasNav: true,  navId: 'nav-cadastros' },
     broadcast:    { module: broadcast,           method: 'render',     hasNav: true,  navId: 'nav-broadcast' },
+    equipes:      { module: equipesScreen,       method: 'render',     hasNav: true,  navId: 'nav-equipes'   },
   };
 
   // Configuração de Permissões (RBAC)
   const _PERMISSIONS = {
     FISCAL: ['mapa', 'slots', 'dashboard'], // Fiscais só veem operacional básico
-    LIDER:  ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI'],
-    GESTOR: Object.keys(_screens) // Gestor vê tudo
+    LIDER:  ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'equipes'],
+    GESTOR: ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'cadastros', 'broadcast', 'equipes'], // Gestor vê tudo
+    REGIONAL: ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'cadastros', 'broadcast', 'equipes']
   };
 
   let _alertInterval = null;
@@ -214,6 +216,9 @@ const router = (() => {
             </button>
             <button class="nav-item" id="nav-broadcast" data-route="broadcast">
               📢 Broadcast
+            </button>
+            <button class="nav-item" id="nav-equipes" data-route="equipes">
+              👥 Equipes
             </button>
           </nav>
 

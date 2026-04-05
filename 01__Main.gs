@@ -49,6 +49,7 @@ function doGet(e) {
       case 'GET_BROADCAST_FILTERS':   return jsonResp_(getBroadcastFilters_());
       case 'GET_PROMOTORES_SEM_SLOT': return jsonResp_(getPromotoresSemSlot_(token, params));
       case 'GET_RANKING_SEMANAL':     return jsonResp_(getRankings_(user, params.periodo || 'SEMANAL'));
+      case 'GET_EXTRATO_SCORE':       return jsonResp_(getMeuExtratoScore_(user.user_id));
       case 'GET_BADGES':              return jsonResp_(getBadges_(user.user_id));
       case 'GET_ACADEMY_TRILHA':      return jsonResp_(getAcademyTrilha_(user));
       case 'GET_ACADEMY_MODULO':      return jsonResp_(getAcademyModulo_(params, user));
@@ -73,6 +74,8 @@ function doGet(e) {
       case 'GET_HISTORICO_JORNADAS_GESTOR': return jsonResp_(getHistoricoJornadasGestor_(token, params));
       case 'GET_ESCALA_DRAFTS':             return jsonResp_(getEscalaDrafts_(token));
       case 'GET_CADASTROS_PENDENTES':       return jsonResp_(getCadastrosPendentes_(token));
+      case 'GET_EQUIPES':                   return jsonResp_(getEquipes_(token));
+      case 'GET_PROMOTORES_LISTA':          return jsonResp_(getPromotoresLista_(token));
       case 'REPLICAR_ESCALA':               return jsonResp_(replicarEscala_(token, params));
       case 'REPLICAR_SEMANA':               return jsonResp_(replicarSemana_(token, params));
 
@@ -360,4 +363,5 @@ function rowToObj_(headers, row) {
   const obj = {};
   headers.forEach((h, i) => { obj[h] = row[i]; });
   return obj;
+}turn obj;
 }

@@ -408,7 +408,12 @@ function getKpisDia_(token) {
     const sData=sWs.getDataRange().getValues(), sh=sData[0].map(v=>String(v).toLowerCase().trim()), iStt=sh.indexOf('status');
     for (let r=1;r<sData.length;r++) { if(String(sData[r][iStt]).trim()==='ABERTA') solicitacoes_abertas++; }
   }
-  return{ok:true,data:{promotores_ativos,em_operacao,slots_ocupados,slots_disponiveis,checkins_hoje,solicitacoes_abertas}};
+  const performance_equipes = (resRankings.equipes || []).map(eq => ({
+    nome: eq.nome,
+    pontos: eq.pontos
+  }));
+
+  return{ok:true,data:{promotores_ativos,em_operacao,slots_ocupados,slots_disponiveis,checkins_hoje,solicitacoes_abertas,performance_equipes}};
 }
 
 function getHistoricoLocalizacao_(token,params) {
@@ -466,10 +471,15 @@ function excluirEscalaDraft_(token,params) {
 }
 
 function getHistoricoJornadasGestor_(token, params) {
-  _assertGestor_(token);
+  const adminUser = _assertGestor_(token);
   const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws = ss.getSheetByName('JORNADAS'), data = ws.getDataRange().getValues(), h = data[0].map(v => String(v).toLowerCase().trim()), promMap = _getPromotoresMap_(ss), slotsMap = _getSlotsMap_(ss);
+  const allowedUsers = _getUsersDaHierarquia_(ss, adminUser);
   const de = params.de ? new Date(params.de) : new Date(Date.now() - 30*86400000), ate = params.ate ? new Date(params.ate + 'T23:59:59') : new Date(), resultado = [];
+  const iUsr = h.indexOf('user_id');
   for (let r = 1; r < data.length; r++) {
+    const userId = String(data[r][iUsr]).trim();
+    if (allowedUsers && !allowedUsers.has(userId)) continue;
+
     const row = rowToObj_(h, data[r]); if (!row.criado_em) continue;
     const d = new Date(row.criado_em); if (d < de || d > ate) continue;
     const prom = promMap[row.user_id] || {}, slot = slotsMap[row.slot_id] || {};
@@ -709,4 +719,134 @@ function broadcastPromotor_(body) {
   }
 
   return { ok: true, enviados };
+}
+
+// ============================================================
+//  Gestão de Equipes (Hierarquia)
+// ============================================================
+
+function getEquipes_(token) {
+  const adminUser = _assertGestor_(token);
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  
+  const wsEq = ss.getSheetByName('EQUIPE');
+  const wsMem = ss.getSheetByName('EQUIPE_MEMBROS');
+  
+  const equipes = [];
+  const membros = [];
+
+  if (wsEq) {
+    const dataEq = wsEq.getDataRange().getValues();
+    const hEq = dataEq[0].map(v => String(v).toLowerCase().trim());
+    for (let r = 1; r < dataEq.length; r++) {
+      equipes.push(rowToObj_(hEq, dataEq[r]));
+    }
+  }
+
+  if (wsMem) {
+    const dataMem = wsMem.getDataRange().getValues();
+    const hMem = dataMem[0].map(v => String(v).toLowerCase().trim());
+    for (let r = 1; r < dataMem.length; r++) {
+      membros.push(rowToObj_(hMem, dataMem[r]));
+    }
+  }
+
+  return { ok: true, equipes, membros };
+}
+
+function getPromotoresLista_(token) {
+  const adminUser = _assertGestor_(token);
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const promMap = _getPromotoresMap_(ss);
+  
+  const lista = Object.values(promMap).map(p => ({
+    user_id: p.user_id,
+    nome: p.nome,
+    cidade: p.cidade_base || p.cidade || ''
+  }));
+  
+  return { ok: true, lista };
+}
+
+function salvarEquipe_(token, body) {
+  const adminUser = _assertGestor_(token);
+  // Apenas Gestor ou Regional pode criar equipe, LIDER não deveria poder.
+  if ((adminUser.tipo_vinculo || '').toUpperCase() === 'LIDER') {
+    return { ok: false, erro: 'Líder não pode criar ou editar equipes.' };
+  }
+
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  let wsEq = ss.getSheetByName('EQUIPE');
+  let wsMem = ss.getSheetByName('EQUIPE_MEMBROS');
+
+  if (!wsEq || !wsMem) return { ok: false, erro: 'Abas de equipe não configuradas no sistema.' };
+
+  const agora = new Date().toISOString();
+  let equipeId = body.equipe_id;
+
+  const dataEq = wsEq.getDataRange().getValues();
+  const hEq = dataEq[0].map(v => String(v).toLowerCase().trim());
+  const iId = hEq.indexOf('equipe_id');
+
+  if (equipeId) {
+    // Editar
+    for (let r = 1; r < dataEq.length; r++) {
+      if (String(dataEq[r][iId]).trim() === equipeId) {
+        if (hEq.indexOf('gestor_id') > -1) wsEq.getRange(r+1, hEq.indexOf('gestor_id')+1).setValue(body.gestor_id || '');
+        if (hEq.indexOf('regional_id') > -1) wsEq.getRange(r+1, hEq.indexOf('regional_id')+1).setValue(body.regional_id || '');
+        if (hEq.indexOf('cidade') > -1) wsEq.getRange(r+1, hEq.indexOf('cidade')+1).setValue(body.cidade || '');
+        if (hEq.indexOf('operacao') > -1) wsEq.getRange(r+1, hEq.indexOf('operacao')+1).setValue(body.operacao || '');
+        if (hEq.indexOf('nome_equipe') > -1) wsEq.getRange(r+1, hEq.indexOf('nome_equipe')+1).setValue(body.nome_equipe || '');
+        if (hEq.indexOf('ativo') > -1) wsEq.getRange(r+1, hEq.indexOf('ativo')+1).setValue(body.ativo !== false ? 'TRUE' : 'FALSE');
+        break;
+      }
+    }
+  } else {
+    // Nova equipe
+    equipeId = gerarId_('EQP');
+    const newRow = hEq.map(col => {
+      if (col === 'equipe_id') return equipeId;
+      if (col === 'gestor_id') return body.gestor_id || adminUser.user_id;
+      if (col === 'regional_id') return body.regional_id || '';
+      if (col === 'cidade') return body.cidade || '';
+      if (col === 'operacao') return body.operacao || '';
+      if (col === 'nome_equipe') return body.nome_equipe || '';
+      if (col === 'ativo') return 'TRUE';
+      if (col === 'criado_em') return agora;
+      return '';
+    });
+    wsEq.appendRow(newRow);
+  }
+
+  // Atualizar membros
+  if (Array.isArray(body.membros)) {
+    const dataMem = wsMem.getDataRange().getValues();
+    const hMem = dataMem[0].map(v => String(v).toLowerCase().trim());
+    const mEqId = hMem.indexOf('equipe_id');
+    const mUsrId = hMem.indexOf('user_id');
+
+    // Desativar ou remover antigos
+    for (let r = 1; r < dataMem.length; r++) {
+      if (String(dataMem[r][mEqId]).trim() === equipeId) {
+        // Para simplificar, exclui ou marca inativo
+        const idxAtivo = hMem.indexOf('ativo');
+        if (idxAtivo > -1) wsMem.getRange(r+1, idxAtivo+1).setValue('FALSE');
+      }
+    }
+
+    // Adicionar novos
+    body.membros.forEach(m => {
+      const newRow = hMem.map(col => {
+        if (col === 'equipe_id') return equipeId;
+        if (col === 'user_id') return m.user_id;
+        if (col === 'papel_na_equipe') return m.papel_na_equipe || 'PROMOTOR';
+        if (col === 'ativo') return 'TRUE';
+        if (col === 'adicionado_em') return agora;
+        return '';
+      });
+      wsMem.appendRow(newRow);
+    });
+  }
+
+  return { ok: true, equipe_id: equipeId };
 }

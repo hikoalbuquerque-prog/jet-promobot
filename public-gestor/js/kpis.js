@@ -51,6 +51,11 @@ const kpisScreen = (() => {
         <div id="kpi-promotores-lista" class="promotor-list">
           <div style="grid-column:1/-1;padding:40px;text-align:center;color:#4a5568">Carregando lista...</div>
         </div>
+
+        <div class="section-title">Performance por Equipe (Semanal)</div>
+        <div id="kpi-equipes-chart" style="background:#0d1526;border:1px solid rgba(255,255,255,0.05);border-radius:12px;padding:24px;margin-top:12px">
+          <div style="text-align:center;color:#4a5568;padding:20px">Carregando comparativo...</div>
+        </div>
       </section>
     `;
 
@@ -79,6 +84,7 @@ const kpisScreen = (() => {
 
       _renderCards(kpis);
       _renderPromotores(promotores);
+      _renderEquipesChart(kpis.performance_equipes || []);
 
       const now = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
       const el = document.getElementById('kpi-updated');
@@ -167,6 +173,37 @@ const kpisScreen = (() => {
         </div>
       `;
     }).join('');
+  }
+
+  function _renderEquipesChart(equipes) {
+    const el = document.getElementById('kpi-equipes-chart');
+    if (!el) return;
+
+    if (!equipes.length) {
+      el.innerHTML = '<div style="text-align:center;color:#4a5568">Sem dados de equipes para o período.</div>';
+      return;
+    }
+
+    const maxPts = Math.max(...equipes.map(e => e.pontos), 1);
+    
+    el.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:16px">
+        ${equipes.map(eq => {
+          const perc = (eq.pontos / maxPts) * 100;
+          return `
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600">
+                <span style="color:#fff">${eq.nome}</span>
+                <span style="color:#63b3ed">${eq.pontos} pts</span>
+              </div>
+              <div style="height:8px;background:rgba(255,255,255,0.05);border-radius:4px;overflow:hidden">
+                <div style="height:100%;width:${perc}%;background:linear-gradient(90deg, #63b3ed, #4299e1);border-radius:4px;transition:width 1s ease-out"></div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
   }
 
   function _statusBadge(status) {
