@@ -1,7 +1,7 @@
 const mapaScreen = (() => {
-  let _map = null, _interval = null, _layerSlots = null, _layerPromotores = null, _layerRaios = null, _layerRota = null;
+  let _map = null, _interval = null, _layerSlots = null, _layerPromotores = null, _layerRaios = null, _layerRota = null, _layerHeat = null;
   let _todosSlots = [], _todosPromotores = [], _stats = {}, _dataFiltroAtual = new Date().toLocaleDateString('en-CA');
-  const _visible = { promotores: true, slots: true, raios: false };
+  const _visible = { promotores: true, slots: true, raios: false, heatmap: false };
 
   function render() {
     const app = document.getElementById('app');
@@ -43,6 +43,7 @@ const mapaScreen = (() => {
             <button class="filter-btn active" id="toggle-slots" onclick="mapaScreen._toggleLayer('slots')">📍 Slots</button>
             <button class="filter-btn active" id="toggle-promotores" onclick="mapaScreen._toggleLayer('promotores')">👤 Promotores</button>
             <button class="filter-btn" id="toggle-raios" onclick="mapaScreen._toggleLayer('raios')">⭕ Raios</button>
+            <button class="filter-btn" id="toggle-heatmap" onclick="mapaScreen._toggleLayer('heatmap')">🔥 Heatmap</button>
           </div>
           
           <div style="width:1px;height:20px;background:rgba(255,255,255,0.1)"></div>
@@ -117,6 +118,7 @@ const mapaScreen = (() => {
     _layerPromotores = L.layerGroup().addTo(_map);
     _layerRaios = L.layerGroup();
     _layerRota = L.layerGroup().addTo(_map);
+    _layerHeat = L.heatLayer([], { radius: 25, blur: 15, maxZoom: 17 });
   }
 
   async function _load() {
@@ -133,6 +135,7 @@ const mapaScreen = (() => {
       _atualizarFiltroCidades();
       _renderSlots(_aplicarFiltrosLocais(_todosSlots));
       _renderPromotores(_aplicarFiltrosPromotores(_todosPromotores));
+      _renderHeatmap(_aplicarFiltrosPromotores(_todosPromotores));
       _renderListaLateral(_aplicarFiltrosPromotores(_todosPromotores));
       
       const ts = document.getElementById('mapa-ts');
@@ -230,6 +233,18 @@ const mapaScreen = (() => {
       });
       L.marker([p.lat, p.lng], { icon }).addTo(_layerPromotores).on('click', () => _showPromotorPanel(p));
     });
+  }
+
+  function _renderHeatmap(proms) {
+    if (!_layerHeat) return;
+    if (!_visible.heatmap) {
+      _map.removeLayer(_layerHeat);
+      return;
+    }
+    
+    const heatData = proms.map(p => [p.lat, p.lng, 0.5]); // Intensidade fixa de 0.5 por promotor
+    _layerHeat.setLatLngs(heatData);
+    _layerHeat.addTo(_map);
   }
 
   function _renderListaLateral(proms) {

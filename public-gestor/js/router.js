@@ -19,14 +19,15 @@ const router = (() => {
     cadastros:    { module: cadastrosScreen,     method: 'render',     hasNav: true,  navId: 'nav-cadastros' },
     broadcast:    { module: broadcast,           method: 'render',     hasNav: true,  navId: 'nav-broadcast' },
     equipes:      { module: equipesScreen,       method: 'render',     hasNav: true,  navId: 'nav-equipes'   },
+    relatorios:   { module: relatoriosScreen,    method: 'render',     hasNav: true,  navId: 'nav-relatorios' },
   };
 
   // Configuração de Permissões (RBAC)
   const _PERMISSIONS = {
     FISCAL: ['mapa', 'slots', 'dashboard'], // Fiscais só veem operacional básico
     LIDER:  ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'equipes'],
-    GESTOR: ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'cadastros', 'broadcast', 'equipes'], // Gestor vê tudo
-    REGIONAL: ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'cadastros', 'broadcast', 'equipes']
+    GESTOR: ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'cadastros', 'broadcast', 'equipes', 'relatorios'], // Gestor vê tudo
+    REGIONAL: ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'cadastros', 'broadcast', 'equipes', 'relatorios']
   };
 
   let _alertInterval = null;
@@ -219,6 +220,9 @@ const router = (() => {
             </button>
             <button class="nav-item" id="nav-equipes" data-route="equipes">
               👥 Equipes
+            </button>
+            <button class="nav-item" id="nav-relatorios" data-route="relatorios">
+              📄 Relatórios
             </button>
           </nav>
 

@@ -850,3 +850,51 @@ function salvarEquipe_(token, body) {
 
   return { ok: true, equipe_id: equipeId };
 }
+
+function getRelatorioExport_(token, params) {
+  const adminUser = _assertGestor_(token);
+  const { tipo, de, ate, periodo } = params;
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  
+  let csv = "";
+  
+  if (tipo === 'JORNADAS') {
+    const ws = ss.getSheetByName('JORNADAS');
+    const data = ws.getDataRange().getValues();
+    const h = data[0];
+    const filtered = [h];
+    const iCri = h.map(v => String(v).toLowerCase()).indexOf('criado_em');
+    const start = de ? new Date(de) : new Date(0);
+    const end = ate ? new Date(ate + 'T23:59:59') : new Date();
+
+    for (let r=1; r<data.length; r++) {
+      const dt = new Date(data[r][iCri]);
+      if (dt >= start && dt <= end) filtered.push(data[r]);
+    }
+    csv = _arrayToCSV(filtered);
+  } 
+  else if (tipo === 'SCORE') {
+    const res = getRankings_(null, periodo || 'GERAL');
+    const rows = [["Posicao", "User ID", "Nome", "Pontos", "Cidade"]];
+    (res.nacional || []).forEach(p => rows.push([p.posicao, p.user_id, p.nome, p.pontos, p.cidade]));
+    csv = _arrayToCSV(rows);
+  }
+  else if (tipo === 'FRAUDES') {
+    const ws = ss.getSheetByName('JORNADAS');
+    const data = ws.getDataRange().getValues(), h = data[0].map(v => String(v).toLowerCase().trim());
+    const iScore = h.indexOf('location_trust_score'), iUsr = h.indexOf('user_id'), iCri = h.indexOf('criado_em'), iDev = h.indexOf('device_id');
+    const rows = [["Data", "User ID", "Score Confianca", "Device ID"]];
+    for (let r=1; r<data.length; r++) {
+      if (parseFloat(data[r][iScore]) < 60) {
+        rows.push([data[r][iCri], data[r][iUsr], data[r][iScore], data[r][iDev]]);
+      }
+    }
+    csv = _arrayToCSV(rows);
+  }
+
+  return { ok: true, csv };
+}
+
+function _arrayToCSV(arr) {
+  return arr.map(row => row.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join("\n");
+}

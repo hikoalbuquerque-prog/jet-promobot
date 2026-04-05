@@ -76,6 +76,7 @@ function doGet(e) {
       case 'GET_CADASTROS_PENDENTES':       return jsonResp_(getCadastrosPendentes_(token));
       case 'GET_EQUIPES':                   return jsonResp_(getEquipes_(token));
       case 'GET_PROMOTORES_LISTA':          return jsonResp_(getPromotoresLista_(token));
+      case 'GET_RELATORIO_EXPORT':          return jsonResp_(getRelatorioExport_(token, params));
       case 'REPLICAR_ESCALA':               return jsonResp_(replicarEscala_(token, params));
       case 'REPLICAR_SEMANA':               return jsonResp_(replicarSemana_(token, params));
 
