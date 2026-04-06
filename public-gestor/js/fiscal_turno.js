@@ -28,6 +28,13 @@ const fiscalTurnoScreen = (() => {
         <div style="padding:4px 0 16px">
           ${avisoFolga}
           <div id="ft-conteudo"><div class="list-empty">Carregando...</div></div>
+          
+          <div id="ft-roteiro" style="margin-top:24px;display:none">
+            <div style="font-size:12px;font-weight:700;color:#63b3ed;letter-spacing:1px;margin-bottom:12px;text-transform:uppercase">📍 Roteiro de Visitas (Hoje)</div>
+            <div id="ft-roteiro-lista" style="display:flex;flex-direction:column;gap:10px">
+              <div style="text-align:center;color:#4a5568;font-size:12px;padding:20px">Buscando locais...</div>
+            </div>
+          </div>
         </div>
       </section>`;
 
@@ -109,6 +116,10 @@ const fiscalTurnoScreen = (() => {
       </div>
       <button onclick="fiscalTurnoScreen._abrirSolicitacao()" style="width:100%;background:rgba(99,179,237,.08);border:1px solid rgba(99,179,237,.15);color:#63b3ed;border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:10px">🔔 Solicitar suporte</button>
       <button onclick="fiscalTurnoScreen._encerrar()" style="width:100%;background:rgba(252,129,129,.1);border:1px solid rgba(252,129,129,.3);color:#fc8181;border-radius:8px;padding:12px;font-size:14px;font-weight:700;cursor:pointer">🏁 Encerrar turno</button>`;
+
+    const rot = document.getElementById('ft-roteiro');
+    if (rot) rot.style.display = 'block';
+    _carregarRoteiro();
 
     _iniciarTimer();
     _iniciarHeartbeat();
@@ -324,6 +335,37 @@ const fiscalTurnoScreen = (() => {
     if (_timer)    { clearInterval(_timer); _timer = null; }
     if (_heartbeat){ clearInterval(_heartbeat); _heartbeat = null; }
     if (_watchId !== null) { navigator.geolocation.clearWatch(_watchId); _watchId = null; }
+  }
+
+  async function _carregarRoteiro() {
+    const lista = document.getElementById('ft-roteiro-lista');
+    if (!lista) return;
+
+    try {
+      const res = await api.getSlotsHoje();
+      const slots = res.data || [];
+      // Filtrar slots ocupados (que tem gente para fiscalizar)
+      const ativos = slots.filter(s => s.vagas_ocupadas > 0);
+
+      if (ativos.length === 0) {
+        lista.innerHTML = '<div style="text-align:center;color:#4a5568;font-size:12px;padding:20px">Nenhum ponto com promotores ativos no momento.</div>';
+        return;
+      }
+
+      lista.innerHTML = ativos.map(s => `
+        <div class="card" style="padding:12px;display:flex;justify-content:space-between;align-items:center;border-left:4px solid ${s.problemas?.length > 0 ? '#fc8181' : '#4f8ef7'}">
+          <div>
+            <div style="font-size:13px;font-weight:700">${s.nome}</div>
+            <div style="font-size:11px;color:#718096">${s.inicio_slot} – ${s.fim_slot} | ${s.vagas_ocupadas} promotor(es)</div>
+            ${s.problemas?.length > 0 ? `<div style="font-size:10px;color:#fc8181;margin-top:4px;font-weight:700">⚠️ ${s.problemas.join(', ')}</div>` : ''}
+          </div>
+          <button class="btn-success" style="padding:6px 10px;font-size:11px" onclick="router.navigate('mapa'); setTimeout(() => mapaScreen._focarLocal('${s.lat}', '${s.lng}'), 500)">📍 Mapa</button>
+        </div>
+      `).join('');
+
+    } catch(e) {
+      lista.innerHTML = '<div style="text-align:center;color:#fc8181;font-size:11px">Erro ao carregar roteiro.</div>';
+    }
   }
 
   // Expor _fazerCheckin para o botao inline
