@@ -48,7 +48,11 @@ const homeScreenCLT = {
         return;
       }
       const cores = { PLANEJADO:'#4f8ef7', ESCALADO:'#4f8ef7', CONFIRMADO:'#2ecc71', EM_ANDAMENTO:'#f1c40f', ENCERRADO:'#6c7a8d' };
-      const hoje = new Date().toISOString().split('T')[0];
+      
+      // Ajuste de data local (GMT-3) para comparação precisa
+      const hojeDate = new Date();
+      const hoje = hojeDate.toLocaleDateString('en-CA'); // Retorna yyyy-mm-dd na zona local
+      
       el.innerHTML = turnos.map(function(t) {
         var cor   = cores[t.status] || '#6c7a8d';
         var eHoje = t.data === hoje;
@@ -56,19 +60,30 @@ const homeScreenCLT = {
         var dataStr = _fmtDataCLTPwa(t.data);
         var ini = _fmtHoraCLTPwa(t.inicio);
         var fim = _fmtHoraCLTPwa(t.fim);
-        var html = '<div style="background:#1e2a45;border:1px solid ' + (eHoje ? '#4f8ef744' : '#2a3a55') + ';border-radius:14px;padding:16px;margin-bottom:10px' + (ativo ? ';border-left:3px solid #f1c40f' : '') + '">';
+        
+        // Determinar ação do clique no CARD
+        let acaoClique = "";
+        if (eHoje) {
+          if (t.status === 'CONFIRMADO' || ativo) acaoClique = "router.go('turno-ativo')";
+          else if (t.status === 'PLANEJADO' || t.status === 'ESCALADO') acaoClique = `homeScreenCLT._confirmarPresenca('${t.turno_id}')`;
+        }
+
+        var html = '<div onclick="' + acaoClique + '" style="background:#1e2a45;border:1px solid ' + (eHoje ? '#4f8ef744' : '#2a3a55') + ';border-radius:14px;padding:16px;margin-bottom:10px;cursor:pointer;position:relative' + (ativo ? ';border-left:4px solid #f1c40f' : '') + '">';
+        
         html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:700">' + dataStr + '</div>';
         html += '<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;background:' + cor + '22;color:' + cor + ';border:1px solid ' + cor + '44">' + t.status + '</span></div>';
+        
         html += '<div style="font-size:15px;font-weight:600;margin-bottom:4px">&#x23F0; ' + ini + ' - ' + fim + '</div>';
         html += '<div style="font-size:12px;color:#a0aec0">' + (t.zona_nome || '') + '</div>';
+        
         if (eHoje && (t.status === 'ESCALADO' || t.status === 'PLANEJADO')) {
-          html += '<button onclick="homeScreenCLT._confirmarPresenca(\'' + t.turno_id + '\')" style="width:100%;margin-top:12px;padding:10px;background:#4f8ef722;border:1px solid #4f8ef744;border-radius:10px;color:#4f8ef7;font-size:13px;font-weight:700;cursor:pointer">Confirmar presenca</button>';
+          html += '<div style="width:100%;margin-top:12px;padding:12px;background:#4f8ef7;border-radius:10px;color:#fff;font-size:14px;font-weight:700;text-align:center">Confirmar presença</div>';
         }
         if (eHoje && t.status === 'CONFIRMADO') {
-          html += '<button onclick="router.go(\'turno-ativo\')" style="width:100%;margin-top:12px;padding:10px;background:#2ecc7122;border:1px solid #2ecc7144;border-radius:10px;color:#2ecc71;font-size:13px;font-weight:700;cursor:pointer">▶️ Iniciar turno</button>';
+          html += '<div style="width:100%;margin-top:12px;padding:12px;background:#2ecc71;border-radius:10px;color:#fff;font-size:14px;font-weight:700;text-align:center">▶️ Iniciar turno</div>';
         }
         if (ativo) {
-          html += '<button onclick="router.go(\'turno-ativo\')" style="width:100%;margin-top:12px;padding:10px;background:#f1c40f22;border:1px solid #f1c40f44;border-radius:10px;color:#f1c40f;font-size:13px;font-weight:700;cursor:pointer">Abrir turno ativo</button>';
+          html += '<div style="width:100%;margin-top:12px;padding:12px;background:rgba(241,196,15,0.2);border:1px solid #f1c40f;border-radius:10px;color:#f1c40f;font-size:14px;font-weight:700;text-align:center">Abrir turno ativo</div>';
         }
         html += '</div>';
         return html;
