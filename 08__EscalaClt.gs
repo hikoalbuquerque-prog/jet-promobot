@@ -79,17 +79,56 @@ function _calcHorasTurnoCLT_(inicio,fim){var i=_horaParaMinutosCLT_(inicio),f=_h
 
 function _semanaInicioCLT_(data_iso){var d=new Date(data_iso+'T12:00:00'),dia=d.getDay(),diff=dia===0?-6:1-dia;d.setDate(d.getDate()+diff);return d.toISOString().substring(0,10);}
 
-function _isFolgaCLT_(perfil,regras,data_iso){
-  var d=new Date(data_iso+'T12:00:00'),diaSemana=d.getDay();
-  if(!isNaN(perfil.folga_semanal_dia)&&diaSemana===perfil.folga_semanal_dia) return{folga:true,motivo:'Folga semanal fixa'};
-  var regrasC=regras[perfil.cargo_clt]||[];
-  for(var i=0;i<regrasC.length;i++){
-    var r=regrasC[i];
-    if(r.tipo==='FIXO_SEMANAL'&&diaSemana===r.dia_semana) return{folga:true,motivo:'Folga semanal por cargo'};
-    if(r.tipo==='MOVEL_MES'&&diaSemana===r.dia_semana){var mes=d.getMonth(),ano=d.getFullYear(),oc=0;for(var day=1;day<=d.getDate();day++){if(new Date(ano,mes,day).getDay()===r.dia_semana)oc++;}if(oc===r.n_ocorrencia)return{folga:true,motivo:'Folga movel'};}
-    if(r.tipo==='CICLO_DIAS'&&r.ciclo_trabalho>0){var epoch=Math.floor(new Date(data_iso).getTime()/86400000),ciclo=r.ciclo_trabalho+r.ciclo_folga;if(ciclo>0&&(epoch%ciclo)>=r.ciclo_trabalho)return{folga:true,motivo:'Folga por ciclo'};}
+function _getFolgasMap_(ss, data_iso) {
+  const ws = ss.getSheetByName('FOLGAS');
+  if (!ws) return {};
+  const data = ws.getDataRange().getValues(), h = data[0].map(v => String(v).toLowerCase().trim());
+  const iUsr = h.indexOf('user_id'), iIni = h.indexOf('data_inicio'), iFim = h.indexOf('data_fim'), iStt = h.indexOf('status');
+  const targetDate = new Date(data_iso + 'T12:00:00');
+  const map = {};
+
+  for (let r = 1; r < data.length; r++) {
+    const status = String(data[r][iStt]).toUpperCase();
+    if (status !== 'APROVADO') continue;
+
+    const uId = String(data[r][iUsr]).trim();
+    const dIni = new Date(data[r][iIni]);
+    const dFim = new Date(data[r][iFim]);
+
+    if (targetDate >= dIni && targetDate <= dFim) {
+      map[uId] = String(data[r][h.indexOf('tipo')] || 'Folga');
+    }
   }
-  return{folga:false,motivo:''};
+  return map;
+}
+
+function _isFolgaCLT_(perfil, regras, data_iso, folgasMap) {
+  var d = new Date(data_iso + 'T12:00:00'), diaSemana = d.getDay();
+  
+  // 1. Verificar Folgas Pontuais (Aba FOLGAS)
+  if (folgasMap && folgasMap[perfil.user_id]) {
+    return { folga: true, motivo: folgasMap[perfil.user_id] };
+  }
+
+  // 2. Verificar Folga Semanal Fixa do Perfil
+  if (!isNaN(perfil.folga_semanal_dia) && diaSemana === perfil.folga_semanal_dia) return { folga: true, motivo: 'Folga semanal fixa' };
+  
+  // 3. Verificar Regras por Cargo
+  var regrasC = regras[perfil.cargo_clt] || [];
+  for (var i = 0; i < regrasC.length; i++) {
+    var r = regrasC[i];
+    if (r.tipo === 'FIXO_SEMANAL' && diaSemana === r.dia_semana) return { folga: true, motivo: 'Folga semanal por cargo' };
+    if (r.tipo === 'MOVEL_MES' && diaSemana === r.dia_semana) {
+      var mes = d.getMonth(), ano = d.getFullYear(), oc = 0;
+      for (var day = 1; day <= d.getDate(); day++) { if (new Date(ano, mes, day).getDay() === r.dia_semana) oc++; }
+      if (oc === r.n_ocorrencia) return { folga: true, motivo: 'Folga movel' };
+    }
+    if (r.tipo === 'CICLO_DIAS' && r.ciclo_trabalho > 0) {
+      var epoch = Math.floor(new Date(data_iso).getTime() / 86400000), ciclo = r.ciclo_trabalho + r.ciclo_folga;
+      if (ciclo > 0 && (epoch % ciclo) >= r.ciclo_trabalho) return { folga: true, motivo: 'Folga por ciclo' };
+    }
+  }
+  return { folga: false, motivo: '' };
 }
 
 function _temConflitoCLT_(turnosDia,userId,inicio,fim){
@@ -105,13 +144,14 @@ function getSugestoesEscala_(token,params){
   if(!data_iso||!inicio||!fim) throw new Error('data, inicio e fim obrigatorios.');
   var ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   var perfilMap=_getPerfilCLTMap_(ss),regrasMap=_getRegrasMap_(ss);
+  var folgasMap=_getFolgasMap_(ss, data_iso);
   var bancoMap=_getBancoHorasMap_(ss,_semanaInicioCLT_(data_iso));
   var turnosDia=_getTurnosDaData_(ss,data_iso),horasTurno=_calcHorasTurnoCLT_(inicio,fim);
   var sugestoes=[];
   for(var uid in perfilMap){
     var p=perfilMap[uid];
     if(cargo&&p.cargo_clt!==cargo) continue;
-    var fi=_isFolgaCLT_(p,regrasMap,data_iso);
+    var fi=_isFolgaCLT_(p,regrasMap,data_iso,folgasMap);
     if(fi.folga){sugestoes.push({user_id:uid,nome:p.nome_completo,cargo_clt:p.cargo_clt,zona_nome:p.zona_nome,disponivel:false,motivo_bloqueio:fi.motivo,score:0});continue;}
     if(_temConflitoCLT_(turnosDia,uid,inicio,fim)){sugestoes.push({user_id:uid,nome:p.nome_completo,cargo_clt:p.cargo_clt,zona_nome:p.zona_nome,disponivel:false,motivo_bloqueio:'Conflito de horario',score:0});continue;}
     var banco=bancoMap[uid]||{horas_contrato:p.horas_semanais,horas_escaladas:0};
@@ -310,7 +350,8 @@ function criarTurnoCLT_(token,params){
   var ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   var perfilMap=_getPerfilCLTMap_(ss),regrasMap=_getRegrasMap_(ss),perfil=perfilMap[user_id];
   if(!perfil) throw new Error('Perfil CLT nao encontrado: '+user_id);
-  var fi=_isFolgaCLT_(perfil,regrasMap,data); if(fi.folga) throw new Error('Promotor esta de folga: '+fi.motivo);
+  var folgasMap=_getFolgasMap_(ss, data);
+  var fi=_isFolgaCLT_(perfil,regrasMap,data,folgasMap); if(fi.folga) throw new Error('Promotor esta de folga: '+fi.motivo);
   var turnosDia=_getTurnosDaData_(ss,data);
   if(_temConflitoCLT_(turnosDia,user_id,inicio,fim)) throw new Error('Conflito de horario.');
   var horasTurno=_calcHorasTurnoCLT_(inicio,fim),turnoId='TRN_'+new Date().getTime(),agora=new Date().toISOString();
