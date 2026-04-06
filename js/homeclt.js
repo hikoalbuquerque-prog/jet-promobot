@@ -54,7 +54,8 @@ const homeScreenCLT = {
       
       el.innerHTML = turnos.map(function(t) {
         var cor   = cores[t.status] || '#6c7a8d';
-        var eHoje = t.data === hoje;
+        var sData = String(t.data).substring(0, 10);
+        var eHoje = sData === hoje;
         var ativo = t.status === 'EM_ANDAMENTO';
         var dataStr = _fmtDataCLTPwa(t.data);
         var ini = _fmtHoraCLTPwa(t.inicio);
