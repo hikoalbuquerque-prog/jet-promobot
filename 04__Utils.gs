@@ -705,9 +705,9 @@ function _getLideresDoUsuario_(ss, userId) {
  * Chama a API do Gemini para processar textos e gerar insights.
  */
 function callGeminiAI_(prompt, systemInstruction = "") {
-  const apiKey = getConfig_('gemini_api_key');
+  const apiKey = getConfig_('api_key');
   if (!apiKey) {
-    console.log('Gemini API Key não encontrada em CONFIG.');
+    console.log('API Key não encontrada em CONFIG.');
     return null;
   }
 
