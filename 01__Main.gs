@@ -387,5 +387,4 @@ function rowToObj_(headers, row) {
   const obj = {};
   headers.forEach((h, i) => { obj[h] = row[i]; });
   return obj;
-}turn obj;
 }
