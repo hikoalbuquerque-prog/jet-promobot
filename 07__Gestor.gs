@@ -1045,3 +1045,90 @@ function getIAInsights_(token) {
 
   return { ok: true, insight: insight || "Não foi possível gerar insights no momento. Verifique a chave de API." };
 }
+
+/**
+ * IA: Predição de Churn (Risco de Saída)
+ * Analisa o comportamento do promotor e gera um alerta se houver risco de desengajamento.
+ */
+function getChurnPrediction_(token, params) {
+  const adminUser = _assertGestor_(token);
+  const userId = params.user_id;
+  if (!userId) return { ok: false, erro: 'user_id obrigatório.' };
+
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const promMap = _getPromotoresMap_(ss);
+  const prom = promMap[userId];
+  if (!prom) return { ok: false, erro: 'Promotor não encontrado.' };
+
+  const agora = new Date();
+  const trintaDiasAtras = new Date(agora.getTime() - 30 * 86400000);
+
+  // 1. Coletar Histórico de Jornadas (Frequência e Padrão)
+  const wsJ = ss.getSheetByName('JORNADAS');
+  const jornadas = [];
+  let diasFDS = 0, diasUteis = 0;
+  if (wsJ) {
+    const dataJ = wsJ.getDataRange().getValues(), hJ = dataJ[0].map(v => String(v).toLowerCase().trim());
+    const iUsr = hJ.indexOf('user_id'), iDt = hJ.indexOf('data'), iStt = hJ.indexOf('status');
+    for (let r = 1; r < dataJ.length; r++) {
+      if (String(dataJ[r][iUsr]).trim() === userId) {
+        const dt = new Date(dataJ[r][iDt]);
+        if (dt >= trintaDiasAtras) {
+          const status = String(dataJ[r][iStt]).toUpperCase();
+          if (status === 'ENCERRADO' || status === 'EM_ATIVIDADE') {
+            const diaSemana = dt.getDay(); // 0=dom, 6=sab
+            if (diaSemana === 0 || diaSemana === 6) diasFDS++; else diasUteis++;
+            jornadas.push({ data: dt, status });
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Coletar Engajamento com Pílulas e Tendência de Score
+  const wsScore = ss.getSheetByName('SCORE_HISTORICO');
+  let pilulasCompletas = 0;
+  let scoreSemana1 = 0, scoreSemana4 = 0; // Semana 1 (mais antiga) vs Semana 4 (mais recente)
+  if (wsScore) {
+    const dataS = wsScore.getDataRange().getValues(), hS = dataS[0].map(v => String(v).toLowerCase().trim());
+    const iUsr = hS.indexOf('user_id'), iTipo = hS.indexOf('tipo'), iPts = hS.indexOf('pontos'), iDt = hS.indexOf('criado_em');
+    
+    const sem1 = new Date(agora.getTime() - 30 * 86400000);
+    const sem2 = new Date(agora.getTime() - 21 * 86400000);
+    const sem3 = new Date(agora.getTime() - 14 * 86400000);
+    const sem4 = new Date(agora.getTime() - 7 * 86400000);
+
+    for (let r = 1; r < dataS.length; r++) {
+      if (String(dataS[r][iUsr]).trim() === userId) {
+        const dt = new Date(dataS[r][iDt]);
+        const tipo = String(dataS[r][iTipo]).toUpperCase();
+        const pts = parseFloat(dataS[r][iPts] || '0');
+
+        if (dt >= trintaDiasAtras) {
+          if (tipo === 'PILULA_DIARIA') pilulasCompletas++;
+          if (dt >= sem1 && dt < sem2) scoreSemana1 += pts;
+          if (dt >= sem4) scoreSemana4 += pts;
+        }
+      }
+    }
+  }
+
+  const prompt = `Analise o risco de Churn (desistência) do promotor ${prom.nome}:
+  - Perfil de Atuação: ${diasUteis > diasFDS ? 'Atua mais em dias úteis' : 'Atua mais em finais de semana'}
+  - Dias trabalhados nos últimos 30 dias: ${diasUteis} úteis, ${diasFDS} finais de semana.
+  - Engajamento com Pílulas Diárias: Respondeu ${pilulasCompletas} vezes nos últimos 30 dias (máximo possível: 22).
+  - Tendência de Score: Ganhou ${scoreSemana1} pts na primeira semana do mês vs ${scoreSemana4} pts na última semana.
+  
+  Considere que alguns promotores são focados apenas em FDS, então baixa atuação em dias úteis nem sempre é churn.
+  Dê um "Risco de Churn" de 0 a 100% e uma breve recomendação para o Líder da Equipe.`;
+
+  const prediction = callGeminiAI_(prompt, "Você é um Especialista em Retenção de Talentos e Psicologia Organizacional.");
+
+  return { 
+    ok: true, 
+    userId, 
+    nome: prom.nome, 
+    stats: { diasUteis, diasFDS, pilulasCompletas, tendencia: scoreSemana4 - scoreSemana1 },
+    prediction: prediction || "Análise indisponível no momento." 
+  };
+}
