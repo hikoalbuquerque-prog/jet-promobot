@@ -49,9 +49,8 @@ const homeScreenCLT = {
       }
       const cores = { PLANEJADO:'#4f8ef7', ESCALADO:'#4f8ef7', CONFIRMADO:'#2ecc71', EM_ANDAMENTO:'#f1c40f', ENCERRADO:'#6c7a8d' };
       
-      // Ajuste de data local (GMT-3) para comparação precisa
-      const hojeDate = new Date();
-      const hoje = hojeDate.toLocaleDateString('en-CA'); // Retorna yyyy-mm-dd na zona local
+      // Ajuste de data local (yyyy-mm-dd) para comparação precisa
+      const hoje = new Date().toLocaleDateString('en-CA'); 
       
       el.innerHTML = turnos.map(function(t) {
         var cor   = cores[t.status] || '#6c7a8d';
@@ -65,10 +64,10 @@ const homeScreenCLT = {
         let acaoClique = "";
         if (eHoje) {
           if (t.status === 'CONFIRMADO' || ativo) acaoClique = "router.go('turno-ativo')";
-          else if (t.status === 'PLANEJADO' || t.status === 'ESCALADO') acaoClique = `homeScreenCLT._confirmarPresenca('${t.turno_id}')`;
+          else if (t.status === 'PLANEJADO' || t.status === 'ESCALADO') acaoClique = "homeScreenCLT._confirmarPresenca('" + t.turno_id + "')";
         }
 
-        var html = '<div onclick="' + acaoClique + '" style="background:#1e2a45;border:1px solid ' + (eHoje ? '#4f8ef744' : '#2a3a55') + ';border-radius:14px;padding:16px;margin-bottom:10px;cursor:pointer;position:relative' + (ativo ? ';border-left:4px solid #f1c40f' : '') + '">';
+        var html = '<div onclick="' + acaoClique + '" class="turno-card" style="background:#1e2a45;border:1px solid ' + (eHoje ? '#4f8ef744' : '#2a3a55') + ';border-radius:14px;padding:16px;margin-bottom:10px;cursor:pointer;position:relative' + (ativo ? ';border-left:4px solid #f1c40f' : '') + '">';
         
         html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:13px;font-weight:700">' + dataStr + '</div>';
         html += '<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;background:' + cor + '22;color:' + cor + ';border:1px solid ' + cor + '44">' + t.status + '</span></div>';
@@ -87,7 +86,7 @@ const homeScreenCLT = {
         }
         html += '</div>';
         return html;
-      }).join('');
+      }).join('') + '<style>.turno-card:active{transform:scale(0.98);filter:brightness(1.2)}</style>';
     } catch(e) {
       if (el) el.innerHTML = '<div style="text-align:center;padding:20px;color:#e74c3c;font-size:13px">Erro ao carregar turnos</div>';
     }
