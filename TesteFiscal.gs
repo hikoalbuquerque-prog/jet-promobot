@@ -87,6 +87,36 @@ function configurarTesteFiscal() {
     wsBH.appendRow(["TEST_FIS_001", "Fiscal Teste JET", "2026-04-06", 44, 0, -44]);
   }
 
+  // 6. Cadastro de Login na aba PROMOTORES
+  let wsLogin = ss.getSheetByName('PROMOTORES');
+  if (wsLogin) {
+    const dataL = wsLogin.getDataRange().getValues();
+    const hL = dataL[0].map(v => String(v).toLowerCase().trim());
+    const iCpf = hL.indexOf('cpf');
+    let jaExiste = false;
+    for (let i = 1; i < dataL.length; i++) {
+      if (String(dataL[i][iCpf]).replace(/\D/g, '') === '12345678901') {
+        jaExiste = true;
+        break;
+      }
+    }
+    if (!jaExiste) {
+      // Criar linha com as colunas mínimas para login CLT
+      const novaLinha = hL.map(h => {
+        if (h === 'user_id') return 'TEST_FIS_001';
+        if (h === 'nome_completo') return 'Fiscal Teste JET';
+        if (h === 'cpf') return '12345678901';
+        if (h === 'senha_hash') return '01012000'; // Senha para o teste
+        if (h === 'ativo') return 'SIM';
+        if (h === 'cargo_principal') return 'FISCAL';
+        if (h === 'cidade_base') return 'São Paulo';
+        if (h === 'token') return 'TK_TEST_FIS_001';
+        return '';
+      });
+      wsLogin.appendRow(novaLinha);
+    }
+  }
+
   Logger.log('Configuração completa: TEST_FIS_001 pronto para teste.');
   try {
     const ui = SpreadsheetApp.getUi();
