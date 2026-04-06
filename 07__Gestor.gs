@@ -472,27 +472,71 @@ function getHistoricoLocalizacao_(token,params) {
 }
 
 function getEscalaDrafts_(token) {
-  _assertGestor_(token);
-  const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), sheet=ss.getSheetByName('ESCALAS_DRAFT'); if(!sheet) return{ok:true,data:[]};
-  const data=sheet.getDataRange().getValues(), h=data[0].map(v=>String(v).toLowerCase().trim()), promMap=_getPromotoresMap_(ss), slotsMap=_getSlotsMap_(ss), result=[];
-  for (let r=1;r<data.length;r++) {
-    const id=String(data[r][h.indexOf('escala_draft_id')]).trim(); if(!id) continue;
-    const uid=String(data[r][h.indexOf('user_id')]).trim(), slotId=String(data[r][h.indexOf('slot_id')]||'').trim(), prom=promMap[uid]||{}, slot=slotsMap[slotId]||{};
-    result.push({escala_draft_id:id,user_id:uid,slot_id:slotId,promotor_nome:prom.nome||uid,slot_nome:slot.nome||slotId,data:data[r][h.indexOf('data')]||'',inicio:data[r][h.indexOf('inicio')]||'',fim:data[r][h.indexOf('fim')]||'',funcao_prevista:data[r][h.indexOf('funcao_prevista')]||'',cargo_principal:data[r][h.indexOf('cargo_principal')]||'',tipo_jornada:data[r][h.indexOf('tipo_jornada')]||'SLOT',status_draft:data[r][h.indexOf('status_draft')]||'RASCUNHO'});
+  const adminUser = _assertGestor_(token);
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const sheet = ss.getSheetByName('ESCALAS_DRAFT');
+  if (!sheet) return { ok: true, data: [] };
+
+  const allowedUsers = _getUsersDaHierarquia_(ss, adminUser);
+  const data = sheet.getDataRange().getValues();
+  const h = data[0].map(v => String(v).toLowerCase().trim());
+  const promMap = _getPromotoresMap_(ss);
+  const result = [];
+
+  const iEq = h.indexOf('equipe_id'), iUsr = h.indexOf('user_id'), iId = h.indexOf('escala_draft_id');
+
+  for (let r = 1; r < data.length; r++) {
+    const id = String(data[r][iId]).trim();
+    if (!id) continue;
+
+    const uid = String(data[r][iUsr]).trim();
+    if (allowedUsers && !allowedUsers.has(uid)) continue;
+
+    const row = rowToObj_(h, data[r]);
+    row.promotor_nome = promMap[uid]?.nome || uid;
+    result.push(row);
   }
-  return{ok:true,data:result};
+  return { ok: true, data: result };
 }
 
-function criarEscalaDraft_(token,params) {
-  _assertGestor_(token);
+function criarEscalaDraft_(token, params) {
+  const adminUser = _assertGestor_(token);
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(15000);
 
-    const ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), sheet=ss.getSheetByName('ESCALAS_DRAFT'); if(!sheet) throw new Error('Aba ESCALAS_DRAFT não encontrada.');
-    const draftId='DRAFT_'+new Date().getTime(), agora=new Date().toISOString(), gestor=validarToken_(token), gestorId=gestor.user?.user_id||'';
-    sheet.appendRow([draftId,gestorId,'',params.user_id||'',params.cidade||'',params.operacao||'PROMO',params.cargo_principal||'PROMOTOR',params.funcao_prevista||params.cargo_principal||'PROMOTOR',params.tipo_jornada||'SLOT',params.data||'',params.inicio||'',params.fim||'','RASCUNHO',params.slot_id||'',agora,agora]);
-    return{ok:true,escala_draft_id:draftId};
+    const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+    const sheet = ss.getSheetByName('ESCALAS_DRAFT');
+    if (!sheet) throw new Error('Aba ESCALAS_DRAFT não encontrada.');
+
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const h = headers.map(v => String(v).toLowerCase().trim());
+    
+    const draftId = 'DRAFT_' + new Date().getTime();
+    const agora = new Date().toISOString();
+    
+    const newRow = new Array(headers.length).fill('');
+    const sc = (col, val) => { const i = h.indexOf(col); if (i >= 0) newRow[i] = val; };
+
+    sc('escala_draft_id', draftId);
+    sc('gestor_id', adminUser.user_id);
+    sc('equipe_id', params.equipe_id || '');
+    sc('user_id', params.user_id || '');
+    sc('cidade', params.cidade || '');
+    sc('operacao', params.operacao || 'PROMO');
+    sc('cargo_principal', params.cargo_principal || 'PROMOTOR');
+    sc('funcao_prevista', params.funcao_prevista || params.cargo_principal || 'PROMOTOR');
+    sc('tipo_jornada', params.tipo_jornada || 'SLOT');
+    sc('data', params.data || '');
+    sc('inicio', params.inicio || '');
+    sc('fim', params.fim || '');
+    sc('status_draft', 'RASCUNHO');
+    sc('observacao', params.observacao || '');
+    sc('criado_em', agora);
+    sc('atualizado_em', agora);
+
+    sheet.appendRow(newRow);
+    return { ok: true, escala_draft_id: draftId };
 
   } finally {
     lock.releaseLock();

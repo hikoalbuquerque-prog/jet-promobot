@@ -9,7 +9,22 @@ function _getPerfilCLTMap_(ss) {
   for(var r=1;r<data.length;r++){
     var uid=String(data[r][h.indexOf('user_id')]).trim();
     if(!uid||String(data[r][h.indexOf('ativo')]).trim()!=='SIM') continue;
-    map[uid]={perfil_id:data[r][h.indexOf('perfil_id')],user_id:uid,nome_completo:data[r][h.indexOf('nome_completo')],cargo_clt:String(data[r][h.indexOf('cargo_clt')]).trim(),zona_nome:data[r][h.indexOf('zona_nome')]||'',zona_lat:parseFloat(data[r][h.indexOf('zona_lat_centro')])||0,zona_lng:parseFloat(data[r][h.indexOf('zona_lng_centro')])||0,zona_raio_km:parseFloat(data[r][h.indexOf('zona_raio_km')])||5,horas_semanais:parseFloat(data[r][h.indexOf('horas_semanais_contrato')])||44,turno_padrao:String(data[r][h.indexOf('turno_padrao')]||'FLEXIVEL').trim(),folga_semanal_dia:parseInt(data[r][h.indexOf('folga_semanal_dia')]),folga_movel_regra:String(data[r][h.indexOf('folga_movel_regra')]||'NENHUMA').trim(),folga_movel_config:_safeJsonCLT_(data[r][h.indexOf('folga_movel_config_json')],{})};
+    map[uid] = {
+      perfil_id: data[r][h.indexOf('perfil_id')],
+      user_id: uid,
+      nome_completo: data[r][h.indexOf('nome_completo')],
+      cargo_clt: String(data[r][h.indexOf('cargo_clt')]).trim(),
+      zona_nome: data[r][h.indexOf('zona_nome')] || '',
+      zona_lat: parseFloat(data[r][h.indexOf('zona_lat_centro')]) || 0,
+      zona_lng: parseFloat(data[r][h.indexOf('zona_lng_centro')]) || 0,
+      zona_raio_km: parseFloat(data[r][h.indexOf('zona_raio_km')]) || 5,
+      zona_poligono: _safeJsonCLT_(data[r][h.indexOf('zona_poligono_json')], null),
+      horas_semanais: parseFloat(data[r][h.indexOf('horas_semanais_contrato')]) || 44,
+      turno_padrao: String(data[r][h.indexOf('turno_padrao')] || 'FLEXIVEL').trim(),
+      folga_semanal_dia: parseInt(data[r][h.indexOf('folga_semanal_dia')]),
+      folga_movel_regra: String(data[r][h.indexOf('folga_movel_regra')] || 'NENHUMA').trim(),
+      folga_movel_config: _safeJsonCLT_(data[r][h.indexOf('folga_movel_config_json')], {})
+    };
   }
   return map;
 }
