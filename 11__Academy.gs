@@ -13,8 +13,9 @@ function getAcademyTrilha_(user) {
 
   const dataProg = wsProg.getDataRange().getValues();
   const concluidos = [];
+  const targetUserId = String(user.user_id || '').trim();
   for (let r = 1; r < dataProg.length; r++) { 
-    if (String(dataProg[r][0]).trim() === user.user_id) concluidos.push(String(dataProg[r][1]).trim()); 
+    if (String(dataProg[r][0]).trim() === targetUserId) concluidos.push(String(dataProg[r][1]).trim()); 
   }
   
   const dataMod = wsMod.getDataRange().getValues(), hMod = dataMod[0].map(v => String(v).toLowerCase().trim());
@@ -23,13 +24,14 @@ function getAcademyTrilha_(user) {
 
   for (let r = 1; r < dataMod.length; r++) {
     if (String(dataMod[r][iAtivo]).toUpperCase() === 'TRUE' || String(dataMod[r][iAtivo]).toUpperCase() === 'SIM') {
+      const modId = String(dataMod[r][iId]).trim();
       modulos.push({
-        modulo_id: String(dataMod[r][iId]).trim(),
+        modulo_id: modId,
         titulo: String(dataMod[r][iTit]).trim(),
         nivel: String(dataMod[r][iNiv]).trim(),
         pontos: parseInt(dataMod[r][iPts] || '0'),
         ordem: parseInt(dataMod[r][iOrd] || '0'),
-        concluido: concluidos.includes(String(dataMod[r][iId]).trim()),
+        concluido: concluidos.includes(modId),
         desbloqueado: true // Simplificado no GAS, o Cloud Run aplica a regra real se houver cache
       });
     }
@@ -38,33 +40,71 @@ function getAcademyTrilha_(user) {
   return { ok: true, progresso_ids: concluidos, modulos: modulos }; 
 }
 
+function getAcademyProgresso_(user) {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws = ss.getSheetByName('ACADEMY_PROGRESSO');
+  if (!ws) return { ok: true, progresso: [] };
+  const data = ws.getDataRange().getValues();
+  const targetUserId = String(user.user_id || '').trim();
+  const prog = [];
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][0]).trim() === targetUserId) {
+      prog.push({ 
+        modulo_id: String(data[r][1]).trim(), 
+        score_quiz: data[r][2], 
+        concluido_em: String(data[r][3]) 
+      });
+    }
+  }
+  return { ok: true, progresso: prog };
+}
+
 function getAcademyModulo_(params, user) {
   // O Cloud Run agora serve os módulos via CACHE. 
   // Esta função só é chamada se o cache falhar ou para fallback.
-  const moduloId = params.modulo_id, ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const wsMod = ss.getSheetByName('MODULOS'), wsQuiz = ss.getSheetByName('QUIZ');
-  const dataMod = wsMod.getDataRange().getValues(), hMod = dataMod[0].map(v => String(v).toLowerCase().trim());
-  let modulo = null;
-  for (let r = 1; r < dataMod.length; r++) { if (String(dataMod[r][hMod.indexOf('modulo_id')]).trim() === moduloId) { modulo = rowToObj_(hMod, dataMod[r]); break; } }
-  if (!modulo) return { ok: false, erro: 'Módulo não encontrado' };
-  modulo.blocks = modulo.blocks_json ? JSON.parse(modulo.blocks_json) : [];
-  
-  const quizzesIds = modulo.blocks.filter(b => b.type === 'quiz').map(b => b.quiz_id);
-  const quizzesData = {};
-  if (quizzesIds.length > 0 && wsQuiz) {
-    const dataQ = wsQuiz.getDataRange().getValues(), hQ = dataQ[0].map(v => String(v).toLowerCase().trim());
-    quizzesIds.forEach(qid => {
-      quizzesData[qid] = [];
-      for (let r = 1; r < dataQ.length; r++) {
-        if (String(dataQ[r][hQ.indexOf('quiz_id')]).trim() === qid) {
-          const q = rowToObj_(hQ, dataQ[r]);
-          quizzesData[qid].push({ pergunta: q.pergunta, a: q.a, b: q.b, c: q.c, d: q.d, correta: q.correta });
+  try {
+    const moduloId = params.modulo_id, ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+    const wsMod = ss.getSheetByName('MODULOS'), wsQuiz = ss.getSheetByName('QUIZ');
+    if (!wsMod) return { ok: false, erro: 'Aba MODULOS não encontrada' };
+
+    const dataMod = wsMod.getDataRange().getValues(), hMod = dataMod[0].map(v => String(v).toLowerCase().trim());
+    let modulo = null;
+    const idxModId = hMod.indexOf('modulo_id');
+    if (idxModId === -1) return { ok: false, erro: 'Coluna modulo_id não encontrada' };
+
+    for (let r = 1; r < dataMod.length; r++) { 
+      if (String(dataMod[r][idxModId]).trim() === moduloId) { 
+        modulo = rowToObj_(hMod, dataMod[r]); 
+        break; 
+      } 
+    }
+    if (!modulo) return { ok: false, erro: 'Módulo não encontrado' };
+    
+    modulo.blocks = modulo.blocks_json ? JSON.parse(modulo.blocks_json) : [];
+    
+    const quizzesIds = modulo.blocks.filter(b => b.type === 'quiz').map(b => b.quiz_id);
+    const quizzesData = {};
+    if (quizzesIds.length > 0 && wsQuiz) {
+      const dataQ = wsQuiz.getDataRange().getValues(), hQ = dataQ[0].map(v => String(v).toLowerCase().trim());
+      const idxQuizId = hQ.indexOf('quiz_id');
+      
+      quizzesIds.forEach(qid => {
+        quizzesData[qid] = [];
+        if (idxQuizId > -1) {
+          for (let r = 1; r < dataQ.length; r++) {
+            if (String(dataQ[r][idxQuizId]).trim() === qid) {
+              const q = rowToObj_(hQ, dataQ[r]);
+              quizzesData[qid].push({ pergunta: q.pergunta, a: q.a, b: q.b, c: q.c, d: q.d, correta: q.correta });
+            }
+          }
         }
-      }
-    });
+      });
+    }
+    modulo.quizzes = quizzesData;
+    return { ok: true, modulo };
+  } catch (e) {
+    return { ok: false, erro: 'Erro ao carregar módulo: ' + e.message };
   }
-  modulo.quizzes = quizzesData;
-  return { ok: true, modulo };
 }
 
 /**
@@ -72,14 +112,19 @@ function getAcademyModulo_(params, user) {
  */
 function sincronizarAcademyCache_() {
   try {
-    const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+    const ssId = getConfig_('spreadsheet_id_master');
+    if (!ssId) return;
+    const ss = SpreadsheetApp.openById(ssId);
     const wsMod = ss.getSheetByName('MODULOS'), wsQuiz = ss.getSheetByName('QUIZ');
     if (!wsMod || !wsQuiz) return;
 
     const dataMod = wsMod.getDataRange().getValues(), hMod = dataMod[0].map(v => String(v).toLowerCase().trim());
     const modulos = [];
+    const idxAtivo = hMod.indexOf('ativo');
+    if (idxAtivo === -1) return;
+
     for (let r = 1; r < dataMod.length; r++) {
-      if (String(dataMod[r][hMod.indexOf('ativo')]).toUpperCase() === 'TRUE') {
+      if (String(dataMod[r][idxAtivo]).toUpperCase() === 'TRUE' || String(dataMod[r][idxAtivo]).toUpperCase() === 'SIM') {
         const m = rowToObj_(hMod, dataMod[r]);
         m.blocks = m.blocks_json ? JSON.parse(m.blocks_json) : [];
         modulos.push(m);
@@ -88,10 +133,13 @@ function sincronizarAcademyCache_() {
 
     const dataQ = wsQuiz.getDataRange().getValues(), hQ = dataQ[0].map(v => String(v).toLowerCase().trim());
     const quizzes = {};
-    for (let r = 1; r < dataQ.length; r++) {
-      const qid = String(dataQ[r][hQ.indexOf('quiz_id')]).trim();
-      if (!quizzes[qid]) quizzes[qid] = [];
-      quizzes[qid].push(rowToObj_(hQ, dataQ[r]));
+    const idxQuizId = hQ.indexOf('quiz_id');
+    if (idxQuizId > -1) {
+      for (let r = 1; r < dataQ.length; r++) {
+        const qid = String(dataQ[r][idxQuizId]).trim();
+        if (!quizzes[qid]) quizzes[qid] = [];
+        quizzes[qid].push(rowToObj_(hQ, dataQ[r]));
+      }
     }
 
     const url = getConfig_('cloud_run_url') + '/internal/sync-academy';
@@ -99,7 +147,7 @@ function sincronizarAcademyCache_() {
       method: 'post',
       contentType: 'application/json',
       payload: JSON.stringify({
-        integration_secret: getConfig_('integration_secret'),
+        admin_secret: getConfig_('admin_secret') || getConfig_('integration_secret'),
         modulos: modulos,
         quizzes: quizzes
       }),
@@ -129,8 +177,13 @@ function concluirModulo_(user, body) {
     const wsJor = ss.getSheetByName('JORNADAS');
     if (wsJor) {
       const dataJ = wsJor.getDataRange().getValues();
-      const count = dataJ.filter(r => String(r[1]).trim() === userId && String(r[4]).trim() === 'ENCERRADO').length;
-      if (count < 3) return { ok: false, erro: '⚠️ Missão Bloqueada: complete pelo menos 3 jornadas reais no campo para finalizar este módulo.' };
+      const hJ = dataJ[0].map(v => String(v).toLowerCase().trim());
+      const iUsr = hJ.indexOf('user_id');
+      const iStt = hJ.indexOf('status');
+      if (iUsr > -1 && iStt > -1) {
+        const count = dataJ.filter(r => String(r[iUsr]).trim() === userId && String(r[iStt]).trim() === 'ENCERRADO').length;
+        if (count < 3) return { ok: false, erro: '⚠️ Missão Bloqueada: complete pelo menos 3 jornadas reais no campo para finalizar este módulo.' };
+      }
     }
   }
 
@@ -160,31 +213,55 @@ function concluirModulo_(user, body) {
 }
 
 function verificarBadgesAcademy_(ss, userId) {
-  const wsProg = ss.getSheetByName('ACADEMY_PROGRESSO'), wsMod = ss.getSheetByName('MODULOS'), wsBadges = ss.getSheetByName('BADGES');
-  const dP = wsProg.getDataRange().getValues(), dM = wsMod.getDataRange().getValues(), hM = dM[0].map(v => String(v).toLowerCase().trim());
-  const concluidos = dP.filter(r => String(r[0]).trim() === userId).map(r => String(r[1]).trim());
-  const niveis = ['MANUAL APP', 'BASICO', 'INTERMEDIARIO', 'AVANCADO', 'ESPECIALISTA', 'MASTER'];
-  
-  niveis.forEach(niv => {
-    const modsNivel = dM.filter(r => String(r[hM.indexOf('nivel')]).trim() === niv).map(r => String(r[hM.indexOf('modulo_id')]).trim());
-    if (modsNivel.length > 0 && modsNivel.every(id => concluidos.includes(id))) {
-      const bTipo = 'ACADEMY_' + niv.replace(' ', '_');
-      const bData = wsBadges.getDataRange().getValues();
-      if (!bData.some(r => String(r[0]).trim() === userId && String(r[1]).trim() === bTipo)) {
-        wsBadges.appendRow([userId, bTipo, 'Certificado ' + niv, new Date().toISOString()]);
-        
-        // Notificação Telegram (Item 3)
-        try {
-          const user = getUserById_(userId);
-          const msg = `🎓 *NOVO CERTIFICADO JET ACADEMY*\n\n` +
-                      `👤 *Promotor:* ${user.nome}\n` +
-                      `🎖️ *Nível Concluído:* ${niv}\n` +
-                      `🚀 *Status:* ${niv === 'MASTER' ? 'LENDÁRIO!' : 'Evoluindo...'}`;
-          notificarTelegram_(msg, 'GESTOR');
-        } catch(e) { console.log('Erro ao notificar level up:', e.message); }
-      }
+  try {
+    const wsProg = ss.getSheetByName('ACADEMY_PROGRESSO'), wsMod = ss.getSheetByName('MODULOS'), wsBadges = ss.getSheetByName('BADGES');
+    if (!wsProg || !wsMod || !wsBadges) {
+      console.log('Aviso: Abas necessárias para Badges não encontradas.');
+      return;
     }
-  });
+
+    const dP = wsProg.getDataRange().getValues(), dM = wsMod.getDataRange().getValues(), hM = dM[0].map(v => String(v).toLowerCase().trim());
+    const concluidos = dP.filter(r => String(r[0]).trim() === userId).map(r => String(r[1]).trim());
+    const niveis = ['MANUAL APP', 'BASICO', 'INTERMEDIARIO', 'AVANCADO', 'ESPECIALISTA', 'MASTER'];
+    
+    niveis.forEach(niv => {
+      const idxNivel = hM.indexOf('nivel');
+      const idxModId = hM.indexOf('modulo_id');
+      if (idxNivel === -1 || idxModId === -1) return;
+
+      const modsNivel = dM.filter(r => String(r[idxNivel]).trim() === niv).map(r => String(r[idxModId]).trim());
+      if (modsNivel.length > 0 && modsNivel.every(id => concluidos.includes(id))) {
+        const bTipo = 'ACADEMY_' + niv.replace(' ', '_');
+        const bData = wsBadges.getDataRange().getValues();
+        
+        if (!bData.some(r => String(r[0]).trim() === userId && String(r[1]).trim() === bTipo)) {
+          wsBadges.appendRow([userId, bTipo, 'Certificado ' + niv, new Date().toISOString()]);
+          
+          // Notificação via Integração (Telegram)
+          try {
+            const user = getPromotorById_(ss, userId);
+            if (user) {
+              const msg = `🎓 *NOVO CERTIFICADO JET ACADEMY*\n\n` +
+                          `👤 *Promotor:* ${user.nome_completo || user.nome}\n` +
+                          `🎖️ *Nível Concluído:* ${niv}\n` +
+                          `🚀 *Status:* ${niv === 'MASTER' ? 'LENDÁRIO!' : 'Evoluindo...'}`;
+              
+              if (typeof processIntegracoes === 'function') {
+                processIntegracoes([{
+                  canal: 'telegram',
+                  tipo: 'group_message',
+                  topic_key: 'GESTOR',
+                  text: msg
+                }]);
+              }
+            }
+          } catch(e) { console.log('Erro ao notificar level up:', e.message); }
+        }
+      }
+    });
+  } catch (err) {
+    console.log('Erro em verificarBadgesAcademy_:', err.message);
+  }
 }
 
 /**

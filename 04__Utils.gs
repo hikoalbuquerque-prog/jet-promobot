@@ -354,7 +354,7 @@ function sincronizarCacheGlobal() {
     }
 
     const payload = {
-      integration_secret: getConfig_('integration_secret'),
+      admin_secret: getConfig_('admin_secret') || getConfig_('integration_secret'),
       promotores: getTab('PROMOTORES'),
       slots: getTab('SLOTS'),
       jornadas: getTab('JORNADAS'),
@@ -404,7 +404,7 @@ function sincronizarGruposCache_() {
     method: 'post',
     contentType: 'application/json',
     payload: JSON.stringify({
-      integration_secret: getConfig_('integration_secret'),
+      admin_secret: getConfig_('admin_secret') || getConfig_('integration_secret'),
       grupos: grupos
     }),
     muteHttpExceptions: true
