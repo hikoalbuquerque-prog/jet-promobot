@@ -21,11 +21,12 @@ const router = (() => {
     equipes:      { module: equipesScreen,       method: 'render',     hasNav: true,  navId: 'nav-equipes'   },
     relatorios:   { module: relatoriosScreen,    method: 'render',     hasNav: true,  navId: 'nav-relatorios' },
     'insights-ia':{ module: iaScreen,            method: 'render',     hasNav: true,  navId: 'nav-ia' },
+    fiscalTurno:  { module: fiscalTurnoScreen,   method: 'render',     hasNav: true,  navId: 'nav-fiscal-turno' },
   };
 
   // Configuração de Permissões (RBAC)
   const _PERMISSIONS = {
-    FISCAL: ['mapa', 'slots', 'dashboard'], // Fiscais só veem operacional básico
+    FISCAL: ['fiscalTurno', 'mapa', 'slots', 'dashboard'], // Fiscais agora podem ver seu turno
     LIDER:  ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'equipes', 'insights-ia'],
     GESTOR: ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'cadastros', 'broadcast', 'equipes', 'relatorios', 'insights-ia'], // Gestor vê tudo
     REGIONAL: ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'cadastros', 'broadcast', 'equipes', 'relatorios', 'insights-ia']
@@ -190,6 +191,9 @@ const router = (() => {
           ">
             <button class="nav-item" id="nav-kpis"  data-route="dashboard">
               📊 Dashboard
+            </button>
+            <button class="nav-item" id="nav-fiscal-turno" data-route="fiscalTurno">
+              ⏰ Meu Turno
             </button>
             <button class="nav-item" id="nav-mapa"  data-route="mapa">
               🗺️ Mapa

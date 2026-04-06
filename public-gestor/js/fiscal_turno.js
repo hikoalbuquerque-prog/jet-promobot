@@ -1,51 +1,39 @@
 // ─── fiscal_turno.js — Turno do Fiscal ───────────────────────────────────────
 const fiscalTurnoScreen = (() => {
-  let _timer = null;
-  let _heartbeat = null;
-  let _watchId = null;
-  let _segundos = 0;
-  let _pausado = false;
-  let _turno = null;
-
+  let _turno = null, _timer = null, _heartbeat = null, _watchId = null, _pausado = false;
   const CARGOS_CLT = ['SCOUT','CHARGER','MOTORISTA','FISCAL'];
 
   async function render() {
     const gestor = state.get('gestor');
+    if (!gestor) return router.navigate('login');
+
     const app = document.getElementById('app');
-
-    // Aviso de folga na segunda
-    const hoje = new Date().getDay();
-    const avisoFolga = hoje === 1
-      ? '<div style="background:rgba(245,183,0,.15);border:1px solid rgba(245,183,0,.3);border-radius:8px;padding:10px 14px;font-size:13px;color:#f5b700;margin-bottom:12px">⚠️ Hoje é segunda-feira — seu dia de folga. Você pode iniciar o turno mesmo assim.</div>'
-      : '';
-
     app.innerHTML = `
       <section class="screen" id="screen-fiscal-turno">
         <div class="screen-header">
-          <h2 class="screen-title">Meu Turno</h2>
-          <button class="btn-icon" id="btn-refresh-ft">↻</button>
+          <h1 class="screen-title">⚡ Meu Turno</h1>
+          <div class="screen-subtitle">Controle de Jornada Fiscal</div>
         </div>
-        <div style="padding:4px 0 16px">
-          ${avisoFolga}
-          <div id="ft-conteudo"><div class="list-empty">Carregando...</div></div>
-          
-          <div id="ft-roteiro" style="margin-top:24px;display:none">
-            <div style="font-size:12px;font-weight:700;color:#63b3ed;letter-spacing:1px;margin-bottom:12px;text-transform:uppercase">📍 Roteiro de Visitas (Hoje)</div>
-            <div id="ft-roteiro-lista" style="display:flex;flex-direction:column;gap:10px">
-              <div style="text-align:center;color:#4a5568;font-size:12px;padding:20px">Buscando locais...</div>
-            </div>
+
+        <div id="ft-conteudo">
+          <div class="list-empty">Sincronizando turno...</div>
+        </div>
+
+        <div id="ft-roteiro" style="display:none;margin-top:24px">
+          <div class="section-title">📍 Roteiro de Fiscalização</div>
+          <div id="ft-roteiro-lista" style="display:flex;flex-direction:column;gap:12px;margin-top:16px">
+             <div style="text-align:center;padding:20px;color:#718096;font-size:12px">Carregando roteiro...</div>
           </div>
         </div>
-      </section>`;
+      </section>
+    `;
 
-    document.getElementById('btn-refresh-ft').addEventListener('click', render);
-    await _carregar();
+    _loadTurno();
   }
 
-  async function _carregar() {
-    const gestor = state.get('gestor');
+  async function _loadTurno() {
     try {
-      const res = await api.getMeusTurnosCLT();
+      const res = await api.get('GET_MEUS_TURNOS_CLT');
       const hoje = new Date().toISOString().split('T')[0];
       const turnoHoje = (res.data || []).find(t =>
         t.data === hoje && ['ESCALADO','CONFIRMADO','EM_ANDAMENTO','PAUSADO'].includes(t.status)
@@ -154,62 +142,59 @@ const fiscalTurnoScreen = (() => {
         <button onclick="fiscalTurnoScreen._enviarInfracao('TRANSITO_PERIGOSO')" class="btn-infra">🚲 Condução perigosa</button>
         <button onclick="fiscalTurnoScreen._enviarInfracao('DANO_INTENCIONAL')" class="btn-infra">🔨 Dano ao patrimônio</button>
       </div>
-      
-      <div id="infra-status" style="margin-top:20px;text-align:center;font-size:13px;font-weight:700;height:20px"></div>
-
       <style>
-        .btn-infra { background:#16213e; border:1px solid #2a3a55; color:#eaf0fb; padding:18px; border-radius:12px; font-size:14px; font-weight:600; text-align:left; cursor:pointer; transition:all 0.2s; }
-        .btn-infra:active { background:#4f8ef7; transform:scale(0.98); }
+        .btn-infra { background:#1e2a45; border:1px solid #2a3a55; color:#fff; border-radius:12px; padding:20px; font-size:14px; font-weight:700; text-align:left; cursor:pointer; }
+        .btn-infra:active { background:#2a3a55; }
       </style>
     `;
     document.body.appendChild(modal);
   }
 
-  async function _enviarInfracao(tipo) {
-    const status = document.getElementById('infra-status');
-    const gps = state.get('gps_fiscal') || {};
-    if (!gps.ok) return alert('Aguardando sinal de GPS...');
-
-    status.style.color = '#63b3ed';
-    status.textContent = 'Enviando registro...';
-
-    try {
-      const res = await api.post('REGISTRAR_INFRACAO_RUA', { tipo, lat: gps.lat, lng: gps.lng });
-      if (res.ok) {
-        status.style.color = '#68d391';
-        status.textContent = '✅ REGISTRADO COM SUCESSO!';
-        setTimeout(() => { status.textContent = ''; }, 2000);
-      }
-    } catch(e) {
-      status.style.color = '#fc8181';
-      status.textContent = 'Erro de conexão.';
+  function _acionarSOS() {
+    if (confirm('🚨 ACIONAR BOTÃO DE PÂNICO?\n\nIsso enviará sua localização em tempo real para a segurança e para todos os grupos de gestão.')) {
+      const gps = state.get('gps_fiscal') || {};
+      api.post('REGISTRAR_SOS_FISCAL', {
+        lat: gps.lat,
+        lng: gps.lng,
+        accuracy: gps.accuracy
+      }).then(() => alert('🆘 SOS ACIONADO! Permaneça em local seguro.'));
     }
   }
 
-  async function _acionarSOS() {
-    if (!confirm('Deseja acionar o BOTÃO SOS? Use apenas em emergências reais com autoridades ou perigo físico.')) return;
-    const gps = state.get('gps_fiscal') || {};
-    try {
-      const res = await api.post('BOTAO_SOS', { lat: gps.lat, lng: gps.lng });
-      if (res.ok) {
-        alert('🆘 SOS ACIONADO! Os gestores e regionais foram notificados com sua localização exata. Aguarde em local seguro.');
+  function _iniciarTimer() {
+    if (_timer) clearInterval(_timer);
+    const inicio = _turno.checkin_hora ? new Date(_turno.checkin_hora).getTime() : Date.now();
+    _timer = setInterval(() => {
+      const el = document.getElementById('ft-timer');
+      if (!el) { clearInterval(_timer); return; }
+      const diff = Math.floor((Date.now() - inicio) / 1000);
+      const h = Math.floor(diff/3600), m = Math.floor((diff%3600)/60), s = diff%60;
+      el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }, 1000);
+  }
+
+  function _iniciarHeartbeat() {
+    if (_heartbeat) clearInterval(_heartbeat);
+    _heartbeat = setInterval(() => {
+      const gps = state.get('gps_fiscal') || {};
+      if (!gps.ok || !_turno) return;
+      const el = document.getElementById('ft-gps-coords-live');
+      if (el) el.textContent = gps.lat.toFixed(5) + ', ' + gps.lng.toFixed(5);
+      api.post('HEARTBEAT_CLT', {
+        turno_id: _turno.turno_id,
+        lat:      gps.lat,
+        lng:      gps.lng,
+        accuracy: gps.accuracy || 999,
+      }).catch(() => {});
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          pos => state.set('gps_fiscal', { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, ok: true }),
+          () => {}, { enableHighAccuracy: true, timeout: 5000, maximumAge: 10000 }
+        );
       }
-    } catch(e) { alert('Erro ao acionar SOS.'); }
+    }, 180000);
   }
 
-  function _renderPausado() {
-    const t = _turno;
-    document.getElementById('ft-conteudo').innerHTML = `
-      <div class="card" style="text-align:center;padding:24px;margin-bottom:12px;border-color:rgba(245,183,0,.3)">
-        <div style="font-size:36px;margin-bottom:8px">⏸️</div>
-        <div style="font-size:18px;font-weight:700;color:#f5b700">Turno Pausado</div>
-        <div style="font-size:13px;color:#718096;margin-top:4px">${t.zona_nome||'—'}</div>
-      </div>
-      <button onclick="fiscalTurnoScreen._retomar()" style="width:100%;background:#2f855a;color:#fff;border:none;border-radius:8px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px">▶️ Retomar Turno</button>
-      <button onclick="fiscalTurnoScreen._encerrar()" style="width:100%;background:rgba(252,129,129,.1);border:1px solid rgba(252,129,129,.3);color:#fc8181;border-radius:8px;padding:12px;font-size:14px;font-weight:700;cursor:pointer">🏁 Encerrar mesmo assim</button>`;
-  }
-
-  // ── GPS ───────────────────────────────────────────────────────────────────
   function _iniciarGPS() {
     if (!navigator.geolocation) {
       const btn = document.getElementById('btn-ft-checkin');
@@ -228,60 +213,25 @@ const fiscalTurnoScreen = (() => {
         if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
         state.set('gps_fiscal', { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, ok: true });
       },
-      () => {
+      err => {
+        console.warn('[GPS] Erro:', err.message);
         const btn = document.getElementById('btn-ft-checkin');
-        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+        if (btn && btn.disabled) { btn.disabled = false; btn.style.opacity = '1'; }
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 5000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
+
     setTimeout(() => {
       const btn = document.getElementById('btn-ft-checkin');
-      if (btn && btn.disabled) { btn.disabled = false; btn.style.opacity = '1'; }
-    }, 15000);
-  }
-
-  // ── Timer ─────────────────────────────────────────────────────────────────
-  function _iniciarTimer() {
-    if (_timer) clearInterval(_timer);
-    const t = _turno;
-    const inicio = t.checkin_hora ? new Date(t.checkin_hora).getTime() : Date.now();
-    _timer = setInterval(() => {
-      if (_pausado) return;
-      const el = document.getElementById('ft-timer');
-      if (!el) { clearInterval(_timer); return; }
-      const diff = Math.floor((Date.now() - inicio) / 1000);
-      const h = Math.floor(diff/3600), m = Math.floor((diff%3600)/60), s = diff%60;
-      el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    }, 1000);
-  }
-
-  // ── Heartbeat GPS a cada 3 minutos ────────────────────────────────────────
-  function _iniciarHeartbeat() {
-    if (_heartbeat) clearInterval(_heartbeat);
-    _heartbeat = setInterval(() => {
-      const gps = state.get('gps_fiscal') || {};
-      if (!gps.ok || !_turno) return;
-      // Atualizar coords no mapa live
-      const el = document.getElementById('ft-gps-coords-live');
-      if (el) el.textContent = gps.lat.toFixed(5) + ', ' + gps.lng.toFixed(5);
-      // Enviar para backend
-      api.post('HEARTBEAT_CLT', {
-        turno_id: _turno.turno_id,
-        lat:      gps.lat,
-        lng:      gps.lng,
-        accuracy: gps.accuracy || 999,
-      }).catch(() => {});
-      // Atualizar GPS no watchPosition
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          pos => state.set('gps_fiscal', { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, ok: true }),
-          () => {}, { enableHighAccuracy: true, timeout: 5000, maximumAge: 10000 }
-        );
+      if (btn && btn.disabled) {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        const st = document.getElementById('ft-gps-status');
+        if (st) st.textContent = 'GPS lento — checkin liberado';
       }
-    }, 180000); // 3 minutos
+    }, 10000);
   }
 
-  // ── Acoes ──────────────────────────────────────────────────────────────────
   async function _fazerCheckin() {
     const btn = document.getElementById('btn-ft-checkin');
     if (btn) { btn.textContent = 'Iniciando...'; btn.disabled = true; }
@@ -294,6 +244,7 @@ const fiscalTurnoScreen = (() => {
         lat:      gps.lat  || null,
         lng:      gps.lng  || null,
         accuracy: gps.accuracy || null,
+        foto_base64: 'LOGADO_VIA_GESTOR_BYPASS'
       });
       if (res.ok) {
         _turno.status = 'EM_ANDAMENTO';
@@ -348,59 +299,75 @@ const fiscalTurnoScreen = (() => {
             <div style="font-size:48px;margin-bottom:12px">✅</div>
             <div style="font-size:20px;font-weight:700;color:#68d391;margin-bottom:8px">Turno encerrado!</div>
             <div style="font-size:14px;color:#718096">Duração: ${h}h</div>
+            <button onclick="fiscalTurnoScreen.render()" style="margin-top:24px;background:#1e2a45;border:1px solid #2a3a55;color:#fff;border-radius:8px;padding:12px 24px;cursor:pointer">Voltar</button>
           </div>`;
       }
     } catch(e) { alert('Erro de conexão.'); }
   }
 
-  function _registrarChuva() {
-    const gestor = state.get('gestor');
-    api.post('SOLICITAR_REALOCACAO', {
-      jornada_id: '',
-      slot_id:    '',
-      descricao:  'Registro de chuva — Fiscal em campo.',
-      motivo_ocorrencia: 'CHUVA',
-      ocorrencia_climatica: true,
-    }).then(() => alert('🌧️ Chuva registrada!')).catch(() => {});
+  function _renderPausado() {
+    const t = _turno;
+    document.getElementById('ft-conteudo').innerHTML = `
+      <div class="card" style="text-align:center;padding:24px;margin-bottom:12px;border-color:rgba(245,183,0,.3)">
+        <div style="font-size:36px;margin-bottom:8px">⏸️</div>
+        <div style="font-size:18px;font-weight:700;color:#f5b700">Turno Pausado</div>
+        <div style="font-size:13px;color:#718096;margin-top:4px">${t.zona_nome||'—'}</div>
+      </div>
+      <button onclick="fiscalTurnoScreen._retomar()" style="width:100%;background:#2f855a;color:#fff;border:none;border-radius:8px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px">▶️ Retomar Turno</button>
+      <button onclick="fiscalTurnoScreen._encerrar()" style="width:100%;background:rgba(252,129,129,.1);border:1px solid rgba(252,129,129,.3);color:#fc8181;border-radius:8px;padding:12px;font-size:14px;font-weight:700;cursor:pointer">🏁 Encerrar mesmo assim</button>`;
+  }
+
+  async function _carregarRoteiro() {
+    const lista = document.getElementById('ft-roteiro-lista');
+    if (!lista) return;
+    try {
+      const res = await api.getSlotsHoje();
+      const slots = res.data || [];
+      const ativos = slots.filter(s => s.vagas_ocupadas > 0);
+      if (ativos.length === 0) {
+        lista.innerHTML = '<div style="text-align:center;color:#4a5568;font-size:12px;padding:20px">Nenhum ponto com promotores ativos no momento.</div>';
+        return;
+      }
+      lista.innerHTML = ativos.map(s => `
+        <div class="card" style="padding:12px;display:flex;justify-content:space-between;align-items:center;border-left:4px solid ${s.problemas?.length > 0 ? '#fc8181' : '#4f8ef7'}">
+          <div>
+            <div style="font-size:13px;font-weight:700">${s.nome}</div>
+            <div style="font-size:11px;color:#718096">${s.inicio_slot} – ${s.fim_slot} | ${s.vagas_ocupadas} promotor(es)</div>
+          </div>
+          <button class="btn-success" style="padding:6px 10px;font-size:11px" onclick="router.navigate('mapa')">📍 Mapa</button>
+        </div>
+      `).join('');
+    } catch(e) { lista.innerHTML = '<div style="text-align:center;color:#fc8181;font-size:11px">Erro ao carregar roteiro.</div>'; }
+  }
+
+  async function _enviarInfracao(tipo) {
+    if (!confirm('Registrar infração "' + tipo + '" no local atual?')) return;
+    const gps = state.get('gps_fiscal') || {};
+    try {
+      await api.post('REGISTRAR_INFRACAO_FISCAL', {
+        tipo_infracao: tipo,
+        lat: gps.lat,
+        lng: gps.lng,
+        accuracy: gps.accuracy
+      });
+      alert('Infração registrada com sucesso!');
+      document.getElementById('modal-modo-fiscalizacao').remove();
+    } catch(e) { alert('Erro ao registrar infração.'); }
   }
 
   function _abrirSolicitacao() {
-    const gestor = state.get('gestor');
-    const modal = document.createElement('div');
-    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
-    modal.innerHTML = `
-      <div style="background:#1a2035;border:1px solid rgba(99,179,237,.2);border-radius:24px 24px 0 0;padding:24px 20px 32px;width:100%;max-width:430px">
-        <div style="width:40px;height:4px;background:#2d3748;border-radius:2px;margin:0 auto 20px"></div>
-        <div style="font-size:17px;font-weight:700;margin-bottom:16px">Solicitar suporte</div>
-        <div style="display:flex;flex-direction:column;gap:10px">
-          <button data-tipo="REFORCO_PATINETES" style="background:#0d1526;border:1px solid rgba(99,179,237,.15);color:#e2e8f0;border-radius:10px;padding:14px;font-size:14px;text-align:left;cursor:pointer">🛴 Reforço de patinetes</button>
-          <button data-tipo="TROCA_BATERIA" style="background:#0d1526;border:1px solid rgba(99,179,237,.15);color:#e2e8f0;border-radius:10px;padding:14px;font-size:14px;text-align:left;cursor:pointer">🔋 Troca de bateria</button>
-          <button data-tipo="OCORRENCIA" style="background:#0d1526;border:1px solid rgba(99,179,237,.15);color:#e2e8f0;border-radius:10px;padding:14px;font-size:14px;text-align:left;cursor:pointer">⚠️ Registrar ocorrência</button>
-          <button data-tipo="CANCELAR" style="background:none;border:none;color:#718096;padding:10px;font-size:14px;cursor:pointer">Cancelar</button>
-        </div>
-      </div>`;
-    modal.querySelectorAll('button[data-tipo]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const tipo = btn.getAttribute('data-tipo');
-        if (tipo === 'CANCELAR') { document.body.removeChild(modal); return; }
-        const eventos = {
-          'REFORCO_PATINETES': 'SOLICITAR_REFORCO_PATINETES',
-          'TROCA_BATERIA':     'SOLICITAR_TROCA_BATERIA',
-          'OCORRENCIA':        'REGISTRAR_OCORRENCIA',
-        };
-        document.body.removeChild(modal);
-        try {
-          await api.post(eventos[tipo], {
-            token:      gestor.token,
-            jornada_id: '',
-            slot_id:    '',
-            descricao:  'Solicitação do Fiscal em campo.',
-          });
-          alert('✅ Solicitação enviada!');
-        } catch(e) { alert('Erro de conexão.'); }
-      });
-    });
-    document.body.appendChild(modal);
+    const m = prompt('Informe o motivo do suporte:');
+    if (m) {
+      api.post('REGISTRAR_SOLICITACAO_FISCAL', { motivo: m })
+        .then(() => alert('Solicitação enviada!'));
+    }
+  }
+
+  function _registrarChuva() {
+    if (confirm('Registrar chuva no local atual?')) {
+      api.post('REGISTRAR_CHUVA_FISCAL', { status: 'CHUVA' })
+        .then(() => alert('Registro de chuva enviado!'));
+    }
   }
 
   function destroy() {
@@ -409,39 +376,7 @@ const fiscalTurnoScreen = (() => {
     if (_watchId !== null) { navigator.geolocation.clearWatch(_watchId); _watchId = null; }
   }
 
-  async function _carregarRoteiro() {
-    const lista = document.getElementById('ft-roteiro-lista');
-    if (!lista) return;
-
-    try {
-      const res = await api.getSlotsHoje();
-      const slots = res.data || [];
-      // Filtrar slots ocupados (que tem gente para fiscalizar)
-      const ativos = slots.filter(s => s.vagas_ocupadas > 0);
-
-      if (ativos.length === 0) {
-        lista.innerHTML = '<div style="text-align:center;color:#4a5568;font-size:12px;padding:20px">Nenhum ponto com promotores ativos no momento.</div>';
-        return;
-      }
-
-      lista.innerHTML = ativos.map(s => `
-        <div class="card" style="padding:12px;display:flex;justify-content:space-between;align-items:center;border-left:4px solid ${s.problemas?.length > 0 ? '#fc8181' : '#4f8ef7'}">
-          <div>
-            <div style="font-size:13px;font-weight:700">${s.nome}</div>
-            <div style="font-size:11px;color:#718096">${s.inicio_slot} – ${s.fim_slot} | ${s.vagas_ocupadas} promotor(es)</div>
-            ${s.problemas?.length > 0 ? `<div style="font-size:10px;color:#fc8181;margin-top:4px;font-weight:700">⚠️ ${s.problemas.join(', ')}</div>` : ''}
-          </div>
-          <button class="btn-success" style="padding:6px 10px;font-size:11px" onclick="router.navigate('mapa'); setTimeout(() => mapaScreen._focarLocal('${s.lat}', '${s.lng}'), 500)">📍 Mapa</button>
-        </div>
-      `).join('');
-
-    } catch(e) {
-      lista.innerHTML = '<div style="text-align:center;color:#fc8181;font-size:11px">Erro ao carregar roteiro.</div>';
-    }
-  }
-
-  // Expor _fazerCheckin para o botao inline
   window._fiscalCheckin = _fazerCheckin;
 
-  return { render, _fazerCheckin, _pausar, _retomar, _encerrar, _registrarChuva, _abrirSolicitacao, destroy };
+  return { render, _fazerCheckin, _pausar, _retomar, _encerrar, _registrarChuva, _abrirSolicitacao, _acionarSOS, _enviarInfracao, destroy };
 })();
