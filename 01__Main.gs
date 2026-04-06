@@ -60,9 +60,10 @@ function doGet(e) {
       case 'GET_MEUS_TURNOS_CLT':               return jsonResp_(getMeusTurnosCLT_(user));
       case 'GET_MEU_BANCO_HORAS':               return jsonResp_(getMeuBancoHoras_(user));
       case 'GET_HISTORICO_TURNOS_CLT_PROPRIO':  return jsonResp_(getMeusHistoricoTurnosCLT_(user));
+      case 'GET_HISTORICO_TURNOS_CLT':          return jsonResp_(getMeusHistoricoTurnosCLT_(user)); // Alias para o App
 
       // ── Gestor CLT ───────────────────────────────────────────
-      case 'GET_HISTORICO_TURNOS_CLT':          return jsonResp_(getHistoricoTurnosCLT_(token, params));
+      case 'GET_HISTORICO_TURNOS_CLT_GESTOR':   return jsonResp_(getHistoricoTurnosCLT_(token, params));
 
       // ── Gestor ───────────────────────────────────────────────
       case 'GET_PROMOTORES_ATIVOS':         return jsonResp_(getPromotoresAtivos_(token));
