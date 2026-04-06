@@ -865,6 +865,54 @@ function analisarRiscoClimatico() {
   }
 }
 
+/**
+ * Chama a API do Gemini Vision para analisar imagens base64.
+ */
+function callGeminiVisionAI_(base64Image, prompt) {
+  const apiKey = getConfig_('api_key');
+  if (!apiKey) return null;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  
+  const payload = {
+    contents: [{
+      parts: [
+        { text: prompt },
+        { inline_data: { mime_type: "image/jpeg", data: base64Image } }
+      ]
+    }]
+  };
+
+  try {
+    const response = UrlFetchApp.fetch(url, {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    const resJson = JSON.parse(response.getContentText());
+    if (resJson.candidates && resJson.candidates[0]) {
+      return resJson.candidates[0].content.parts[0].text;
+    }
+  } catch (e) {}
+  return null;
+}
+
+/**
+ * Algoritmo de Ray-Casting para verificar se um ponto está dentro de um polígono.
+ */
+function isDentroDePoligono_(lat, lng, poligono) {
+  if (!poligono || !poligono.length) return false;
+  let isInside = false;
+  for (let i = 0, j = poligono.length - 1; i < poligono.length; j = i++) {
+    const xi = poligono[i].lat, yi = poligono[i].lng;
+    const xj = poligono[j].lat, yj = poligono[j].lng;
+    const intersect = ((yi > lng) !== (yj > lng)) && (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi);
+    if (intersect) isInside = !isInside;
+  }
+  return isInside;
+}
+
 function askIAAssistante_(user, params) {
   const pergunta = params.pergunta;
   if (!pergunta) return { ok: false, erro: 'Pergunta vazia.' };

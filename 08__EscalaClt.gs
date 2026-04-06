@@ -252,7 +252,28 @@ function checkinTurnoCLT_(user,params){
     var stt=String(rows[r][h.indexOf('status')]).trim();
     if(stt==='EM_ANDAMENTO') return{ok:true,mensagem:'Checkin ja realizado.'};
     if(!['ESCALADO','CONFIRMADO'].includes(stt)) throw new Error('Status invalido para checkin: '+stt);
-    var agora=new Date().toISOString();
+    
+    var agoraDate = new Date();
+    var horaCheckin = agoraDate.getHours();
+    if (horaCheckin < 13 || horaCheckin > 21) {
+      // Bloqueio de horário rígido (exemplo: liberando a partir das 13:30 para turno das 14h)
+      if (!(horaCheckin === 13 && agoraDate.getMinutes() >= 30)) {
+        throw new Error('Check-in bloqueado fora do horário operacional (14h às 21h).');
+      }
+    }
+
+    // IA: VALIDAÇÃO DE FOTO DO FISCAL
+    if (params.foto_base64) {
+      const promptFoto = "Analise esta foto de um fiscal da JET iniciando o turno. Verifique se é uma foto real de uma pessoa, preferencialmente uniformizada. Responda APENAS 'APROVADO' ou 'REPROVADO'.";
+      const validacaoIA = callGeminiVisionAI_(params.foto_base64, promptFoto);
+      if (validacaoIA && validacaoIA.toUpperCase().indexOf('REPROVADO') > -1) {
+        throw new Error('⛔ Foto de check-in reprovada pela IA. Certifique-se de estar uniformizado e em um local iluminado.');
+      }
+    } else {
+      throw new Error('Foto de check-in obrigatória para Fiscais.');
+    }
+
+    var agora=agoraDate.toISOString();
     ws.getRange(r+1,h.indexOf('status')+1).setValue('EM_ANDAMENTO');
     ws.getRange(r+1,h.indexOf('checkin_hora')+1).setNumberFormat(' @').setValue(agora);
     ws.getRange(r+1,h.indexOf('atualizado_em')+1).setValue(agora);
@@ -410,6 +431,32 @@ function heartbeatCLT_(user, params) {
   var agora    = new Date().toISOString();
 
   var ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  
+  // GEOFENCING: VERIFICAR ÁREAS FOCO (Ibirapuera, Paulista, etc)
+  const perfilMap = _getPerfilCLTMap_(ss);
+  const perfil = perfilMap[user.user_id];
+  if (perfil && perfil.zona_poligono) {
+    const estaDentro = isDentroDePoligono_(lat, lng, perfil.zona_poligono);
+    if (!estaDentro) {
+      // Registrar desvio de rota se fora das áreas foco
+      const cache = CacheService.getScriptCache();
+      const foraKey = `fora_rota_${user.user_id}`;
+      let foraCount = parseInt(cache.get(foraKey) || '0') + 1;
+      cache.put(foraKey, foraCount.toString(), 1800); // 30 min cache
+
+      if (foraCount === 5) { // Aproximadamente 15 min fora (heartbeat a cada 3 min)
+        processIntegracoes([{
+          canal: 'telegram', tipo: 'group_message',
+          cidade: user.cidade_base || '', topic_key: 'ALERTAS',
+          parse_mode: 'HTML',
+          text_html: `🚩 <b>ALERTA: DESVIO DE ROTA</b>\n\n👤 Fiscal: <b>${user.nome_completo || user.nome}</b>\n⚠️ Localização fora das áreas foco permitidas por mais de 15 min.\n📍 Coordenadas: ${lat},${lng}`
+        }], { evento: 'ALERTA_GEOFENCING' });
+      }
+    } else {
+      CacheService.getScriptCache().remove(`fora_rota_${user.user_id}`);
+    }
+  }
+
   var ws = ss.getSheetByName('LOCALIZACAO_TEMPO_REAL');
   if (ws && lat && lng) {
     ws.appendRow([
