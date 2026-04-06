@@ -3,7 +3,7 @@
  * Sessão 4 | Scope: /gestor/
  */
 
-const SW_VERSION = 'jet-gestor-v5';
+const SW_VERSION = 'jet-gestor-v6';
 
 const PRECACHE = [
   '/gestor',

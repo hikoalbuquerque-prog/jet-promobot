@@ -1,4 +1,4 @@
-const SW_VERSION = 'jet-ops-gh-v1.3.5';
+const SW_VERSION = 'jet-ops-gh-v1.3.6';
 const BASE = ''; // Servido da raiz do public no Cloud Run
 
 const ASSETS = [
