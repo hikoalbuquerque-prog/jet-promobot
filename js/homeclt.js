@@ -110,10 +110,13 @@ const homeScreenCLT = {
 function _fmtDataCLTPwa(v) {
   if (!v) return '-';
   var s = String(v).substring(0, 10);
-  var hoje = new Date().toISOString().split('T')[0];
-  var amanha = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+  var hoje = new Date().toLocaleDateString('en-CA');
+  var amanhaDate = new Date();
+  amanhaDate.setDate(amanhaDate.getDate() + 1);
+  var amanha = amanhaDate.toLocaleDateString('en-CA');
+  
   if (s === hoje) return 'Hoje';
-  if (s === amanha) return 'Amanha';
+  if (s === amanha) return 'Amanhã';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   var parts = s.split('-');
   return parts[2] + '/' + parts[1];
