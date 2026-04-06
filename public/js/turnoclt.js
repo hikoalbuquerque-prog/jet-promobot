@@ -44,7 +44,7 @@ const turnoCLT = {
     try {
       const res = await api.get('GET_MEUS_TURNOS_CLT');
       const turnos = res.data || [];
-      const hoje = new Date().toISOString().split('T')[0];
+      const hoje = new Date().toLocaleDateString('en-CA');
       const ativo = turnos.find(t =>
         t.data === hoje &&
         ['PLANEJADO','ESCALADO','CONFIRMADO','EM_ANDAMENTO'].includes(t.status)
