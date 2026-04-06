@@ -106,10 +106,21 @@ const fiscalTurnoScreen = (() => {
         <div id="ft-timer" style="font-size:48px;font-weight:800;color:#68d391;letter-spacing:-2px;line-height:1">00:00:00</div>
         <div style="font-size:12px;color:#718096;margin-top:6px">Check-in às ${checkinHora}</div>
       </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <button onclick="fiscalTurnoScreen._abrirModoFiscalizacao()" style="background:#4f8ef7;color:#fff;border:none;border-radius:12px;padding:16px;font-size:14px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px">
+          <span style="font-size:24px">🚨</span> Registrar Infração
+        </button>
+        <button onclick="fiscalTurnoScreen._acionarSOS()" style="background:#fc8181;color:#fff;border:none;border-radius:12px;padding:16px;font-size:14px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px">
+          <span style="font-size:24px">🆘</span> Botão SOS
+        </button>
+      </div>
+
       <div id="ft-gps-live" style="background:#0d1526;border:1px solid rgba(99,179,237,.15);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;margin-bottom:12px">
         <div style="width:8px;height:8px;border-radius:50%;background:#68d391;flex-shrink:0;animation:pulse 2s infinite" id="ft-gps-dot-live"></div>
         <div style="flex:1;font-size:12px;color:#a0aec0" id="ft-gps-coords-live">Aguardando GPS...</div>
       </div>
+      
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
         <button onclick="fiscalTurnoScreen._pausar()" style="background:rgba(245,183,0,.15);border:1px solid rgba(245,183,0,.3);color:#f5b700;border-radius:8px;padding:12px;font-size:14px;font-weight:700;cursor:pointer">⏸ Pausar</button>
         <button onclick="fiscalTurnoScreen._registrarChuva()" style="background:rgba(99,179,237,.1);border:1px solid rgba(99,179,237,.2);color:#63b3ed;border-radius:8px;padding:12px;font-size:14px;font-weight:700;cursor:pointer">🌧️ Chuva</button>
@@ -123,6 +134,67 @@ const fiscalTurnoScreen = (() => {
 
     _iniciarTimer();
     _iniciarHeartbeat();
+  }
+
+  function _abrirModoFiscalizacao() {
+    const modal = document.createElement('div');
+    modal.id = 'modal-modo-fiscalizacao';
+    modal.style.cssText = 'position:fixed;inset:0;background:#0a0f1e;z-index:9999;display:flex;flex-direction:column;padding:20px;';
+    modal.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <h2 style="font-size:18px;font-weight:700;margin:0">🚨 MODO FISCALIZAÇÃO</h2>
+        <button onclick="document.body.removeChild(this.parentElement.parentElement)" style="background:none;border:none;color:#718096;font-size:24px">×</button>
+      </div>
+      <p style="font-size:12px;color:#718096;margin-bottom:20px">Clique no botão para registrar a infração detectada. O GPS será capturado automaticamente.</p>
+      
+      <div style="display:flex;flex-direction:column;gap:12px;flex:1;overflow-y:auto">
+        <button onclick="fiscalTurnoScreen._enviarInfracao('DUAS_PESSOAS')" class="btn-infra">👥 Duas pessoas no patinete</button>
+        <button onclick="fiscalTurnoScreen._enviarInfracao('MENOR_IDADE')" class="btn-infra">🔞 Menor de 18 anos</button>
+        <button onclick="fiscalTurnoScreen._enviarInfracao('ESTACIONAMENTO_IRREGULAR')" class="btn-infra">🅿️ Estacionamento irregular</button>
+        <button onclick="fiscalTurnoScreen._enviarInfracao('TRANSITO_PERIGOSO')" class="btn-infra">🚲 Condução perigosa</button>
+        <button onclick="fiscalTurnoScreen._enviarInfracao('DANO_INTENCIONAL')" class="btn-infra">🔨 Dano ao patrimônio</button>
+      </div>
+      
+      <div id="infra-status" style="margin-top:20px;text-align:center;font-size:13px;font-weight:700;height:20px"></div>
+
+      <style>
+        .btn-infra { background:#16213e; border:1px solid #2a3a55; color:#eaf0fb; padding:18px; border-radius:12px; font-size:14px; font-weight:600; text-align:left; cursor:pointer; transition:all 0.2s; }
+        .btn-infra:active { background:#4f8ef7; transform:scale(0.98); }
+      </style>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  async function _enviarInfracao(tipo) {
+    const status = document.getElementById('infra-status');
+    const gps = state.get('gps_fiscal') || {};
+    if (!gps.ok) return alert('Aguardando sinal de GPS...');
+
+    status.style.color = '#63b3ed';
+    status.textContent = 'Enviando registro...';
+
+    try {
+      const res = await api.post('REGISTRAR_INFRACAO_RUA', { tipo, lat: gps.lat, lng: gps.lng });
+      if (res.ok) {
+        status.style.color = '#68d391';
+        status.textContent = '✅ REGISTRADO COM SUCESSO!';
+        setTimeout(() => { status.textContent = ''; }, 2000);
+      }
+    } catch(e) {
+      status.style.color = '#fc8181';
+      status.textContent = 'Erro de conexão.';
+    }
+  }
+
+  async function _acionarSOS() {
+    if (!confirm('Deseja acionar o BOTÃO SOS? Use apenas em emergências reais com autoridades ou perigo físico.')) return;
+    const gps = state.get('gps_fiscal') || {};
+    try {
+      const res = await api.post('BOTAO_SOS', { lat: gps.lat, lng: gps.lng });
+      if (res.ok) {
+        alert('🆘 SOS ACIONADO! Os gestores e regionais foram notificados com sua localização exata. Aguarde em local seguro.');
+      }
+    } catch(e) { alert('Erro ao acionar SOS.'); }
   }
 
   function _renderPausado() {

@@ -1250,3 +1250,65 @@ function getTeamChurnSummary_(token) {
 
   return { ok: true, resumo: rankingRisco.slice(0, 10) };
 }
+
+// ─── Infrações e Segurança SOS ───────────────────────────────
+
+function registrarInfracaoRua_(token, body) {
+  const user = validarToken_(token).user;
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  let ws = ss.getSheetByName('INFRACOES_RUA');
+  if (!ws) {
+    ws = ss.insertSheet('INFRACOES_RUA');
+    ws.appendRow(['infracao_id', 'fiscal_id', 'tipo_infracao', 'data_hora', 'lat', 'lng', 'observacao']);
+  }
+
+  const id = gerarId_('INF');
+  const agora = new Date().toISOString();
+  ws.appendRow([id, user.user_id, body.tipo, agora, body.lat || '', body.lng || '', body.observacao || '']);
+
+  return { ok: true, infracao_id: id };
+}
+
+function acionarSOS_(token, body) {
+  const user = validarToken_(token).user;
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const agora = Utilities.formatDate(new Date(), "GMT-3", "HH:mm:ss");
+  const lat = body.lat, lng = body.lng;
+
+  const msg = `🚨 🆘 <b>ALERTA DE EMERGÊNCIA (SOS)</b> 🆘 🚨\n\n` +
+              `👤 <b>COLABORADOR:</b> ${user.nome_completo || user.nome}\n` +
+              `👔 <b>CARGO:</b> ${user.cargo_principal || 'N/A'}\n` +
+              `🏙️ <b>CIDADE:</b> ${user.cidade_base || ''}\n` +
+              `⏰ <b>HORÁRIO:</b> ${agora}\n\n` +
+              `📍 <b>LOCALIZAÇÃO ATUAL:</b>\n` +
+              `<a href="https://www.google.com/maps?q=${lat},${lng}">👉 VER NO MAPA (GPS)</a>\n\n` +
+              `⚠️ <b>ATENÇÃO:</b> Suporte imediato solicitado. Iniciando rastreio de alta precisão.`;
+
+  // Notificar todos os canais de alerta
+  const integracoes = [{
+    canal: 'telegram', tipo: 'group_message',
+    cidade: user.cidade_base || 'TODAS',
+    topic_key: 'ALERTAS',
+    parse_mode: 'HTML',
+    text_html: msg
+  }];
+
+  // Notificar Regional no Privado (se houver)
+  const lideres = _getLideresDoUsuario_(ss, user.user_id);
+  lideres.forEach(lid => {
+    if (lid.telegram_user_id) {
+      integracoes.push({
+        canal: 'telegram', tipo: 'private_message',
+        telegram_user_id: String(lid.telegram_user_id),
+        parse_mode: 'HTML', text_html: msg
+      });
+    }
+  });
+
+  processIntegracoes(integracoes, { evento: 'ACIONAMENTO_SOS' });
+  
+  // Ativa flag de rastreio crítico no cache por 15 min
+  CacheService.getScriptCache().put(`sos_ativo_${user.user_id}`, "TRUE", 900);
+
+  return { ok: true, mensagem: 'SOS enviado com sucesso. Aguarde no local seguro.' };
+}

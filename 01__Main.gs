@@ -202,6 +202,8 @@ function doPost(e) {
       case 'CRIAR_TURNO_CLT':             return jsonResp_(criarTurnoCLT_(body.token, body));
       case 'SALVAR_EQUIPE':               return jsonResp_(salvarEquipe_(body.token, body));
       case 'SALVAR_AVISO':                return jsonResp_(salvarAviso_(body.token, body));
+      case 'REGISTRAR_INFRACAO_RUA':      return jsonResp_(registrarInfracaoRua_(body.token, body));
+      case 'BOTAO_SOS':                   return jsonResp_(acionarSOS_(body.token, body));
 
       default:
         return jsonResp_({ ok: false, erro: 'evento POST não reconhecido: ' + evento }, 400);
