@@ -255,10 +255,16 @@ function checkinTurnoCLT_(user,params){
     
     var agoraDate = new Date();
     var horaCheckin = agoraDate.getHours();
+    
+    // VERIFICAR SE TEM SLOT COMO PROMOTOR (Dobra de função)
+    const temSlotAtivo = _verificarSlotAtivoPromotor_(ss, user.user_id);
+
     if (horaCheckin < 13 || horaCheckin > 21) {
-      // Bloqueio de horário rígido (exemplo: liberando a partir das 13:30 para turno das 14h)
-      if (!(horaCheckin === 13 && agoraDate.getMinutes() >= 30)) {
-        throw new Error('Check-in bloqueado fora do horário operacional (14h às 21h).');
+      // Se não tiver slot como promotor, aplica a trava de horário do fiscal (14h-21h)
+      if (!temSlotAtivo) {
+        if (!(horaCheckin === 13 && agoraDate.getMinutes() >= 30)) {
+          throw new Error('Check-in bloqueado fora do horário operacional (14h às 21h).');
+        }
       }
     }
 
@@ -432,7 +438,10 @@ function heartbeatCLT_(user, params) {
 
   var ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
   
-  // GEOFENCING: VERIFICAR ÁREAS FOCO (Ibirapuera, Paulista, etc)
+  // 1. REGRA DE EFICIÊNCIA: MÁX 15 MIN COM PROMOTOR ATIVO
+  _verificarEficienciaPermanencia_(ss, user, lat, lng);
+
+  // 2. GEOFENCING: VERIFICAR ÁREAS FOCO (Ibirapuera, Paulista, etc)
   const perfilMap = _getPerfilCLTMap_(ss);
   const perfil = perfilMap[user.user_id];
   if (perfil && perfil.zona_poligono) {
@@ -569,4 +578,87 @@ function getHistoricoTurnosCLT_(token, params) {
   totais.horas_extra      = Math.round(totais.horas_extra      * 100) / 100;
 
   return { ok: true, data: result, totais: totais };
+}
+
+/**
+ * Verifica se o usuário tem um slot aceito ou em andamento como promotor.
+ */
+function _verificarSlotAtivoPromotor_(ss, userId) {
+  const wsJ = ss.getSheetByName('JORNADAS');
+  if (!wsJ) return false;
+  const dataJ = wsJ.getDataRange().getValues(), hJ = dataJ[0].map(v => String(v).toLowerCase().trim());
+  const iUsr = hJ.indexOf('user_id'), iStt = hJ.indexOf('status'), iDt = hJ.indexOf('criado_em');
+  const hoje = new Date().toISOString().substring(0, 10);
+
+  for (let r = 1; r < dataJ.length; r++) {
+    const cri = String(dataJ[r][iDt]).substring(0, 10);
+    const uid = String(dataJ[r][iUsr]).trim();
+    const stt = String(dataJ[r][iStt]).toUpperCase();
+    
+    if (uid === userId && cri === hoje && ['ACEITO', 'EM_ATIVIDADE', 'PAUSADO'].includes(stt)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Monitora se o fiscal está há mais de 15 minutos parado em um slot com promotor ativo.
+ */
+function _verificarEficienciaPermanencia_(ss, user, lat, lng) {
+  const cache = CacheService.getScriptCache();
+  const tempoPermanenciaKey = `tempo_no_slot_${user.user_id}`;
+  
+  // 1. Identificar se o fiscal está no raio de algum slot ativo
+  const slotsMap = _getSlotsMap_(ss);
+  let slotIdAtual = null;
+  let slotNomeAtual = "";
+
+  for (const sid in slotsMap) {
+    const s = slotsMap[sid];
+    const dist = haversineMetros_(lat, lng, s.lat, s.lng);
+    if (dist <= (s.raio_metros || 150)) {
+      // Verificar se este slot tem promotor (vagas_ocupadas > 0)
+      // Nota: _getSlotsMap_ básico não traz vagas_ocupadas, precisamos cruzar.
+      // Simplificando: vamos considerar qualquer slot de promotor.
+      slotIdAtual = sid;
+      slotNomeAtual = s.nome;
+      break;
+    }
+  }
+
+  if (slotIdAtual) {
+    let dataCache = JSON.parse(cache.get(tempoPermanenciaKey) || '{"slot_id":null, "contagem":0}');
+    
+    if (dataCache.slot_id === slotIdAtual) {
+      dataCache.contagem += 1;
+    } else {
+      dataCache = { slot_id: slotIdAtual, contagem: 1 };
+    }
+
+    cache.put(tempoPermanenciaKey, JSON.stringify(dataCache), 1800);
+
+    // 5 batidas de heartbeat (3 min cada) = 15 minutos
+    if (dataCache.contagem === 5) {
+      const msg = `⚠️ <b>ALERTA DE EFICIÊNCIA</b>\n\n👤 Fiscal: <b>${user.nome_completo || user.nome}</b>\n📍 Local: ${slotNomeAtual}\n⏱️ Permanência: <b>15 minutos</b> excedida.\n\n<i>Lembrete: O foco da fiscalização é dinâmico. Favor prosseguir com o roteiro.</i>`;
+      
+      processIntegracoes([{
+        canal: 'telegram', tipo: 'group_message',
+        cidade: user.cidade_base || '', topic_key: 'ALERTAS',
+        parse_mode: 'HTML', text_html: msg
+      }], { evento: 'ALERTA_PERMANENCIA_FISCAL' });
+
+      // Opcional: Envia no privado do fiscal também
+      if (user.telegram_user_id) {
+        processIntegracoes([{
+          canal: 'telegram', tipo: 'private_message',
+          telegram_user_id: String(user.telegram_user_id),
+          parse_mode: 'HTML', text_html: msg
+        }], { evento: 'ALERTA_PERMANENCIA_FISCAL_PRIV' });
+      }
+    }
+  } else {
+    // Se saiu do raio, reseta o timer
+    cache.remove(tempoPermanenciaKey);
+  }
 }
