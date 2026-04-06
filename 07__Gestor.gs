@@ -1132,3 +1132,77 @@ function getChurnPrediction_(token, params) {
     prediction: prediction || "Análise indisponível no momento." 
   };
 }
+
+function getTeamChurnSummary_(token) {
+  const adminUser = _assertGestor_(token);
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const allowedUsers = _getUsersDaHierarquia_(ss, adminUser);
+  if (!allowedUsers) return { ok: false, erro: 'Acesso negado ou hierarquia não encontrada.' };
+
+  const promMap = _getPromotoresMap_(ss);
+  const agora = new Date();
+  const trintaDiasAtras = new Date(agora.getTime() - 30 * 86400000);
+  const seteDiasAtras = new Date(agora.getTime() - 7 * 86400000);
+
+  // 1. Mapear Jornadas
+  const wsJ = ss.getSheetByName('JORNADAS');
+  const userStats = {};
+  allowedUsers.forEach(uId => { userStats[uId] = { diasUteis: 0, diasFDS: 0, scoreSemana1: 0, scoreSemana4: 0, pilulas: 0, nome: promMap[uId]?.nome || uId }; });
+
+  if (wsJ) {
+    const dataJ = wsJ.getDataRange().getValues(), hJ = dataJ[0].map(v => String(v).toLowerCase().trim());
+    const iUsr = hJ.indexOf('user_id'), iDt = hJ.indexOf('data'), iStt = hJ.indexOf('status');
+    for (let r = 1; r < dataJ.length; r++) {
+      const uId = String(dataJ[r][iUsr]).trim();
+      if (!allowedUsers.has(uId)) continue;
+      const dt = new Date(dataJ[r][iDt]);
+      if (dt < trintaDiasAtras) continue;
+      
+      const stt = String(dataJ[r][iStt]).toUpperCase();
+      if (stt === 'ENCERRADO' || stt === 'EM_ATIVIDADE') {
+        const dSemana = dt.getDay();
+        if (dSemana === 0 || dSemana === 6) userStats[uId].diasFDS++; else userStats[uId].diasUteis++;
+      }
+    }
+  }
+
+  // 2. Mapear Score e Pílulas
+  const wsS = ss.getSheetByName('SCORE_HISTORICO');
+  if (wsS) {
+    const dataS = wsS.getDataRange().getValues(), hS = dataS[0].map(v => String(v).toLowerCase().trim());
+    const iUsr = hS.indexOf('user_id'), iTipo = hS.indexOf('tipo'), iPts = hS.indexOf('pontos'), iDt = hS.indexOf('criado_em');
+    
+    const sem1Start = new Date(agora.getTime() - 30 * 86400000);
+    const sem1End = new Date(agora.getTime() - 21 * 86400000);
+
+    for (let r = 1; r < dataS.length; r++) {
+      const uId = String(dataS[r][iUsr]).trim();
+      if (!allowedUsers.has(uId)) continue;
+      const dt = new Date(dataS[r][iDt]);
+      if (dt < trintaDiasAtras) continue;
+
+      const pts = parseFloat(dataS[r][iPts] || '0');
+      const tipo = String(dataS[r][iTipo]).toUpperCase();
+
+      if (tipo === 'PILULA_DIARIA') userStats[uId].pilulas++;
+      if (dt >= sem1Start && dt < sem1End) userStats[uId].scoreSemana1 += pts;
+      if (dt >= seteDiasAtras) userStats[uId].scoreSemana4 += pts;
+    }
+  }
+
+  const rankingRisco = Object.values(userStats).map(u => {
+    // Cálculo simplificado de Risco (0-100)
+    let ptsRisco = 0;
+    if (u.pilulas < 5) ptsRisco += 30; // Baixo engajamento acadêmico
+    if (u.scoreSemana4 < u.scoreSemana1) ptsRisco += 40; // Queda de performance
+    if (u.diasUteis + u.diasFDS < 2) ptsRisco += 30; // Quase inativo
+
+    return {
+      ...u,
+      deltaScore: u.scoreSemana4 - u.scoreSemana1,
+      nivelRisco: ptsRisco
+    };
+  }).sort((a, b) => b.nivelRisco - a.nivelRisco);
+
+  return { ok: true, resumo: rankingRisco.slice(0, 10) };
+}

@@ -12,6 +12,7 @@ const iaScreen = (() => {
     try {
       const res = await api.get('GET_IA_INSIGHTS');
       _insight = res.insight || "Nenhum insight disponível.";
+      _loadTeamChurn();
     } catch (e) {
       _insight = "Erro ao conectar com a Inteligência Artificial: " + e.message;
     } finally {
@@ -58,7 +59,17 @@ const iaScreen = (() => {
         </div>
 
         <div style="margin-top:30px;background:rgba(0,0,0,0.2);padding:20px;border-radius:12px;border:1px dashed rgba(255,255,255,0.05)">
-          <h3 style="font-size:13px;color:#63b3ed;margin-bottom:10px">🔍 RADAR DE RETENÇÃO (PREDIÇÃO DE CHURN)</h3>
+          <h3 style="font-size:13px;color:#63b3ed;margin-bottom:10px">📊 COMPARATIVO DE RISCO DA EQUIPE</h3>
+          <p style="font-size:12px;color:#718096;line-height:1.6;margin-bottom:15px">
+            Visão geral dos 10 promotores com maiores indicadores de desengajamento na sua hierarquia.
+          </p>
+          <div id="team-churn-list" style="display:flex;flex-direction:column;gap:10px">
+            <div style="text-align:center;color:#4a5568;padding:10px">Carregando comparativo...</div>
+          </div>
+        </div>
+
+        <div style="margin-top:30px;background:rgba(0,0,0,0.2);padding:20px;border-radius:12px;border:1px dashed rgba(255,255,255,0.05)">
+          <h3 style="font-size:13px;color:#63b3ed;margin-bottom:10px">🔍 RADAR DE RETENÇÃO INDIVIDUAL</h3>
           <p style="font-size:12px;color:#718096;line-height:1.6;margin-bottom:15px">
             Verifique o risco de desengajamento de um promotor específico. A IA analisa o padrão de frequência (dias úteis vs FDS), a queda no score e o engajamento com as pílulas diárias.
           </p>
@@ -109,6 +120,37 @@ const iaScreen = (() => {
       }
     } catch (e) {
       resBox.innerHTML = '<span style="color:#fc8181">Erro na comunicação.</span>';
+    }
+  }
+
+  async function _loadTeamChurn() {
+    const list = document.getElementById('team-churn-list');
+    if (!list) return;
+    try {
+      const res = await api.get('GET_TEAM_CHURN_SUMMARY');
+      if (res.ok && res.resumo) {
+        list.innerHTML = res.resumo.map(u => {
+          const corRisco = u.nivelRisco > 60 ? '#fc8181' : (u.nivelRisco > 30 ? '#f6ad55' : '#68d391');
+          return `
+            <div style="background:rgba(255,255,255,0.03);padding:12px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;border-left:4px solid ${corRisco}">
+              <div>
+                <div style="font-size:13px;font-weight:700;color:#fff">${u.nome}</div>
+                <div style="font-size:10px;color:#718096">
+                  Pílulas: ${u.pilulas} | Delta Score: <span style="color:${u.deltaScore>=0?'#68d391':'#fc8181'}">${u.deltaScore>=0?'+':''}${u.deltaScore}</span>
+                </div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:14px;font-weight:800;color:${corRisco}">${u.nivelRisco}%</div>
+                <div style="font-size:9px;color:#4a5568">RISCO</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } else {
+        list.innerHTML = '<div style="text-align:center;color:#4a5568">Sem dados comparativos.</div>';
+      }
+    } catch(e) {
+      list.innerHTML = '<div style="text-align:center;color:#fc8181">Erro ao carregar comparativo.</div>';
     }
   }
 

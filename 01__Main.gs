@@ -80,6 +80,7 @@ function doGet(e) {
       case 'GET_MURAL_AVISOS':              return jsonResp_(getMuralAvisos_(user));
       case 'GET_IA_INSIGHTS':               return jsonResp_(getIAInsights_(token));
       case 'GET_CHURN_PREDICTION':          return jsonResp_(getChurnPrediction_(token, params));
+      case 'GET_TEAM_CHURN_SUMMARY':        return jsonResp_(getTeamChurnSummary_(token));
       case 'ASK_IA_ASSISTANTE':             return jsonResp_(askIAAssistante_(user, params));
       case 'REPLICAR_ESCALA':               return jsonResp_(replicarEscala_(token, params));
       case 'REPLICAR_SEMANA':               return jsonResp_(replicarSemana_(token, params));
