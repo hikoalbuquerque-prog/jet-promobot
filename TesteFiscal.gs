@@ -109,6 +109,8 @@ function configurarTesteFiscal() {
         if (h === 'senha_hash') return '01012000'; // Senha para o teste
         if (h === 'ativo') return 'SIM';
         if (h === 'cargo_principal') return 'FISCAL';
+        if (h === 'tipo_vinculo') return 'CLT';
+        if (h === 'operacao') return 'PROMO';
         if (h === 'cidade_base') return 'São Paulo';
         if (h === 'token') return 'TK_TEST_FIS_001';
         return '';
