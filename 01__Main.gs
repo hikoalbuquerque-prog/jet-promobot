@@ -81,6 +81,7 @@ function doGet(e) {
       case 'GET_IA_INSIGHTS':               return jsonResp_(getIAInsights_(token));
       case 'GET_CHURN_PREDICTION':          return jsonResp_(getChurnPrediction_(token, params));
       case 'GET_TEAM_CHURN_SUMMARY':        return jsonResp_(getTeamChurnSummary_(token));
+      case 'GET_FISCAL_STATS':              return jsonResp_(getFiscalStats_(user));
       case 'ASK_IA_ASSISTANTE':             return jsonResp_(askIAAssistante_(user, params));
       case 'REPLICAR_ESCALA':               return jsonResp_(replicarEscala_(token, params));
       case 'REPLICAR_SEMANA':               return jsonResp_(replicarSemana_(token, params));
@@ -189,6 +190,12 @@ function doPost(e) {
       case 'CRIAR_SLOT':                  return jsonResp_(criarSlot_(body.token, body));
 
       // ── CLT (próprio) ────────────────────────────────────────
+      case 'GET_MEUS_TURNOS_CLT':               return jsonResp_(getMeusTurnosCLT_(user));
+      case 'GET_HISTORICO_TURNOS_CLT_PROPRIO':  return jsonResp_(getMeusHistoricoTurnosCLT_(user));
+      case 'GET_ROADMAP_FISCAL':                return jsonResp_(getRoadmapFiscal_(user, body));
+      case 'REGISTRAR_CHUVA_FISCAL':            return jsonResp_(registrarChuvaFiscal_(user, body));
+      case 'REGISTRAR_OCORRENCIA_USUARIO':      return jsonResp_(registrarOcorrenciaUsuario_(user, body));
+      case 'REGISTRAR_ORGANIZACAO_PONTO_FISCAL': return jsonResp_(registrarOrganizacaoPontoFiscal_(user, body));
       case 'CONFIRMAR_TURNO_CLT':         return jsonResp_(confirmarTurnoCLT_(user, body));
       case 'CHECKIN_TURNO_CLT':           return jsonResp_(checkinTurnoCLT_(user, body));
       case 'CHECKOUT_TURNO_CLT':          return jsonResp_(checkoutTurnoCLT_(user, body));
@@ -203,6 +210,8 @@ function doPost(e) {
       case 'SALVAR_EQUIPE':               return jsonResp_(salvarEquipe_(body.token, body));
       case 'SALVAR_AVISO':                return jsonResp_(salvarAviso_(body.token, body));
       case 'REGISTRAR_INFRACAO_RUA':      return jsonResp_(registrarInfracaoRua_(body.token, body));
+      case 'REGISTRAR_ORGANIZACAO_PONTO': return jsonResp_(registrarOrganizacaoPonto_(body.token, body));
+      case 'ENVIAR_ATESTADO':             return jsonResp_(enviarAtestado_(body.token, body));
       case 'BOTAO_SOS':                   return jsonResp_(acionarSOS_(body.token, body));
 
       default:

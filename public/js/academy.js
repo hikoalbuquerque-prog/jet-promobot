@@ -251,16 +251,27 @@ const academy = {
     if (scores.length < quizzesCount) { ui.toast('Conclua o desafio antes!', 'warning'); return; }
     if (scoreMin < 70 && scores.length > 0) { ui.toast('Atinga pelo menos 70% no quiz', 'warning'); return; }
     
-    btn.disabled = true; btn.textContent = 'Sincronizando...';
+    btn.disabled = true; 
+    btn.textContent = 'Sincronizando...';
+    
     try {
       const res = await api.post({ evento: 'CONCLUIR_MODULO', modulo_id: moduloId, score_quiz: scoreMin, pontos });
-      if (res.ok) {
+      if (res && res.ok) {
         ui.toast(res.ja_concluido ? 'Módulo já concluído!' : `🎊 Parabéns! +${pontos} pontos!`, 'success');
-        this._quizScores = {}; // Limpa scores
+        this._quizScores = {}; 
         this._modAtual = null;
-        setTimeout(() => this.render(), 1500);
-      } else { ui.toast(res.erro, 'error'); btn.disabled = false; btn.textContent = '✅ Finalizar Treinamento'; }
-    } catch(e) { ui.toast('Sem conexão', 'error'); btn.disabled = false; }
+        setTimeout(() => this.render(), 1200);
+      } else { 
+        ui.toast(res.erro || 'Erro ao salvar progresso', 'error'); 
+        btn.disabled = false; 
+        btn.textContent = '✅ Finalizar Treinamento'; 
+      }
+    } catch(e) { 
+      console.error('Erro Academy Concluir:', e);
+      ui.toast('Falha na conexão. Tente novamente.', 'error'); 
+      btn.disabled = false; 
+      btn.textContent = '✅ Finalizar Treinamento';
+    }
   },
 
   _verCertificado(nivel, cor) {

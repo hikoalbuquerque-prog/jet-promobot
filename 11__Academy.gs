@@ -284,13 +284,24 @@ function setupNovosModulosAcademy() {
     ])],
     ["MAS-02","MASTER",2,"Gestão de Crises Operacionais","TRUE",40,"{}","{}",JSON.stringify([{type:"text_md",value:"## Plano de Contingência\nO que fazer quando 50% dos patinetes do ponto ficam sem bateria ao mesmo tempo."},{type:"quiz",quiz_id:"MAS-02"}])],
     ["MAS-03","MASTER",3,"Visão de Business JET","TRUE",40,"{}","{}",JSON.stringify([{type:"text_md",value:"## Além do Campo\nEntenda como sua operação impacta o lucro da cidade e os planos de expansão da JET."},{type:"quiz",quiz_id:"MAS-03"}])],
-    ["MAS-FINAL","MASTER",99,"CERTIFICAÇÃO JET MASTER PRO","TRUE",250,"{}","{}",JSON.stringify([{type:"quiz",quiz_id:"MAS-FINAL"}])]
+    ["MAS-FINAL","MASTER",99,"CERTIFICAÇÃO JET MASTER PRO","TRUE",250,"{}","{}",JSON.stringify([{type:"quiz",quiz_id:"MAS-FINAL"}])],
+
+    // --- FISCALIZAÇÃO E CONFORMIDADE (Transversal) ---
+    ["FIS-01","BASICO",99,"Manual do Fiscal JET","TRUE",50,"{}","{}",JSON.stringify([
+      {type:"welcome_screen",title:"Treinamento de Fiscalização",subtitle:"Conteúdo obrigatório para Fiscais e recomendado para Promotores."},
+      {type:"text_md",value:"## 🎯 Sua Missão Principal\nGarantir o uso correto dos patinetes e o zelo pelos pontos de estacionamento.\n\n## 📸 Metas Semanais (Apenas para Fiscais)\n- **Diária:** 15 registros válidos.\n- **Semanal:** 100 registros válidos.\n\n⚠️ **O que pontua na meta:** Apenas flagrantes de **Duas Pessoas no Patinete** e **Menores de 18 Anos**. O registro exige foto da câmera e ID de 6 dígitos.\n\n## ♻️ Reciclagem Obrigatória\nColaboradores que não atingirem as metas de produtividade ou apresentarem alta ociosidade serão notificados pela IA para refazer este treinamento."},
+      {type:"quiz",quiz_id:"FIS-01"}
+    ])]
   ];
   m.forEach(r => wsMod.appendRow(r));
 
   const wsQuiz = ss.getSheetByName('QUIZ'); wsQuiz.clear();
   wsQuiz.appendRow(["quiz_id","q_id","pergunta","a","b","c","d","correta","pontos"]);
   const q = [
+    ["FIS-01",1,"Quais flagrantes contam para sua meta de 100 fotos?","Todos os registros","Apenas Duas Pessoas e Menores de 18","Apenas Estacionamento","Nenhum","b",1],
+    ["FIS-01",2,"Qual o número mínimo de fotos por dia para bater a meta?","5 fotos","10 fotos","15 fotos","50 fotos","c",1],
+    ["FIS-01",3,"O que acontece se você ficar 15 minutos parado com um promotor?","Você ganha pontos","Nada","Gera alerta de ociosidade para a gestão","O promotor é demitido","c",1],
+    ["FIS-01",4,"Qual o formato correto do ID do patinete no registro?","Nome do local","4 dígitos","6 dígitos numéricos","Placa do carro","c",1],
     ["APP-01",1,"Qual dado NÃO é usado no login?","CPF","Data Nasc","Nome Mãe","8 dígitos","c",1],
     ["APP-02",1,"O que significa a borda amarela na vaga?","Vaga Lotada","Sugestão do Gestor","Erro no GPS","Vaga Grátis","b",1],
     ["APP-03",1,"Usar Fake GPS gera qual punição?","Perda de pontos","Aviso verbal","Bloqueio Permanente","Nenhuma","c",1],

@@ -1,18 +1,16 @@
 // ─── 08.EscalaCLT.gs ──────────────────────────────────────────────────────────
-// Motor de escala CLT — funções completas e otimizadas
+// Motor de escala CLT — completo, consolidado e otimizado (Fase 8)
 
 function _getPerfilCLTMap_(ss) {
   var ws=ss.getSheetByName('PERFIL_CLT'); if(!ws) return {};
-  var data=ws.getDataRange().getValues();
-  var h=data[0].map(function(v){return String(v).toLowerCase().trim();});
+  var data=ws.getDataRange().getValues(), h=data[0].map(v => String(v).toLowerCase().trim());
   var map={};
   for(var r=1;r<data.length;r++){
     var uid=String(data[r][h.indexOf('user_id')]).trim();
     if(!uid||String(data[r][h.indexOf('ativo')]).trim()!=='SIM') continue;
     map[uid] = {
       perfil_id: data[r][h.indexOf('perfil_id')],
-      user_id: uid,
-      nome_completo: data[r][h.indexOf('nome_completo')],
+      user_id: uid, nome_completo: data[r][h.indexOf('nome_completo')],
       cargo_clt: String(data[r][h.indexOf('cargo_clt')]).trim(),
       zona_nome: data[r][h.indexOf('zona_nome')] || '',
       zona_lat: parseFloat(data[r][h.indexOf('zona_lat_centro')]) || 0,
@@ -22,8 +20,7 @@ function _getPerfilCLTMap_(ss) {
       horas_semanais: parseFloat(data[r][h.indexOf('horas_semanais_contrato')]) || 44,
       turno_padrao: String(data[r][h.indexOf('turno_padrao')] || 'FLEXIVEL').trim(),
       folga_semanal_dia: parseInt(data[r][h.indexOf('folga_semanal_dia')]),
-      folga_movel_regra: String(data[r][h.indexOf('folga_movel_regra')] || 'NENHUMA').trim(),
-      folga_movel_config: _safeJsonCLT_(data[r][h.indexOf('folga_movel_config_json')], {})
+      folga_movel_regra: String(data[r][h.indexOf('folga_movel_regra')] || 'NENHUMA').trim()
     };
   }
   return map;
@@ -31,9 +28,7 @@ function _getPerfilCLTMap_(ss) {
 
 function _getRegrasMap_(ss) {
   var ws=ss.getSheetByName('REGRAS_FOLGA'); if(!ws) return {};
-  var data=ws.getDataRange().getValues();
-  var h=data[0].map(function(v){return String(v).toLowerCase().trim();});
-  var map={};
+  var data=ws.getDataRange().getValues(), h=data[0].map(v => String(v).toLowerCase().trim()), map={};
   for(var r=1;r<data.length;r++){
     if(String(data[r][h.indexOf('ativo')]).trim()!=='SIM') continue;
     var cargo=String(data[r][h.indexOf('cargo_clt')]).trim();
@@ -43,25 +38,9 @@ function _getRegrasMap_(ss) {
   return map;
 }
 
-function _getBancoHorasMap_(ss,semanaInicio) {
-  var ws=ss.getSheetByName('BANCO_HORAS'); if(!ws) return {};
-  var data=ws.getDataRange().getValues();
-  var h=data[0].map(function(v){return String(v).toLowerCase().trim();});
-  var map={};
-  for(var r=1;r<data.length;r++){
-    var sem=String(data[r][h.indexOf('semana_inicio')]).substring(0,10);
-    if(sem!==semanaInicio) continue;
-    var uid=String(data[r][h.indexOf('user_id')]).trim();
-    map[uid]={horas_contrato:parseFloat(data[r][h.indexOf('horas_contrato')])||44,horas_escaladas:parseFloat(data[r][h.indexOf('horas_escaladas')])||0};
-  }
-  return map;
-}
-
 function _getTurnosDaData_(ss,data_iso) {
   var ws=ss.getSheetByName('TURNOS_CLT'); if(!ws) return [];
-  var rows=ws.getDataRange().getValues();
-  var h=rows[0].map(function(v){return String(v).toLowerCase().trim();});
-  var result=[];
+  var rows=ws.getDataRange().getValues(), h=rows[0].map(v => String(v).toLowerCase().trim()), result=[];
   for(var r=1;r<rows.length;r++){
     if(String(rows[r][h.indexOf('data')]).substring(0,10)!==data_iso) continue;
     result.push({user_id:String(rows[r][h.indexOf('user_id')]).trim(),inicio:rows[r][h.indexOf('inicio')],fim:rows[r][h.indexOf('fim')],status:String(rows[r][h.indexOf('status')]).trim()});
@@ -70,59 +49,19 @@ function _getTurnosDaData_(ss,data_iso) {
 }
 
 function _safeJsonCLT_(str,def){try{return JSON.parse(str);}catch(_){return def;}}
-
 function _haversineKmCLT_(lat1,lng1,lat2,lng2){var R=6371,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180,a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
-
 function _horaParaMinutosCLT_(hora){if(!hora)return 0;var s=String(hora);if(s.indexOf('T')>-1||s.indexOf('1899')>-1){try{var d=new Date(s);return d.getHours()*60+d.getMinutes();}catch(_){return 0;}}var p=s.substring(0,5).split(':');return parseInt(p[0])*60+(parseInt(p[1])||0);}
-
 function _calcHorasTurnoCLT_(inicio,fim){var i=_horaParaMinutosCLT_(inicio),f=_horaParaMinutosCLT_(fim);if(f<i)f+=1440;return(f-i)/60;}
-
 function _semanaInicioCLT_(data_iso){var d=new Date(data_iso+'T12:00:00'),dia=d.getDay(),diff=dia===0?-6:1-dia;d.setDate(d.getDate()+diff);return d.toISOString().substring(0,10);}
-
-function _getFolgasMap_(ss, data_iso) {
-  const ws = ss.getSheetByName('FOLGAS');
-  if (!ws) return {};
-  const data = ws.getDataRange().getValues(), h = data[0].map(v => String(v).toLowerCase().trim());
-  const iUsr = h.indexOf('user_id'), iIni = h.indexOf('data_inicio'), iFim = h.indexOf('data_fim'), iStt = h.indexOf('status');
-  const targetDate = new Date(data_iso + 'T12:00:00');
-  const map = {};
-
-  for (let r = 1; r < data.length; r++) {
-    const status = String(data[r][iStt]).toUpperCase();
-    if (status !== 'APROVADO') continue;
-
-    const uId = String(data[r][iUsr]).trim();
-    const dIni = new Date(data[r][iIni]);
-    const dFim = new Date(data[r][iFim]);
-
-    if (targetDate >= dIni && targetDate <= dFim) {
-      map[uId] = String(data[r][h.indexOf('tipo')] || 'Folga');
-    }
-  }
-  return map;
-}
 
 function _isFolgaCLT_(perfil, regras, data_iso, folgasMap) {
   var d = new Date(data_iso + 'T12:00:00'), diaSemana = d.getDay();
-  
-  // 1. Verificar Folgas Pontuais (Aba FOLGAS)
-  if (folgasMap && folgasMap[perfil.user_id]) {
-    return { folga: true, motivo: folgasMap[perfil.user_id] };
-  }
-
-  // 2. Verificar Folga Semanal Fixa do Perfil
+  if (folgasMap && folgasMap[perfil.user_id]) return { folga: true, motivo: folgasMap[perfil.user_id] };
   if (!isNaN(perfil.folga_semanal_dia) && diaSemana === perfil.folga_semanal_dia) return { folga: true, motivo: 'Folga semanal fixa' };
-  
-  // 3. Verificar Regras por Cargo
   var regrasC = regras[perfil.cargo_clt] || [];
   for (var i = 0; i < regrasC.length; i++) {
     var r = regrasC[i];
     if (r.tipo === 'FIXO_SEMANAL' && diaSemana === r.dia_semana) return { folga: true, motivo: 'Folga semanal por cargo' };
-    if (r.tipo === 'MOVEL_MES' && diaSemana === r.dia_semana) {
-      var mes = d.getMonth(), ano = d.getFullYear(), oc = 0;
-      for (var day = 1; day <= d.getDate(); day++) { if (new Date(ano, mes, day).getDay() === r.dia_semana) oc++; }
-      if (oc === r.n_ocorrencia) return { folga: true, motivo: 'Folga movel' };
-    }
     if (r.tipo === 'CICLO_DIAS' && r.ciclo_trabalho > 0) {
       var epoch = Math.floor(new Date(data_iso).getTime() / 86400000), ciclo = r.ciclo_trabalho + r.ciclo_folga;
       if (ciclo > 0 && (epoch % ciclo) >= r.ciclo_trabalho) return { folga: true, motivo: 'Folga por ciclo' };
@@ -131,534 +70,145 @@ function _isFolgaCLT_(perfil, regras, data_iso, folgasMap) {
   return { folga: false, motivo: '' };
 }
 
-function _temConflitoCLT_(turnosDia,userId,inicio,fim){
-  var iniMin=_horaParaMinutosCLT_(inicio),fimMin=_horaParaMinutosCLT_(fim);
-  for(var i=0;i<turnosDia.length;i++){var t=turnosDia[i];if(t.user_id!==userId)continue;if(t.status==='CANCELADO'||t.status==='FALTA')continue;var tIni=_horaParaMinutosCLT_(t.inicio),tFim=_horaParaMinutosCLT_(t.fim);if(iniMin<tFim&&fimMin>tIni)return true;}
-  return false;
-}
-
-function getSugestoesEscala_(token,params){
-  _assertGestor_(token);
-  var data_iso=String(params.data||'').substring(0,10),inicio=params.inicio||'',fim=params.fim||'';
-  var cargo=String(params.cargo_clt||'').toUpperCase(),slotLat=parseFloat(params.slot_lat)||0,slotLng=parseFloat(params.slot_lng)||0;
-  if(!data_iso||!inicio||!fim) throw new Error('data, inicio e fim obrigatorios.');
-  var ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  var perfilMap=_getPerfilCLTMap_(ss),regrasMap=_getRegrasMap_(ss);
-  var folgasMap=_getFolgasMap_(ss, data_iso);
-  var bancoMap=_getBancoHorasMap_(ss,_semanaInicioCLT_(data_iso));
-  var turnosDia=_getTurnosDaData_(ss,data_iso),horasTurno=_calcHorasTurnoCLT_(inicio,fim);
-  var sugestoes=[];
-  for(var uid in perfilMap){
-    var p=perfilMap[uid];
-    if(cargo&&p.cargo_clt!==cargo) continue;
-    var fi=_isFolgaCLT_(p,regrasMap,data_iso,folgasMap);
-    if(fi.folga){sugestoes.push({user_id:uid,nome:p.nome_completo,cargo_clt:p.cargo_clt,zona_nome:p.zona_nome,disponivel:false,motivo_bloqueio:fi.motivo,score:0});continue;}
-    if(_temConflitoCLT_(turnosDia,uid,inicio,fim)){sugestoes.push({user_id:uid,nome:p.nome_completo,cargo_clt:p.cargo_clt,zona_nome:p.zona_nome,disponivel:false,motivo_bloqueio:'Conflito de horario',score:0});continue;}
-    var banco=bancoMap[uid]||{horas_contrato:p.horas_semanais,horas_escaladas:0};
-    var horasDisp=banco.horas_contrato-banco.horas_escaladas,seraExtra=horasTurno>horasDisp,score=50;
-    var distKm=(slotLat&&slotLng&&p.zona_lat&&p.zona_lng)?_haversineKmCLT_(p.zona_lat,p.zona_lng,slotLat,slotLng):999;
-    if(distKm<=p.zona_raio_km)score+=20;else if(distKm<=p.zona_raio_km*2)score+=5;
-    if(!seraExtra&&horasDisp>=horasTurno)score+=15;else if(seraExtra)score-=10;
-    var hora=_horaParaMinutosCLT_(inicio),turnoD=hora<720?'MANHA':hora<1020?'TARDE':'NOITE';
-    if(p.turno_padrao==='FLEXIVEL'||p.turno_padrao===turnoD)score+=10;
-    if(cargo&&p.cargo_clt===cargo)score+=5;
-    sugestoes.push({user_id:uid,nome:p.nome_completo,cargo_clt:p.cargo_clt,zona_nome:p.zona_nome,zona_lat:p.zona_lat,zona_lng:p.zona_lng,dist_km:distKm<999?Math.round(distKm*10)/10:null,disponivel:true,sera_hora_extra:seraExtra,horas_disponiveis:Math.round(horasDisp*10)/10,horas_turno:Math.round(horasTurno*10)/10,score:Math.max(0,Math.min(100,score))});
-  }
-  sugestoes.sort(function(a,b){if(a.disponivel&&!b.disponivel)return -1;if(!a.disponivel&&b.disponivel)return 1;return b.score-a.score;});
-  return{ok:true,data:sugestoes};
-}
-
-function getTurnosDia_(token,params){
-  _assertGestor_(token);
-  var data_iso=String(params.data||new Date().toISOString()).substring(0,10);
-  var ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  var turnos=_getTurnosDaData_(ss,data_iso),promMap=_getPromotoresMap_(ss);
-  return{ok:true,data:turnos.map(function(t){var p=promMap[t.user_id]||{};return Object.assign({},t,{nome:p.nome||t.user_id});})};
-}
-
-function getBancoHorasPromotor_(token,params){_assertGestor_(token);var uid=params.user_id||'',sem=parseInt(params.semanas)||4;if(!uid)throw new Error('user_id obrigatorio.');return _buscarBancoHoras_(uid,sem);}
-
-function getMeuBancoHoras_(user){return _buscarBancoHoras_(user.user_id,8);}
-
-function _buscarBancoHoras_(uid,semanas){
-  var ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  var ws=ss.getSheetByName('BANCO_HORAS'); if(!ws) return{ok:true,data:[]};
-  var rows=ws.getDataRange().getValues(),h=rows[0].map(function(v){return String(v).toLowerCase().trim();});
-  var result=[];
-  for(var r=1;r<rows.length;r++){if(String(rows[r][h.indexOf('user_id')]).trim()!==uid)continue;result.push({semana_inicio:rows[r][h.indexOf('semana_inicio')],semana_fim:rows[r][h.indexOf('semana_fim')],horas_contrato:rows[r][h.indexOf('horas_contrato')],horas_escaladas:rows[r][h.indexOf('horas_escaladas')],horas_realizadas:rows[r][h.indexOf('horas_realizadas')],saldo_horas:rows[r][h.indexOf('saldo_horas')],horas_extra:rows[r][h.indexOf('horas_extra')],status_semana:rows[r][h.indexOf('status_semana')]});}
-  result.sort(function(a,b){return String(b.semana_inicio)>String(a.semana_inicio)?1:-1;});
-  return{ok:true,data:result.slice(0,semanas)};
-}
-
 function getMeusTurnosCLT_(user){
-  var ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  var ws=ss.getSheetByName('TURNOS_CLT'); if(!ws) return{ok:true,data:[]};
-  var rows=ws.getDataRange().getValues(),h=rows[0].map(function(v){return String(v).toLowerCase().trim();});
-  var hoje=new Date(); hoje.setHours(0,0,0,0);
-  var limite=new Date(hoje); limite.setDate(limite.getDate()+14);
-  var result=[];
+  var ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws=ss.getSheetByName('TURNOS_CLT'); if(!ws) return{ok:true,data:[]};
+  var rows=ws.getDataRange().getValues(), h=rows[0].map(v => String(v).toLowerCase().trim()), hoje=new Date(); hoje.setHours(0,0,0,0);
+  var limite=new Date(hoje); limite.setDate(limite.getDate()+14), result=[];
+  const metas = _getProgressoMetasFiscal_(ss, user.user_id);
   for(var r=1;r<rows.length;r++){
     if(String(rows[r][h.indexOf('user_id')]).trim()!==user.user_id) continue;
-    var stt=String(rows[r][h.indexOf('status')]).trim();
-    if(stt==='CANCELADO'||stt==='FALTA') continue;
-    var dataStr=String(rows[r][h.indexOf('data')]).substring(0,10);
-    var dataD=new Date(dataStr+'T12:00:00');
-    if(dataD<hoje||dataD>limite) continue;
-    result.push({
-      turno_id:        rows[r][h.indexOf('turno_id')],
-      data:            dataStr,
-      inicio:          rows[r][h.indexOf('inicio')],
-      fim:             rows[r][h.indexOf('fim')],
-      status:          stt,
-      zona_nome:       rows[r][h.indexOf('zona_nome')]    || '',
-      zona_lat:        parseFloat(rows[r][h.indexOf('zona_lat')])  || 0,
-      zona_lng:        parseFloat(rows[r][h.indexOf('zona_lng')])  || 0,
-      zona_raio_km:    parseFloat(rows[r][h.indexOf('zona_raio_km')]) || 5,
-      ponto_referencia:rows[r][h.indexOf('ponto_referencia')] || '',
-      horas_turno:     rows[r][h.indexOf('horas_turno')]  || '',
-      checkin_hora:    rows[r][h.indexOf('checkin_hora')] ? String(rows[r][h.indexOf('checkin_hora')]) : null,
-      checkout_hora:   rows[r][h.indexOf('checkout_hora')]? String(rows[r][h.indexOf('checkout_hora')]): null,
-    });
-
+    var stt=String(rows[r][h.indexOf('status')]).trim(); if(stt==='CANCELADO'||stt==='FALTA') continue;
+    var dataStr=String(rows[r][h.indexOf('data')]).substring(0,10), dataD=new Date(dataStr+'T12:00:00'); if(dataD<hoje||dataD>limite) continue;
+    result.push({turno_id: rows[r][h.indexOf('turno_id')], data: dataStr, inicio: rows[r][h.indexOf('inicio')], fim: rows[r][h.indexOf('fim')], status: stt, zona_nome: rows[r][h.indexOf('zona_nome')] || '', zona_lat: parseFloat(rows[r][h.indexOf('zona_lat')]) || 0, zona_lng: parseFloat(rows[r][h.indexOf('zona_lng')]) || 0, ponto_referencia:rows[r][h.indexOf('ponto_referencia')] || '', horas_turno: rows[r][h.indexOf('horas_turno')] || '', checkin_hora: rows[r][h.indexOf('checkin_hora')] ? String(rows[r][h.indexOf('checkin_hora')]) : null, checkout_hora: rows[r][h.indexOf('checkout_hora')]? String(rows[r][h.indexOf('checkout_hora')]): null});
   }
-  result.sort(function(a,b){return a.data>b.data?1:-1;});
-  return{ok:true,data:result};
-}
-
-function confirmarTurnoCLT_(user,params){
-  var turno_id=params.turno_id||''; if(!turno_id) throw new Error('turno_id obrigatorio.');
-  var ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  var ws=ss.getSheetByName('TURNOS_CLT'); if(!ws) throw new Error('Aba TURNOS_CLT nao encontrada.');
-  var rows=ws.getDataRange().getValues(),h=rows[0].map(function(v){return String(v).toLowerCase().trim();});
-  for(var r=1;r<rows.length;r++){
-    if(String(rows[r][h.indexOf('turno_id')]).trim()!==turno_id) continue;
-    if(String(rows[r][h.indexOf('user_id')]).trim()!==user.user_id) throw new Error('Turno nao pertence a este usuario.');
-    if(rows[r][h.indexOf('status')]!=='ESCALADO') return{ok:true,mensagem:'Turno ja confirmado.'};
-    ws.getRange(r+1,h.indexOf('status')+1).setValue('CONFIRMADO');
-    ws.getRange(r+1,h.indexOf('atualizado_em')+1).setValue(new Date().toISOString());
-    return{ok:true,mensagem:'Presenca confirmada.'};
-  }
-  throw new Error('Turno nao encontrado.');
+  result.sort((a,b) => a.data>b.data?1:-1);
+  return{ok:true, data:result, metas_atuais: metas};
 }
 
 function checkinTurnoCLT_(user,params){
-  var turno_id=params.turno_id||''; if(!turno_id) throw new Error('turno_id obrigatorio.');
-  var ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  var ws=ss.getSheetByName('TURNOS_CLT'); if(!ws) throw new Error('Aba TURNOS_CLT nao encontrada.');
-  var rows=ws.getDataRange().getValues(),h=rows[0].map(function(v){return String(v).toLowerCase().trim();});
+  var turno_id=params.turno_id||'', ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws=ss.getSheetByName('TURNOS_CLT'); if(!ws) throw new Error('Aba TURNOS_CLT nao encontrada.');
+  var rows=ws.getDataRange().getValues(), h=rows[0].map(v => String(v).toLowerCase().trim());
   for(var r=1;r<rows.length;r++){
     if(String(rows[r][h.indexOf('turno_id')]).trim()!==turno_id) continue;
     if(String(rows[r][h.indexOf('user_id')]).trim()!==user.user_id) throw new Error('Turno nao pertence a este usuario.');
-    var stt=String(rows[r][h.indexOf('status')]).trim();
-    if(stt==='EM_ANDAMENTO') return{ok:true,mensagem:'Checkin ja realizado.'};
-    if(!['ESCALADO','CONFIRMADO'].includes(stt)) throw new Error('Status invalido para checkin: '+stt);
-    
-    var agoraDate = new Date();
-    var horaCheckin = agoraDate.getHours();
-    
-    // VERIFICAR SE TEM SLOT COMO PROMOTOR (Dobra de função)
-    const temSlotAtivo = _verificarSlotAtivoPromotor_(ss, user.user_id);
-
-    if (horaCheckin < 13 || horaCheckin > 21) {
-      // Se não tiver slot como promotor, aplica a trava de horário do fiscal (14h-21h)
-      if (!temSlotAtivo) {
-        if (!(horaCheckin === 13 && agoraDate.getMinutes() >= 30)) {
-          throw new Error('Check-in bloqueado fora do horário operacional (14h às 21h).');
-        }
-      }
-    }
-
-    // IA: VALIDAÇÃO DE FOTO DO FISCAL
+    var stt=String(rows[r][h.indexOf('status')]).trim(); if(stt==='EM_ANDAMENTO') return{ok:true,mensagem:'Checkin ja realizado.'};
     if (params.foto_base64) {
-      const promptFoto = "Analise esta foto de um fiscal da JET iniciando o turno. Verifique se é uma foto real de uma pessoa, preferencialmente uniformizada. Responda APENAS 'APROVADO' ou 'REPROVADO'.";
-      const validacaoIA = callGeminiVisionAI_(params.foto_base64, promptFoto);
-      if (validacaoIA && validacaoIA.toUpperCase().indexOf('REPROVADO') > -1) {
-        throw new Error('⛔ Foto de check-in reprovada pela IA. Certifique-se de estar uniformizado e em um local iluminado.');
-      }
-    } else {
-      throw new Error('Foto de check-in obrigatória para Fiscais.');
-    }
-
-    var agora=agoraDate.toISOString();
-    ws.getRange(r+1,h.indexOf('status')+1).setValue('EM_ANDAMENTO');
-    ws.getRange(r+1,h.indexOf('checkin_hora')+1).setNumberFormat(' @').setValue(agora);
-    ws.getRange(r+1,h.indexOf('atualizado_em')+1).setValue(agora);
-
-    var colMotivo = h.indexOf('motivo_ocorrencia');
-    var colClima  = h.indexOf('ocorrencia_climatica');
-    if(params.motivo_ocorrencia && colMotivo > -1)
-      ws.getRange(r+1,colMotivo+1).setValue(params.motivo_ocorrencia);
-    if(colClima > -1)
-      ws.getRange(r+1,colClima+1).setValue(params.ocorrencia_climatica ? 'TRUE' : 'FALSE');
-
+      const validacaoIA = callGeminiVisionAI_(params.foto_base64, "Analise esta foto de um fiscal da JET iniciando o turno. Verifique se é uma foto real de uma pessoa, preferencialmente uniformizada. Responda APENAS 'APROVADO' ou 'REPROVADO'.");
+      if (validacaoIA && validacaoIA.toUpperCase().indexOf('REPROVADO') > -1) throw new Error('⛔ Foto de check-in reprovada pela IA. Certifique-se de estar uniformizado.');
+    } else { throw new Error('Foto de check-in obrigatória para Fiscais.'); }
+    var agora=new Date().toISOString(); ws.getRange(r+1,h.indexOf('status')+1).setValue('EM_ANDAMENTO'); ws.getRange(r+1,h.indexOf('checkin_hora')+1).setValue(agora);
     registrarAuditoria_({tabela:'TURNOS_CLT',registro_id:turno_id,campo:'status',valor_anterior:stt,valor_novo:'EM_ANDAMENTO',alterado_por:user.user_id,origem:'app_clt'});
-    var latChk=parseFloat(params.lat||0),lngChk=parseFloat(params.lng||0);
-    if(latChk&&lngChk){
-      var wsLoc=ss.getSheetByName('LOCALIZACAO_TEMPO_REAL');
-      if(wsLoc) wsLoc.appendRow([gerarId_('LOC'),user.user_id,turno_id,latChk,lngChk,params.accuracy||999,false,80,false,agora,agora,'','']);
-    }
-    var zonaChk=rows[r][h.indexOf('zona_nome')]||'';
-    var cargoChk=rows[r][h.indexOf('cargo_clt')]||'';
-    var promChk=(_getPromotoresMap_(ss))[user.user_id]||{};
-    var cidadeChk=promChk.cidade||zonaChk||'';
-    var horaChk=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    var integracoesChk=[{canal:'telegram',tipo:'group_message',cidade:cidadeChk,topic_key:'CHECKIN_PRESENCA',parse_mode:'HTML',
-      text_html:'✅ <b>Check-in CLT</b>\n\n👤 <b>'+(user.nome_completo||user.user_id)+'</b>\n🔧 '+cargoChk+' · LOGISTICA\n📍 '+zonaChk+'\n⏰ '+horaChk+
-      (params.motivo_ocorrencia?'\n⚠️ Motivo: '+params.motivo_ocorrencia:'')}];
-    return{ok:true,turno_id:turno_id,checkin_hora:agora,mensagem:'Check-in registrado.',integracoes:integracoesChk};
+    return{ok:true,turno_id:turno_id,checkin_hora:agora,mensagem:'Check-in registrado.'};
   }
   throw new Error('Turno nao encontrado.');
 }
 
 function checkoutTurnoCLT_(user,params){
-  var turno_id=params.turno_id||''; if(!turno_id) throw new Error('turno_id obrigatorio.');
-  var ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  var ws=ss.getSheetByName('TURNOS_CLT'); if(!ws) throw new Error('Aba TURNOS_CLT nao encontrada.');
-  var rows=ws.getDataRange().getValues(),h=rows[0].map(function(v){return String(v).toLowerCase().trim();});
+  var turno_id=params.turno_id||'', ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws=ss.getSheetByName('TURNOS_CLT'); if(!ws) throw new Error('Aba TURNOS_CLT nao encontrada.');
+  var rows=ws.getDataRange().getValues(), h=rows[0].map(v => String(v).toLowerCase().trim());
   for(var r=1;r<rows.length;r++){
     if(String(rows[r][h.indexOf('turno_id')]).trim()!==turno_id) continue;
     if(String(rows[r][h.indexOf('user_id')]).trim()!==user.user_id) throw new Error('Turno nao pertence a este usuario.');
-    if(rows[r][h.indexOf('status')]!=='EM_ANDAMENTO') throw new Error('Turno nao esta em andamento.');
-    var agora=new Date().toISOString();
-    var checkinHora=rows[r][h.indexOf('checkin_hora')];
-    var duracaoReal=checkinHora?Math.round((new Date(agora)-new Date(checkinHora))/36000)/100:0;
-    var horasTurno=parseFloat(rows[r][h.indexOf('horas_turno')])||0;
-    var horaExtra=Math.max(0,Math.round((duracaoReal-horasTurno)*100)/100);
-    ws.getRange(r+1,h.indexOf('status')+1).setValue('ENCERRADO');
-    ws.getRange(r+1,h.indexOf('checkout_hora')+1).setValue(agora);
+    var agora=new Date().toISOString(), checkinHora=rows[r][h.indexOf('checkin_hora')], duracaoReal=checkinHora?Math.round((new Date(agora)-new Date(checkinHora))/36000)/100:0;
+    const cache = CacheService.getScriptCache(), ociosidadeKey = `ociosidade_fiscal_${user.user_id}`, logOciosidade = JSON.parse(cache.get(ociosidadeKey) || '{"promotor_id":null, "minutos":0}'), tempoIneficiente = logOciosidade.minutos || 0;
+    const metas = _getProgressoMetasFiscal_(ss, user.user_id);
+    ws.getRange(r+1,h.indexOf('status')+1).setValue('ENCERRADO'); ws.getRange(r+1,h.indexOf('checkout_hora')+1).setValue(agora);
     if(h.indexOf('duracao_real_horas')>-1) ws.getRange(r+1,h.indexOf('duracao_real_horas')+1).setValue(duracaoReal);
-    if(h.indexOf('hora_extra')>-1) ws.getRange(r+1,h.indexOf('hora_extra')+1).setValue(horaExtra);
-    ws.getRange(r+1,h.indexOf('atualizado_em')+1).setValue(agora);
-
-    var colMotivo = h.indexOf('motivo_ocorrencia');
-    var colClima  = h.indexOf('ocorrencia_climatica');
-    if(params.motivo_ocorrencia && colMotivo > -1)
-      ws.getRange(r+1,colMotivo+1).setValue(params.motivo_ocorrencia);
-    if(colClima > -1 && params.motivo_ocorrencia)
-      ws.getRange(r+1,colClima+1).setValue(params.ocorrencia_climatica ? 'TRUE' : 'FALSE');
-
-    var dataStr=String(rows[r][h.indexOf('data')]).substring(0,10);
-    var perfilMap=_getPerfilCLTMap_(ss),perfil=perfilMap[user.user_id];
+    var dataStr=String(rows[r][h.indexOf('data')]).substring(0,10), perfilMap=_getPerfilCLTMap_(ss), perfil=perfilMap[user.user_id];
     if(perfil) _atualizarRealizadasBancoHoras_(ss,user.user_id,dataStr,duracaoReal);
-    registrarAuditoria_({tabela:'TURNOS_CLT',registro_id:turno_id,campo:'status',valor_anterior:'EM_ANDAMENTO',valor_novo:'ENCERRADO',alterado_por:user.user_id,origem:'app_clt'});
-    var zonaCho=rows[r][h.indexOf('zona_nome')]||'';
-    var cargoCho=rows[r][h.indexOf('cargo_clt')]||'';
-    var promCho=(_getPromotoresMap_(ss))[user.user_id]||{};
-    var cidadeCho=promCho.cidade||zonaCho||'';
-    var horaCho=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-    var integracoesCho=[{canal:'telegram',tipo:'group_message',cidade:cidadeCho,topic_key:'ENCERRAMENTOS',parse_mode:'HTML',
-      text_html:'🔴 <b>Checkout CLT</b>\n\n👤 <b>'+(user.nome_completo||user.user_id)+'</b>\n🔧 '+cargoCho+' · LOGISTICA\n📍 '+zonaCho+'\n⏱️ Duração: '+duracaoReal+'h\n⏰ '+horaCho+
-      (params.motivo_ocorrencia?'\n⚠️ Motivo: '+params.motivo_ocorrencia:'')}];
-    return{ok:true,turno_id:turno_id,checkout_hora:agora,duracao_real_horas:duracaoReal,hora_extra:horaExtra,mensagem:'Checkout registrado.',integracoes:integracoesCho};
+    registrarAuditoria_({tabela:'TURNOS_CLT', registro_id:turno_id, campo:'status', valor_anterior:'EM_ANDAMENTO', valor_novo:'ENCERRADO', alterado_por:user.user_id, origem:'app_clt', motivo_override: `Metas: ${metas.hoje}/15, ${metas.semana}/100 | Ocioso: ${tempoIneficiente}min`});
+    let msgCoach = ""; try { msgCoach = callGeminiAI_(`Fiscal ${user.nome_completo}. Meta hoje: ${metas.hoje}/15. Meta semana: ${metas.semana}/100. Ocioso: ${tempoIneficiente}min. Se abaixo da meta, recomende FORTEMENTE refazer o módulo FIS-01 no Academy.`, "Supervisor JET."); } catch(e) { msgCoach = "Bom descanso! Meta semanal: "+metas.semana+"/100."; }
+    var integracoesCho=[{canal:'telegram', tipo:'group_message', cidade:perfil.cidade_base||'', topic_key:'ENCERRAMENTOS', parse_mode:'HTML', text_html:`🔴 <b>Checkout CLT (FISCAL)</b>\n\n👤 <b>${user.nome_completo}</b>\n📸 Metas: <b>${metas.hoje}/15 (dia) | ${metas.semana}/100 (sem)</b>\n⚠️ Ociosidade: <b>${tempoIneficiente} min</b>\n\n🤖 <b>Coach JET:</b>\n<i>"${msgCoach}"</i>`}];
+    if (tempoIneficiente > 20 || metas.hoje < 10) integracoesCho.push({canal: 'telegram', tipo: 'group_message', cidade: perfil.cidade_base||'', topic_key: 'GESTAO_FISCAL', parse_mode: 'HTML', text_html: `🚨 <b>ALERTA PRODUTIVIDADE</b>\n\n👤 Fiscal: <b>${user.nome_completo}</b>\n⚠️ Registros hoje: <b>${metas.hoje}</b> (mín 15)\n⚠️ Ociosidade: <b>${tempoIneficiente} min</b>.`});
+    cache.remove(ociosidadeKey); return{ok:true, turno_id:turno_id, checkout_hora:agora, mensagem:'Checkout registrado.', integracoes:integracoesCho};
   }
   throw new Error('Turno nao encontrado.');
-}
-
-function _atualizarRealizadasBancoHoras_(ss,user_id,data_iso,horasRealizadas){
-  var semanaIni=_semanaInicioCLT_(data_iso);
-  var ws=ss.getSheetByName('BANCO_HORAS'); if(!ws) return;
-  var rows=ws.getDataRange().getValues(),h=rows[0].map(function(v){return String(v).toLowerCase().trim();});
-  for(var r=1;r<rows.length;r++){
-    if(String(rows[r][h.indexOf('user_id')]).trim()!==user_id) continue;
-    if(String(rows[r][h.indexOf('semana_inicio')]).substring(0,10)!==semanaIni) continue;
-    var novoReal=(parseFloat(rows[r][h.indexOf('horas_realizadas')])||0)+horasRealizadas;
-    var contrato=parseFloat(rows[r][h.indexOf('horas_contrato')])||44;
-    ws.getRange(r+1,h.indexOf('horas_realizadas')+1).setValue(Math.round(novoReal*100)/100);
-    ws.getRange(r+1,h.indexOf('saldo_horas')+1).setValue(Math.round((novoReal-contrato)*100)/100);
-    ws.getRange(r+1,h.indexOf('atualizado_em')+1).setValue(new Date().toISOString());
-    return;
-  }
-}
-
-function criarTurnoCLT_(token,params){
-  var gestor=_assertGestor_(token);
-  var user_id=params.user_id||'',data=String(params.data||'').substring(0,10),inicio=params.inicio||'',fim=params.fim||'';
-  if(!user_id||!data||!inicio||!fim) throw new Error('user_id, data, inicio e fim obrigatorios.');
-  var ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  var perfilMap=_getPerfilCLTMap_(ss),regrasMap=_getRegrasMap_(ss),perfil=perfilMap[user_id];
-  if(!perfil) throw new Error('Perfil CLT nao encontrado: '+user_id);
-  var folgasMap=_getFolgasMap_(ss, data);
-  var fi=_isFolgaCLT_(perfil,regrasMap,data,folgasMap); if(fi.folga) throw new Error('Promotor esta de folga: '+fi.motivo);
-  var turnosDia=_getTurnosDaData_(ss,data);
-  if(_temConflitoCLT_(turnosDia,user_id,inicio,fim)) throw new Error('Conflito de horario.');
-  var horasTurno=_calcHorasTurnoCLT_(inicio,fim),turnoId='TRN_'+new Date().getTime(),agora=new Date().toISOString();
-  var promMap=_getPromotoresMap_(ss),prom=promMap[user_id]||{};
-  var wsT=ss.getSheetByName('TURNOS_CLT'); if(!wsT) throw new Error('Aba TURNOS_CLT nao encontrada.');
-  var headers=wsT.getRange(1,1,1,wsT.getLastColumn()).getValues()[0];
-  var h=headers.map(function(v){return String(v).toLowerCase().trim();});
-  var row=new Array(headers.length).fill('');
-  row[h.indexOf('turno_id')]=turnoId;
-  row[h.indexOf('escala_draft_id')]=params.escala_draft_id||'';
-  row[h.indexOf('user_id')]=user_id;
-  row[h.indexOf('nome_completo')]=prom.nome||perfil.nome_completo||'';
-  row[h.indexOf('cargo_clt')]=params.cargo_clt||perfil.cargo_clt;
-  row[h.indexOf('zona_nome')]=params.zona_nome||perfil.zona_nome;
-  row[h.indexOf('zona_lat')]=perfil.zona_lat;
-  row[h.indexOf('zona_lng')]=perfil.zona_lng;
-  row[h.indexOf('ponto_referencia')]=params.ponto_referencia||'';
-  row[h.indexOf('status')]='ESCALADO';
-  row[h.indexOf('horas_turno')]=Math.round(horasTurno*100)/100;
-  row[h.indexOf('criado_em')]=agora; row[h.indexOf('atualizado_em')]=agora;
-  wsT.appendRow(row);
-  var lastRow=wsT.getLastRow();
-  wsT.getRange(lastRow,h.indexOf('data')+1).setNumberFormat(' @').setValue(data);
-  wsT.getRange(lastRow,h.indexOf('inicio')+1).setNumberFormat(' @').setValue(String(inicio).substring(0,5));
-  wsT.getRange(lastRow,h.indexOf('fim')+1).setNumberFormat(' @').setValue(String(fim).substring(0,5));
-  _atualizarBancoHorasCLT_(ss,user_id,perfil,data,horasTurno);
-  registrarAuditoria_({tabela:'TURNOS_CLT',registro_id:turnoId,campo:'criacao',valor_anterior:'',valor_novo:JSON.stringify({user_id,data,inicio,fim}),alterado_por:gestor.user_id||'',origem:'painel_gestor'});
-  return{ok:true,turno_id:turnoId,horas_turno:horasTurno};
-}
-
-function _atualizarBancoHorasCLT_(ss,user_id,perfil,data_iso,horasAdicionadas){
-  var semanaIni=_semanaInicioCLT_(data_iso);
-  var d=new Date(semanaIni+'T12:00:00'); d.setDate(d.getDate()+6);
-  var semanaFim=d.toISOString().substring(0,10);
-  var ws=ss.getSheetByName('BANCO_HORAS'); if(!ws) return;
-  var rows=ws.getDataRange().getValues(),h=rows[0].map(function(v){return String(v).toLowerCase().trim();});
-  for(var r=1;r<rows.length;r++){
-    if(String(rows[r][h.indexOf('user_id')]).trim()!==user_id) continue;
-    if(String(rows[r][h.indexOf('semana_inicio')]).substring(0,10)!==semanaIni) continue;
-    var novoEsc=(parseFloat(rows[r][h.indexOf('horas_escaladas')])||0)+horasAdicionadas;
-    var contrato=parseFloat(rows[r][h.indexOf('horas_contrato')])||perfil.horas_semanais;
-    ws.getRange(r+1,h.indexOf('horas_escaladas')+1).setValue(Math.round(novoEsc*100)/100);
-    ws.getRange(r+1,h.indexOf('horas_extra')+1).setValue(Math.max(0,Math.round((novoEsc-contrato)*100)/100));
-    ws.getRange(r+1,h.indexOf('atualizado_em')+1).setValue(new Date().toISOString());
-    return;
-  }
-  var promMap=_getPromotoresMap_(ss),prom=promMap[user_id]||{};
-  ws.appendRow(['BH_'+new Date().getTime(),user_id,prom.nome||perfil.nome_completo||'',perfil.cargo_clt,semanaIni,semanaFim,perfil.horas_semanais,Math.round(horasAdicionadas*100)/100,0,0,Math.max(0,Math.round((horasAdicionadas-perfil.horas_semanais)*100)/100),'ABERTA','',new Date().toISOString()]);
 }
 
 function heartbeatCLT_(user, params) {
-  var turno_id = params.turno_id || '';
-  var lat      = parseFloat(params.lat || 0);
-  var lng      = parseFloat(params.lng || 0);
-  var acc      = parseFloat(params.accuracy || 999);
-  var agora    = new Date().toISOString();
-
-  var ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  
-  // 1. REGRA DE EFICIÊNCIA: MÁX 15 MIN COM PROMOTOR ATIVO
-  _verificarEficienciaPermanencia_(ss, user, lat, lng);
-
-  // 2. GEOFENCING: VERIFICAR ÁREAS FOCO (Ibirapuera, Paulista, etc)
-  const perfilMap = _getPerfilCLTMap_(ss);
-  const perfil = perfilMap[user.user_id];
-  if (perfil && perfil.zona_poligono) {
-    const estaDentro = isDentroDePoligono_(lat, lng, perfil.zona_poligono);
-    if (!estaDentro) {
-      // Registrar desvio de rota se fora das áreas foco
-      const cache = CacheService.getScriptCache();
-      const foraKey = `fora_rota_${user.user_id}`;
-      let foraCount = parseInt(cache.get(foraKey) || '0') + 1;
-      cache.put(foraKey, foraCount.toString(), 1800); // 30 min cache
-
-      if (foraCount === 5) { // Aproximadamente 15 min fora (heartbeat a cada 3 min)
-        processIntegracoes([{
-          canal: 'telegram', tipo: 'group_message',
-          cidade: user.cidade_base || '', topic_key: 'ALERTAS',
-          parse_mode: 'HTML',
-          text_html: `🚩 <b>ALERTA: DESVIO DE ROTA</b>\n\n👤 Fiscal: <b>${user.nome_completo || user.nome}</b>\n⚠️ Localização fora das áreas foco permitidas por mais de 15 min.\n📍 Coordenadas: ${lat},${lng}`
-        }], { evento: 'ALERTA_GEOFENCING' });
-      }
-    } else {
-      CacheService.getScriptCache().remove(`fora_rota_${user.user_id}`);
-    }
-  }
-
-  var ws = ss.getSheetByName('LOCALIZACAO_TEMPO_REAL');
-  if (ws && lat && lng) {
-    ws.appendRow([
-      gerarId_('LOC'), user.user_id, turno_id,
-      lat, lng, acc, false, 80, false,
-      agora, agora, '', ''
-    ]);
-  }
+  var turno_id = params.turno_id || '', lat = parseFloat(params.lat || 0), lng = parseFloat(params.lng || 0), acc = parseFloat(params.accuracy || 999), mock = !!params.is_mock, agora = new Date().toISOString(), ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  _monitorarOciosidadePromotor_(ss, user, lat, lng);
+  if (mock) processIntegracoes([{canal: 'telegram', tipo: 'group_message', cidade: user.cidade_base || '', topic_key: 'GESTAO_FISCAL', parse_mode: 'HTML', text_html: `🚨 <b>ALERTA SEGURANÇA: GPS MOCK</b>\n\n👤 Fiscal: <b>${user.nome_completo}</b>\n⚠️ O sistema detectou simulador de GPS.`}], { evento: 'ALERTA_FAKE_GPS_GESTAO' });
+  var ws = ss.getSheetByName('LOCALIZACAO_TEMPO_REAL'); if (ws && lat && lng) ws.appendRow([gerarId_('LOC'), user.user_id, turno_id, lat, lng, acc, mock, (params.trust_score || 100), false, agora, agora, '', '']);
   return { ok: true };
 }
 
-function pausarTurnoCLT_(user, params) {
-  var turno_id = params.turno_id || '';
-  if (!turno_id) throw new Error('turno_id obrigatorio.');
-  var ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  var ws = ss.getSheetByName('TURNOS_CLT');
-  var rows = ws.getDataRange().getValues();
-  var h = rows[0].map(function(v){ return String(v).toLowerCase().trim(); });
-  for (var r = 1; r < rows.length; r++) {
-    if (String(rows[r][h.indexOf('turno_id')]).trim() !== turno_id) continue;
-    if (String(rows[r][h.indexOf('user_id')]).trim() !== user.user_id) throw new Error('Turno nao pertence a este usuario.');
-    if (rows[r][h.indexOf('status')] !== 'EM_ANDAMENTO') throw new Error('Turno nao esta em andamento.');
-    var agora = new Date().toISOString();
-    ws.getRange(r+1, h.indexOf('status')+1).setValue('PAUSADO');
-    ws.getRange(r+1, h.indexOf('atualizado_em')+1).setValue(agora);
-    return { ok: true, mensagem: 'Turno pausado.' };
-  }
-  throw new Error('Turno nao encontrado.');
-}
-
-function retomarTurnoCLT_(user, params) {
-  var turno_id = params.turno_id || '';
-  if (!turno_id) throw new Error('turno_id obrigatorio.');
-  var ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  var ws = ss.getSheetByName('TURNOS_CLT');
-  var rows = ws.getDataRange().getValues();
-  var h = rows[0].map(function(v){ return String(v).toLowerCase().trim(); });
-  for (var r = 1; r < rows.length; r++) {
-    if (String(rows[r][h.indexOf('turno_id')]).trim() !== turno_id) continue;
-    if (String(rows[r][h.indexOf('user_id')]).trim() !== user.user_id) throw new Error('Turno nao pertence a este usuario.');
-    if (rows[r][h.indexOf('status')] !== 'PAUSADO') throw new Error('Turno nao esta pausado.');
-    var agora = new Date().toISOString();
-    var checkinHora = rows[r][h.indexOf('checkin_hora')];
-    ws.getRange(r+1, h.indexOf('status')+1).setValue('EM_ANDAMENTO');
-    ws.getRange(r+1, h.indexOf('atualizado_em')+1).setValue(agora);
-    return { ok: true, checkin_hora: checkinHora, mensagem: 'Turno retomado.' };
-  }
-  throw new Error('Turno nao encontrado.');
-}
-
-function getHistoricoTurnosCLT_(token, params) {
-  _assertGestor_(token);
-  var data_inicio = String(params.data_inicio || '').substring(0, 10);
-  var data_fim    = String(params.data_fim    || '').substring(0, 10);
-  var user_id     = String(params.user_id     || '').trim();
-  var status_filtro = String(params.status    || '').toUpperCase().trim();
-
-  var ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  var ws = ss.getSheetByName('TURNOS_CLT');
-  if (!ws) return { ok: true, data: [], totais: {} };
-
-  var rows = ws.getDataRange().getValues();
-  var h = rows[0].map(function(v) { return String(v).toLowerCase().trim(); });
-
-  var result = [];
-  var totais = { turnos: 0, horas_escaladas: 0, horas_realizadas: 0, horas_extra: 0 };
-
-  for (var r = 1; r < rows.length; r++) {
-    var data = String(rows[r][h.indexOf('data')]).substring(0, 10);
-    if (data_inicio && data < data_inicio) continue;
-    if (data_fim    && data > data_fim)    continue;
-
-    var uid = String(rows[r][h.indexOf('user_id')]).trim();
-    if (user_id && uid !== user_id) continue;
-
-    var stt = String(rows[r][h.indexOf('status')]).trim().toUpperCase();
-    if (status_filtro && stt !== status_filtro) continue;
-
-    var horas_turno   = parseFloat(rows[r][h.indexOf('horas_turno')])         || 0;
-    var duracao_real  = parseFloat(rows[r][h.indexOf('duracao_real_horas')])   || 0;
-    var hora_extra    = parseFloat(rows[r][h.indexOf('hora_extra')])           || 0;
-
-    totais.turnos++;
-    totais.horas_escaladas  += horas_turno;
-    totais.horas_realizadas += duracao_real;
-    totais.horas_extra      += hora_extra;
-
-    result.push({
-      turno_id:          rows[r][h.indexOf('turno_id')],
-      user_id:           uid,
-      nome_completo:     rows[r][h.indexOf('nome_completo')] || '',
-      cargo_clt:         rows[r][h.indexOf('cargo_clt')],
-      zona_nome:         rows[r][h.indexOf('zona_nome')]     || '',
-      data:              data,
-      inicio:            rows[r][h.indexOf('inicio')]        || '',
-      fim:               rows[r][h.indexOf('fim')]           || '',
-      status:            stt,
-      checkin_hora:      rows[r][h.indexOf('checkin_hora')]  ? String(rows[r][h.indexOf('checkin_hora')])  : null,
-      checkout_hora:     rows[r][h.indexOf('checkout_hora')] ? String(rows[r][h.indexOf('checkout_hora')]) : null,
-      horas_turno:       horas_turno,
-      duracao_real_horas:duracao_real,
-      hora_extra:        hora_extra,
-    });
-  }
-
-  result.sort(function(a, b) { return a.data > b.data ? -1 : 1; });
-
-  totais.horas_escaladas  = Math.round(totais.horas_escaladas  * 100) / 100;
-  totais.horas_realizadas = Math.round(totais.horas_realizadas * 100) / 100;
-  totais.horas_extra      = Math.round(totais.horas_extra      * 100) / 100;
-
-  return { ok: true, data: result, totais: totais };
-}
-
-/**
- * Verifica se o usuário tem um slot aceito ou em andamento como promotor.
- */
-function _verificarSlotAtivoPromotor_(ss, userId) {
-  const wsJ = ss.getSheetByName('JORNADAS');
-  if (!wsJ) return false;
-  const dataJ = wsJ.getDataRange().getValues(), hJ = dataJ[0].map(v => String(v).toLowerCase().trim());
-  const iUsr = hJ.indexOf('user_id'), iStt = hJ.indexOf('status'), iDt = hJ.indexOf('criado_em');
-  const hoje = new Date().toISOString().substring(0, 10);
-
-  for (let r = 1; r < dataJ.length; r++) {
-    const cri = String(dataJ[r][iDt]).substring(0, 10);
-    const uid = String(dataJ[r][iUsr]).trim();
-    const stt = String(dataJ[r][iStt]).toUpperCase();
-    
-    if (uid === userId && cri === hoje && ['ACEITO', 'EM_ATIVIDADE', 'PAUSADO'].includes(stt)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-/**
- * Monitora se o fiscal está há mais de 15 minutos parado em um slot com promotor ativo.
- */
-function _verificarEficienciaPermanencia_(ss, user, lat, lng) {
-  const cache = CacheService.getScriptCache();
-  const tempoPermanenciaKey = `tempo_no_slot_${user.user_id}`;
-  
-  // 1. Identificar se o fiscal está no raio de algum slot ativo
-  const slotsMap = _getSlotsMap_(ss);
-  let slotIdAtual = null;
-  let slotNomeAtual = "";
-
+function _monitorarOciosidadePromotor_(ss, user, lat, lng) {
+  const cache = CacheService.getScriptCache(), ociosidadeKey = `ociosidade_fiscal_${user.user_id}`, slotsMap = _getSlotsMap_(ss); let slotIdPerto = null, promotorIdPerto = null, nomePromotor = "";
+  const wsJ = ss.getSheetByName('JORNADAS'), dataJ = wsJ.getDataRange().getValues(), hJ = dataJ[0].map(v => String(v).toLowerCase().trim());
   for (const sid in slotsMap) {
-    const s = slotsMap[sid];
-    const dist = haversineMetros_(lat, lng, s.lat, s.lng);
-    if (dist <= (s.raio_metros || 150)) {
-      // Verificar se este slot tem promotor (vagas_ocupadas > 0)
-      // Nota: _getSlotsMap_ básico não traz vagas_ocupadas, precisamos cruzar.
-      // Simplificando: vamos considerar qualquer slot de promotor.
-      slotIdAtual = sid;
-      slotNomeAtual = s.nome;
-      break;
+    const s = slotsMap[sid]; if (!s.lat || !s.lng) continue;
+    if (_haversineKmCLT_(lat, lng, s.lat, s.lng) * 1000 <= 150) { 
+      slotIdPerto = sid;
+      for (let j = 1; j < dataJ.length; j++) { if (dataJ[j][hJ.indexOf('slot_id')] === sid && dataJ[j][hJ.indexOf('status')] === 'EM_ANDAMENTO') { promotorIdPerto = dataJ[j][hJ.indexOf('user_id')]; nomePromotor = dataJ[j][hJ.indexOf('nome_completo')] || promotorIdPerto; break; } }
+      if (slotIdPerto) break;
     }
   }
-
-  if (slotIdAtual) {
-    let dataCache = JSON.parse(cache.get(tempoPermanenciaKey) || '{"slot_id":null, "contagem":0}');
-    
-    if (dataCache.slot_id === slotIdAtual) {
-      dataCache.contagem += 1;
-    } else {
-      dataCache = { slot_id: slotIdAtual, contagem: 1 };
+  if (slotIdPerto && promotorIdPerto) {
+    let log = JSON.parse(cache.get(ociosidadeKey) || '{"promotor_id":null, "minutos":0}');
+    if (log.promotor_id === promotorIdPerto) log.minutos += 3; else log = { promotor_id: promotorIdPerto, nome: nomePromotor, minutos: 3 };
+    cache.put(ociosidadeKey, JSON.stringify(log), 3600);
+    if (log.minutos === 12) {
+      registrarAuditoria_({tabela: 'GESTAO_FISCAL', registro_id: user.user_id, campo: 'OCIOSIDADE_COM_PROMOTOR', valor_anterior: 'ATIVO_NA_RUA', valor_novo: `PARADO_COM_${nomePromotor}`, alterado_por: 'SISTEMA_IA', origem: 'monitoramento_ociosidade'});
+      processIntegracoes([{canal: 'telegram', tipo: 'group_message', cidade: user.cidade_base || '', topic_key: 'GESTAO_FISCAL', parse_mode: 'HTML', text_html: `⚠️ <b>AUDITORIA: FISCAL PARADO</b>\n\n👤 Fiscal: <b>${user.nome_completo}</b>\n📍 Local: Com promotor <b>${nomePromotor}</b>\n⏱️ Tempo: <b>12 minutos</b> acumulados.`}], { evento: 'ALERTA_OCIOSIDADE_FISCAL' });
     }
+  } else cache.remove(ociosidadeKey);
+}
 
-    cache.put(tempoPermanenciaKey, JSON.stringify(dataCache), 1800);
+function registrarOcorrenciaUsuario_(user, params) {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws = ss.getSheetByName('SOLICITACOES_OPERACIONAIS'), solId = gerarId_('OCR'), agora = new Date().toISOString();
+  const tipo = params.tipo || 'DUPLA_NO_PATINETE', foto = params.foto_url || '', patinete = String(params.numero_patinete || '').trim();
+  if (!foto) throw new Error('Foto obrigatória (deve ser tirada direto da câmera).');
+  if (!/^\d{6}$/.test(patinete)) throw new Error('Número do patinete inválido (deve ter exatamente 6 dígitos).');
+  ws.appendRow([solId, tipo, user.user_id, params.slot_id || '', '', user.cidade_base || '', 'CONCLUIDA', `[Patinete: ${patinete}] ${params.descricao || ''}`, foto, agora, agora, agora]);
+  return { ok: true, solicitacao_id: solId, metas_atuais: _getProgressoMetasFiscal_(ss, user.user_id) };
+}
 
-    // 5 batidas de heartbeat (3 min cada) = 15 minutos
-    if (dataCache.contagem === 5) {
-      const msg = `⚠️ <b>ALERTA DE EFICIÊNCIA</b>\n\n👤 Fiscal: <b>${user.nome_completo || user.nome}</b>\n📍 Local: ${slotNomeAtual}\n⏱️ Permanência: <b>15 minutos</b> excedida.\n\n<i>Lembrete: O foco da fiscalização é dinâmico. Favor prosseguir com o roteiro.</i>`;
-      
-      processIntegracoes([{
-        canal: 'telegram', tipo: 'group_message',
-        cidade: user.cidade_base || '', topic_key: 'ALERTAS',
-        parse_mode: 'HTML', text_html: msg
-      }], { evento: 'ALERTA_PERMANENCIA_FISCAL' });
+function registrarOrganizacaoPontoFiscal_(user, params) {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws = ss.getSheetByName('SOLICITACOES_OPERACIONAIS'), solId = gerarId_('ORG'), agora = new Date().toISOString();
+  ws.appendRow([solId, 'ORGANIZACAO_PONTO', user.user_id, params.slot_id || '', '', user.cidade_base || '', 'CONCLUIDA', params.descricao || 'Organização do ponto.', params.foto_url || '', agora, agora, agora]);
+  return { ok: true, mensagem: 'Organização de ponto registrada.' };
+}
 
-      // Opcional: Envia no privado do fiscal também
-      if (user.telegram_user_id) {
-        processIntegracoes([{
-          canal: 'telegram', tipo: 'private_message',
-          telegram_user_id: String(user.telegram_user_id),
-          parse_mode: 'HTML', text_html: msg
-        }], { evento: 'ALERTA_PERMANENCIA_FISCAL_PRIV' });
-      }
-    }
-  } else {
-    // Se saiu do raio, reseta o timer
-    cache.remove(tempoPermanenciaKey);
-  }
+function registrarChuvaFiscal_(user, params) {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws = ss.getSheetByName('SOLICITACOES_OPERACIONAIS'), agora = new Date().toISOString(), solId = gerarId_('CHU'), fotoUrl = params.foto_url || '';
+  ws.appendRow([solId, 'CLIMA_CHUVA', user.user_id, '', '', user.cidade_base || '', 'ABERTA', params.descricao || 'Chuva registrada.', fotoUrl, agora, agora, agora]);
+  processIntegracoes([{canal: 'telegram', tipo: 'group_message', cidade: user.cidade_base || '', topic_key: 'ALERTAS', parse_mode: 'HTML', text_html: `🌧️ <b>ALERTA DE CHUVA (FISCAL)</b>\n\n📍 Cidade: <b>${user.cidade_base}</b>\n👤 Fiscal: ${user.nome_completo}\n${fotoUrl ? '📸 <a href="'+fotoUrl+'">Ver Foto</a>' : ''}`}], { evento: 'REGISTRO_CHUVA_FISCAL' });
+  return { ok: true, solicitacao_id: solId };
+}
+
+function _getProgressoMetasFiscal_(ss, userId) {
+  const ws = ss.getSheetByName('SOLICITACOES_OPERACIONAIS'); if (!ws) return { hoje: 0, semana: 0 };
+  const data = ws.getDataRange().getValues(), h = data[0].map(v => String(v).toLowerCase().trim()), iUsr = h.indexOf('user_id'), iTipo = h.indexOf('tipo'), iCri = h.indexOf('criado_em');
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const pSemana = new Date(hoje); pSemana.setDate(hoje.getDate() - hoje.getDay() + (hoje.getDay() === 0 ? -6 : 1));
+  let contH = 0, contS = 0; const tM = ['DUPLA_NO_PATINETE', 'MENOR_DE_IDADE'];
+  for (let r = 1; r < data.length; r++) { if (String(data[r][iUsr]).trim() !== userId || !tM.includes(String(data[r][iTipo]))) continue; const cri = new Date(data[r][iCri]); if (cri >= hoje) contH++; if (cri >= pSemana) contS++; }
+  return { hoje: contH, semana: contS };
+}
+
+function getRoadmapFiscal_(user, params) {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), perfil = _getPerfilCLTMap_(ss)[user.user_id];
+  if (!perfil || !perfil.zona_poligono) return { ok: true, roadmap: [] };
+  return { ok: true, roadmap: [{nome: "Hotspots de Usuários", poligono: perfil.zona_poligono, descricao: "Foco em flagrantes de duplas e menores."}] };
+}
+
+function getMeusHistoricoTurnosCLT_(user) {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws = ss.getSheetByName('TURNOS_CLT'); if (!ws) return { ok: true, data: [] };
+  const rows = ws.getDataRange().getValues(), h = rows[0].map(v => String(v).toLowerCase().trim()), uid = String(user.user_id).trim(), res = [];
+  for (let r = 1; r < rows.length; r++) { if (String(rows[r][h.indexOf('user_id')]).trim() !== uid) continue; const stt = String(rows[r][h.indexOf('status')]).trim(); if (stt === 'PLANEJADO' || stt === 'CANCELADO') continue; res.push({turno_id: rows[r][h.indexOf('turno_id')], data: String(rows[r][h.indexOf('data')]).substring(0, 10), status: stt, checkin_hora: rows[r][h.indexOf('checkin_hora')], checkout_hora: rows[r][h.indexOf('checkout_hora')], horas: rows[r][h.indexOf('duracao_real_horas')] || 0}); }
+  return { ok: true, data: res.sort((a,b) => a.data<b.data?1:-1).slice(0, 50) };
+}
+
+function _atualizarRealizadasBancoHoras_(ss,uid,dt,hrs){
+  var sem=_semanaInicioCLT_(dt), ws=ss.getSheetByName('BANCO_HORAS'); if(!ws) return;
+  var rows=ws.getDataRange().getValues(), h=rows[0].map(v => String(v).toLowerCase().trim());
+  for(var r=1;r<rows.length;r++){ if(String(rows[r][h.indexOf('user_id')]).trim()!==uid || String(rows[r][h.indexOf('semana_inicio')]).substring(0,10)!==sem) continue; var nR=(parseFloat(rows[r][h.indexOf('horas_realizadas')])||0)+hrs, c=parseFloat(rows[r][h.indexOf('horas_contrato')])||44; ws.getRange(r+1,h.indexOf('horas_realizadas')+1).setValue(Math.round(nR*100)/100); ws.getRange(r+1,h.indexOf('saldo_horas')+1).setValue(Math.round((nR-c)*100)/100); return; }
+}
+
+function _verificarSlotAtivoPromotor_(ss, uid) {
+  const wsJ = ss.getSheetByName('JORNADAS'); if (!wsJ) return false;
+  const dJ = wsJ.getDataRange().getValues(), hJ = dJ[0].map(v => String(v).toLowerCase().trim()), hj = new Date().toISOString().substring(0, 10);
+  for (let r = 1; r < dJ.length; r++) { if (String(dJ[r][hJ.indexOf('user_id')]).trim() === uid && String(dJ[r][hJ.indexOf('criado_em')]).substring(0, 10) === hj && ['ACEITO', 'EM_ATIVIDADE', 'PAUSADO'].includes(String(dJ[r][hJ.indexOf('status')]).toUpperCase())) return true; }
+  return false;
 }
