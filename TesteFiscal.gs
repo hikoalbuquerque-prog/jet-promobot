@@ -88,7 +88,10 @@ function configurarTesteFiscal() {
   }
 
   Logger.log('Configuração completa: TEST_FIS_001 pronto para teste.');
-  if (typeof SpreadsheetApp.getUi !== 'undefined') {
-    SpreadsheetApp.getUi().alert('Perfil de Teste do Fiscal configurado com sucesso!');
+  try {
+    const ui = SpreadsheetApp.getUi();
+    if (ui) ui.alert('Perfil de Teste do Fiscal configurado com sucesso!');
+  } catch (e) {
+    Logger.log('Aviso: Não foi possível exibir o alerta visual, mas os dados foram inseridos.');
   }
 }
