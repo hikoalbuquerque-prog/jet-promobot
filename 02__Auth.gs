@@ -36,7 +36,13 @@ function getMe_(user) {
 function rowToUser_(headers, row) {
   const obj = {};
   headers.forEach((h, i) => { obj[h] = row[i] !== undefined ? row[i] : ''; });
-  // Nunca expor token ou device_id sensível no objeto user público
+  
+  // Identificação de Perfil CLT (Fase 8)
+  const cargosCLT = ['SCOUT', 'CHARGER', 'MOTORISTA', 'FISCAL', 'LIDER', 'GESTOR'];
+  const cargo = String(obj.cargo_principal || '').toUpperCase().trim();
+  obj.eh_clt = cargosCLT.includes(cargo);
+  
+  // Nunca expor token ou senha_hash sensível no objeto user público
   delete obj.token;
   delete obj.senha_hash;
   return obj;
