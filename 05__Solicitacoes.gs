@@ -33,6 +33,9 @@ function abrirSolicitacao_(user, body, tipo) {
   const cidade   = user.cidade_base || '';
   const hora     = new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
 
+  // ALERTA PRIORITÁRIO PARA LIDERANÇA (Patinete Faltando ou Bateria)
+  const isCritico = ['REFORCO_PATINETES', 'TROCA_BATERIA'].includes(tipo);
+  
   const integracoes = [{
     canal: 'telegram', tipo: 'group_message',
     cidade,
@@ -40,6 +43,21 @@ function abrirSolicitacao_(user, body, tipo) {
     parse_mode: 'HTML',
     text_html: `🔔 <b>Nova Solicitação</b>\n\n${tipoLabel}\n👤 <b>${user.nome_completo || user.user_id}</b>\n🔧 ${user.cargo_principal || ''} · ${operacao}\n💬 ${body.descricao || '—'}\n⏰ ${hora}`,
   }];
+
+  if (isCritico) {
+    const lideres = _getLideresDoUsuario_(ss, user.user_id);
+    const msgLider = `🚨 <b>ALERTA OPERACIONAL CRÍTICO</b>\n\n${tipoLabel}\n📍 Slot: <b>${body.slot_id || 'N/A'}</b>\n👤 Promotor: ${user.nome_completo}\n⚠️ Status: Necessita atenção imediata.`;
+    
+    lideres.forEach(lid => {
+      if (lid.telegram_user_id) {
+        integracoes.push({
+          canal: 'telegram', tipo: 'private_message',
+          telegram_user_id: String(lid.telegram_user_id),
+          parse_mode: 'HTML', text_html: msgLider
+        });
+      }
+    });
+  }
 
   return { ok: true, solicitacao_id: solId, integracoes };
 }

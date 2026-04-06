@@ -318,6 +318,38 @@ const homeScreen = {
       const bar = document.getElementById('push-permission-bar');
       if (bar) bar.style.display = 'block';
     }
+
+    this._verificarAvisos();
+  },
+
+  async _verificarAvisos() {
+    try {
+      const res = await api.get('GET_MURAL_AVISOS');
+      if (res.ok && res.avisos?.length) {
+        const modalId = 'modal-avisos-mural';
+        if (document.getElementById(modalId)) return;
+
+        const m = document.createElement('div');
+        m.id = modalId;
+        m.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+        
+        const aviso = res.avisos[0]; // Mostra o mais recente ou percorre
+        const cor = aviso.criticidade === 'URGENTE' ? '#fc8181' : '#4f8ef7';
+
+        m.innerHTML = `
+          <div style="background:#16213e;border:1px solid ${cor};border-radius:16px;width:100%;max-width:400px;padding:24px;position:relative">
+            <div style="background:${cor}22;color:${cor};font-size:10px;font-weight:800;padding:4px 8px;border-radius:4px;display:inline-block;margin-bottom:12px;letter-spacing:1px">COMUNICADO ${aviso.criticidade}</div>
+            <h2 style="font-size:20px;font-weight:700;margin:0 0 12px 0;color:#fff">${aviso.titulo}</h2>
+            <div style="font-size:14px;color:#a0aec0;line-height:1.6;margin-bottom:24px">${aviso.mensagem.replace(/\n/g, '<br>')}</div>
+            <button onclick="document.getElementById('${modalId}').remove()" 
+              style="background:${cor};color:#fff;border:none;border-radius:10px;padding:14px;width:100%;font-size:15px;font-weight:700;cursor:pointer">
+              ENTENDIDO
+            </button>
+          </div>
+        `;
+        document.body.appendChild(m);
+      }
+    } catch(e) {}
   },
 
   async _pedirPush() {

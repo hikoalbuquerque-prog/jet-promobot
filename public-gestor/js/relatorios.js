@@ -60,6 +60,18 @@ const relatoriosScreen = (() => {
             </div>
           </div>
 
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Mural de Avisos</div>
+            </div>
+            <div class="card-body">
+              <p style="font-size:12px;color:#718096">Publicar comunicados para equipes específicas no App do Promotor.</p>
+            </div>
+            <div class="card-actions">
+              <button class="btn-success" style="flex:1" onclick="relatoriosScreen.abrirModalMural()">Publicar Aviso</button>
+            </div>
+          </div>
+
         </div>
       </div>
     `;
@@ -83,7 +95,7 @@ const relatoriosScreen = (() => {
 
       const res = await api.get('GET_RELATORIO_EXPORT', { tipo, ...params });
       if (res.ok && res.csv) {
-        _downloadCSV(`relatorio_\${tipo.toLowerCase()}_\${new Date().getTime()}.csv`, res.csv);
+        _downloadCSV(`relatorio_${tipo.toLowerCase()}_${new Date().getTime()}.csv`, res.csv);
       } else {
         alert('Erro ao gerar relatório: ' + (res.erro || 'Vazio'));
       }
@@ -102,5 +114,78 @@ const relatoriosScreen = (() => {
     document.body.removeChild(element);
   }
 
-  return { render, exportar };
+  async function abrirModalMural() {
+    let equipes = [];
+    try {
+      const res = await api.getEquipes();
+      equipes = res.equipes || [];
+    } catch(e) {}
+
+    const m = document.createElement('div');
+    m.id = 'modal-mural';
+    m.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    m.innerHTML = `
+      <div class="modal-box" style="width:100%;max-width:450px">
+        <div class="modal-title">Novo Aviso no Mural</div>
+        <div class="modal-body" style="margin-top:20px">
+          <label class="modal-label">Equipe Destino</label>
+          <select id="mur-equipe" class="modal-textarea">
+            <option value="*">TODAS AS EQUIPES</option>
+            ${equipes.map(eq => `<option value="${eq.equipe_id}">${eq.nome_equipe} (${eq.cidade})</option>`).join('')}
+          </select>
+
+          <label class="modal-label">Título</label>
+          <input type="text" id="mur-titulo" class="modal-textarea" placeholder="Ex: Mudança de Ponto" />
+
+          <label class="modal-label">Mensagem</label>
+          <textarea id="mur-msg" class="modal-textarea" rows="4" placeholder="Digite o comunicado..."></textarea>
+
+          <label class="modal-label">Criticidade</label>
+          <select id="mur-crit" class="modal-textarea">
+            <option value="INFO">INFORMATIVO (Azul)</option>
+            <option value="URGENTE">URGENTE (Vermelho)</option>
+          </select>
+
+          <label class="modal-label">Expira em (Opcional)</label>
+          <input type="date" id="mur-exp" class="modal-textarea" />
+        </div>
+        <div class="modal-actions" style="margin-top:24px">
+          <button class="modal-cancel" onclick="document.getElementById('modal-mural').remove()" style="flex:1">CANCELAR</button>
+          <button class="btn-success" onclick="relatoriosScreen.enviarAviso()" style="flex:2">PUBLICAR AGORA</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(m);
+  }
+
+  async function enviarAviso() {
+    const payload = {
+      equipe_id: document.getElementById('mur-equipe').value,
+      titulo: document.getElementById('mur-titulo').value.trim(),
+      mensagem: document.getElementById('mur-msg').value.trim(),
+      criticidade: document.getElementById('mur-crit').value,
+      expira_em: document.getElementById('mur-exp').value
+    };
+
+    if (!payload.titulo || !payload.mensagem) return alert('Preencha título e mensagem.');
+
+    try {
+      const btn = document.querySelector('#modal-mural .btn-success');
+      btn.textContent = 'PUBLICANDO...'; btn.disabled = true;
+      const res = await api.salvarAviso(payload);
+      if (res.ok) {
+        ui.toast('Aviso publicado com sucesso!', 'success');
+        document.getElementById('modal-mural').remove();
+      } else {
+        alert('Erro: ' + res.erro);
+        btn.textContent = 'PUBLICAR AGORA'; btn.disabled = false;
+      }
+    } catch(e) {
+      alert('Falha na comunicação.');
+      const btn = document.querySelector('#modal-mural .btn-success');
+      btn.textContent = 'PUBLICAR AGORA'; btn.disabled = false;
+    }
+  }
+
+  return { render, exportar, abrirModalMural, enviarAviso };
 })();

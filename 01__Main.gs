@@ -77,6 +77,7 @@ function doGet(e) {
       case 'GET_EQUIPES':                   return jsonResp_(getEquipes_(token));
       case 'GET_PROMOTORES_LISTA':          return jsonResp_(getPromotoresLista_(token));
       case 'GET_RELATORIO_EXPORT':          return jsonResp_(getRelatorioExport_(token, params));
+      case 'GET_MURAL_AVISOS':              return jsonResp_(getMuralAvisos_(user));
       case 'REPLICAR_ESCALA':               return jsonResp_(replicarEscala_(token, params));
       case 'REPLICAR_SEMANA':               return jsonResp_(replicarSemana_(token, params));
 
@@ -195,6 +196,8 @@ function doPost(e) {
       case 'RESPONDER_SOLICITACAO':       return jsonResp_(responderSolicitacao_(body.token, body));
       case 'APROVAR_CADASTRO':            return jsonResp_(aprovarCadastro_(body.token, body));
       case 'CRIAR_TURNO_CLT':             return jsonResp_(criarTurnoCLT_(body.token, body));
+      case 'SALVAR_EQUIPE':               return jsonResp_(salvarEquipe_(body.token, body));
+      case 'SALVAR_AVISO':                return jsonResp_(salvarAviso_(body.token, body));
 
       default:
         return jsonResp_({ ok: false, erro: 'evento POST não reconhecido: ' + evento }, 400);

@@ -182,6 +182,21 @@ function getSlotsHoje_(token, params) {
   const locaisMap = {};
   let vagos = 0, ocupados = 0;
 
+  // BUSCAR SOLICITAÇÕES ABERTAS (Ativos e Baterias)
+  const wsSol = ss.getSheetByName('SOLICITACOES_OPERACIONAIS');
+  const solPorSlot = {};
+  if (wsSol) {
+    const sData = wsSol.getDataRange().getValues(), sh = sData[0].map(v => String(v).toLowerCase().trim());
+    const siSlt = sh.indexOf('slot_id'), siStt = sh.indexOf('status'), siTip = sh.indexOf('tipo');
+    for (let r = 1; r < sData.length; r++) {
+      if (String(sData[r][siStt]).trim() !== 'ABERTA') continue;
+      const sId = String(sData[r][siSlt]).trim();
+      if (!sId) continue;
+      if (!solPorSlot[sId]) solPorSlot[sId] = [];
+      solPorSlot[sId].push(String(sData[r][siTip]).trim());
+    }
+  }
+
   for (let r = 1; r < data.length; r++) {
     const statusRaw = String(data[r][iStatus] || 'DISPONIVEL').trim().toUpperCase();
     if (statusRaw === 'CANCELADO') continue;
@@ -206,11 +221,14 @@ function getSlotsHoje_(token, params) {
     const chave = nome + '__' + inicio + '__' + fim + '__' + lat + '__' + lng;
 
     if (!locaisMap[chave]) {
-      locaisMap[chave] = { slot_id:slotId, nome:nome, lat:lat, lng:lng, raio_metros:raio, cidade:cidade, inicio_slot:inicio, fim_slot:fim, data_slot:dataSlot, max_promotores:maxProm, slots:[], promotores:[], vagas_ocupadas:0, status_geral:'DISPONIVEL' };
+      locaisMap[chave] = { slot_id:slotId, nome:nome, lat:lat, lng:lng, raio_metros:raio, cidade:cidade, inicio_slot:inicio, fim_slot:fim, data_slot:dataSlot, max_promotores:maxProm, slots:[], promotores:[], vagas_ocupadas:0, status_geral:'DISPONIVEL', problemas: [] };
     }
 
     const local = locaisMap[chave];
     local.slots.push(slotId);
+    if (solPorSlot[slotId]) {
+      solPorSlot[slotId].forEach(p => { if (!local.problemas.includes(p)) local.problemas.push(p); });
+    }
     if (maxProm > local.max_promotores) local.max_promotores = maxProm;
 
     if (userId && prom.nome) {
@@ -897,4 +915,67 @@ function getRelatorioExport_(token, params) {
 
 function _arrayToCSV(arr) {
   return arr.map(row => row.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join("\n");
+}
+
+// ─── Mural de Avisos ──────────────────────────────────────────
+
+function getMuralAvisos_(user) {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws = ss.getSheetByName('MURAL_AVISOS');
+  if (!ws) return { ok: true, avisos: [] };
+
+  const data = ws.getDataRange().getValues(), h = data[0].map(v => String(v).toLowerCase().trim());
+  const agora = new Date();
+  const avisos = [];
+
+  // Mapear equipe do usuário
+  const userEquipes = [];
+  const wsMem = ss.getSheetByName('EQUIPE_MEMBROS');
+  if (wsMem) {
+    const dMem = wsMem.getDataRange().getValues(), hMem = dMem[0].map(v => String(v).toLowerCase().trim());
+    for(let r=1; r<dMem.length; r++) {
+      if (String(dMem[r][hMem.indexOf('user_id')]).trim() === user.user_id && String(dMem[r][hMem.indexOf('ativo')]).toUpperCase() === 'TRUE') {
+        userEquipes.push(String(dMem[r][hMem.indexOf('equipe_id')]).trim());
+      }
+    }
+  }
+
+  const iEq = h.indexOf('equipe_id'), iExp = h.indexOf('expira_em');
+
+  for (let r = 1; r < data.length; r++) {
+    const eqId = String(data[r][iEq]).trim();
+    const exp = data[r][iExp] ? new Date(data[r][iExp]) : null;
+
+    if (exp && exp < agora) continue; // Expirado
+    if (eqId !== '*' && !userEquipes.includes(eqId)) continue; // Não é pra equipe dele
+
+    avisos.push(rowToObj_(h, data[r]));
+  }
+
+  return { ok: true, avisos };
+}
+
+function salvarAviso_(token, body) {
+  const adminUser = _assertGestor_(token);
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  let ws = ss.getSheetByName('MURAL_AVISOS');
+  if (!ws) {
+    ws = ss.insertSheet('MURAL_AVISOS');
+    ws.appendRow(['aviso_id', 'equipe_id', 'titulo', 'mensagem', 'criticidade', 'criado_em', 'expira_em']);
+  }
+
+  const avisoId = gerarId_('AVS');
+  const agora = new Date().toISOString();
+  
+  ws.appendRow([
+    avisoId,
+    body.equipe_id || '*',
+    body.titulo || 'Aviso Operacional',
+    body.mensagem || '',
+    body.criticidade || 'INFO',
+    agora,
+    body.expira_em || ''
+  ]);
+
+  return { ok: true, aviso_id: avisoId };
 }

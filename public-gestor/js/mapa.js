@@ -1,7 +1,7 @@
 const mapaScreen = (() => {
   let _map = null, _interval = null, _layerSlots = null, _layerPromotores = null, _layerRaios = null, _layerRota = null, _layerHeat = null;
   let _todosSlots = [], _todosPromotores = [], _stats = {}, _dataFiltroAtual = new Date().toLocaleDateString('en-CA');
-  const _visible = { promotores: true, slots: true, raios: false, heatmap: false };
+  const _visible = { promotores: true, slots: true, raios: false, heatmap: false, asset_issues: true };
 
   function render() {
     const app = document.getElementById('app');
@@ -43,6 +43,7 @@ const mapaScreen = (() => {
             <button class="filter-btn active" id="toggle-slots" onclick="mapaScreen._toggleLayer('slots')">📍 Slots</button>
             <button class="filter-btn active" id="toggle-promotores" onclick="mapaScreen._toggleLayer('promotores')">👤 Promotores</button>
             <button class="filter-btn" id="toggle-raios" onclick="mapaScreen._toggleLayer('raios')">⭕ Raios</button>
+            <button class="filter-btn active" id="toggle-asset_issues" onclick="mapaScreen._toggleLayer('asset_issues')">⚠️ Problemas Ativos</button>
             <button class="filter-btn" id="toggle-heatmap" onclick="mapaScreen._toggleLayer('heatmap')">🔥 Heatmap</button>
           </div>
           
@@ -178,8 +179,14 @@ const mapaScreen = (() => {
       const cor = { DISPONIVEL:'#3182ce', OCUPADO:'#ed8936', ATIVO:'#48bb78' }[s.status_geral] || '#718096';
       const label = s.status_geral === 'DISPONIVEL' ? 'VAGO' : (s.promotores[0]?.nome.split(' ')[0] || 'OK');
       
+      let badges = '';
+      if (_visible.asset_issues && s.problemas && s.problemas.length > 0) {
+        if (s.problemas.includes('REFORCO_PATINETES')) badges += '<span style="position:absolute;top:-8px;right:-8px;background:#fc8181;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;border:1px solid #fff;z-index:10">🛠️</span>';
+        if (s.problemas.includes('TROCA_BATERIA')) badges += '<span style="position:absolute;top:-8px;left:-8px;background:#f6ad55;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;border:1px solid #fff;z-index:10">🔋</span>';
+      }
+
       const icon = L.divIcon({
-        html: `<div style="background:${cor};border:2px solid #fff;border-radius:12px;padding:3px 8px;min-width:70px;text-align:center;color:#fff;font-size:10px;font-weight:800;box-shadow:0 4px 12px rgba(0,0,0,0.4);white-space:nowrap;transition:all 0.2s">${s.inicio_slot} · ${label}</div>`,
+        html: `<div style="position:relative;background:${cor};border:2px solid #fff;border-radius:12px;padding:3px 8px;min-width:70px;text-align:center;color:#fff;font-size:10px;font-weight:800;box-shadow:0 4px 12px rgba(0,0,0,0.4);white-space:nowrap;transition:all 0.2s">${s.inicio_slot} · ${label}${badges}</div>`,
         className: '', iconSize: [70, 24], iconAnchor: [35, 12]
       });
       

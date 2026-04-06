@@ -40,6 +40,7 @@ const api = (() => {
     getEquipes()                    { return _get('GET_EQUIPES'); },
     getPromotoresLista()            { return _get('GET_PROMOTORES_LISTA'); },
     salvarEquipe(dados)             { return _post('SALVAR_EQUIPE', dados); },
+    salvarAviso(dados)              { return _post('SALVAR_AVISO', dados); },
     getHistoricoLocalizacao(uid, data) { return _get('GET_HISTORICO_LOCALIZACAO', { promotor_id: uid, data }); },
     criarSlot(dados)                { return _post('CRIAR_SLOT', dados); },
     getEscalaDrafts()         { return _get('GET_ESCALA_DRAFTS'); },
