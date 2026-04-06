@@ -775,6 +775,38 @@ function getPrevisaoClima_(lat, lng) {
 }
 
 /**
+ * Consolida o contexto operacional (Academy e Calculadora) para a IA.
+ */
+function getOperationalContext_() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  
+  // Contexto da Calculadora (Regras de Comissão)
+  const calcRules = `
+    REGRAS DE GANHOS (CALCULADORA):
+    - Plus R$9,99: Comissão de 90% (R$ 8,99)
+    - Plus R$14,99: Comissão de 90% (R$ 13,49)
+    - Pacote 60min (R$25,00): Comissão de 15% (R$ 3,75)
+    - Pacote 100min (R$44,00): Comissão base 15%, sobe para 20% se vender mais de 10 pacotes (100min ou 200min) na semana.
+    - Pacote 200min (R$85,00): Comissão base 15%, sobe para 20% se vender mais de 10 pacotes (100min ou 200min) na semana.
+  `;
+
+  // Contexto do Academy (Módulos)
+  let academyContext = "MÓDULOS JET ACADEMY:\n";
+  const wsMod = ss.getSheetByName('MODULOS');
+  if (wsMod) {
+    const data = wsMod.getDataRange().getValues();
+    const h = data[0].map(v => String(v).toLowerCase().trim());
+    for (let r = 1; r < data.length; r++) {
+      if (String(data[r][h.indexOf('ativo')]).toUpperCase() === 'TRUE') {
+        academyContext += `- ${data[r][h.indexOf('titulo')]} (Nível: ${data[r][h.indexOf('nivel')]})\n`;
+      }
+    }
+  }
+
+  return calcRules + "\n" + academyContext;
+}
+
+/**
  * Analisa o risco climático para todos os slots do dia.
  * Deve ser configurado como um gatilho a cada 1 ou 2 horas.
  */
@@ -831,4 +863,21 @@ function analisarRiscoClimatico() {
       }], { evento: 'ALERTA_CLIMATICO_IA' });
     }
   }
+}
+
+function askIAAssistante_(user, params) {
+  const pergunta = params.pergunta;
+  if (!pergunta) return { ok: false, erro: 'Pergunta vazia.' };
+
+  const operacional = getOperationalContext_();
+  const systemPrompt = `Você é o Assistente Virtual da JET Operações. 
+  Responda dúvidas de promotores sobre o Academy, Calculadora de Ganhos ou Clima.
+  Use este contexto operacional:
+  ${operacional}
+  
+  Seja empático, use emojis e dê respostas curtas e precisas. 
+  Se não souber a resposta, peça para falar com o Líder da equipe.`;
+
+  const resposta = callGeminiAI_(pergunta, systemPrompt);
+  return { ok: true, resposta: resposta || "Estou com um pouco de instabilidade agora. Tente novamente em alguns segundos!" };
 }

@@ -284,6 +284,9 @@ const homeScreen = {
             <button onclick="router.go('calculadora')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px 8px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:600">
               <span style="font-size:20px">🧮</span>Calculadora
             </button>
+            <button onclick="homeScreen._abrirIA()" style="background:#1e2a45;border:1px solid #4f8ef744;border-radius:12px;padding:16px 8px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:600">
+              <span style="font-size:20px">🤖</span>Assistente IA
+            </button>
           </div>
 
           <button onclick="router.go('academy')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:10px;font-size:13px;font-weight:700">
@@ -365,5 +368,78 @@ const homeScreen = {
         ui.toast('Notificações ativadas!', 'success');
       }
     } catch(e) { alert('Erro: ' + e.message); }
+  },
+
+  _abrirIA() {
+    const modalId = 'modal-ia-assistant';
+    if (document.getElementById(modalId)) return;
+
+    const m = document.createElement('div');
+    m.id = modalId;
+    m.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:9999;display:flex;flex-direction:column;padding:20px;';
+    m.innerHTML = `
+      <div style="background:#16213e;border:1px solid #4f8ef744;border-radius:20px;width:100%;max-width:500px;margin:auto;display:flex;flex-direction:column;max-height:80vh;overflow:hidden">
+        <div style="padding:16px;border-bottom:1px solid #2a3a55;display:flex;justify-content:space-between;align-items:center;background:#1e2a45">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:24px">🤖</span>
+            <div>
+              <div style="font-size:14px;font-weight:700">Assistente JET</div>
+              <div style="font-size:10px;color:#68d391">Online e pronto para ajudar</div>
+            </div>
+          </div>
+          <button onclick="document.getElementById('${modalId}').remove()" style="background:none;border:none;color:#718096;font-size:24px;cursor:pointer">×</button>
+        </div>
+        
+        <div id="ia-chat-box" style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:12px">
+          <div style="background:#0a0f1e;padding:12px 16px;border-radius:14px 14px 14px 0;align-self:flex-start;max-width:85%;font-size:14px;line-height:1.5">
+            Olá! Eu sou o assistente de IA da JET. Posso tirar dúvidas sobre módulos do <b>Academy</b>, regras da <b>Calculadora</b> ou sobre o <b>Clima</b>. O que deseja saber?
+          </div>
+        </div>
+
+        <div style="padding:16px;background:#1e2a45;display:flex;gap:10px">
+          <input type="text" id="ia-pergunta" placeholder="Digite sua dúvida aqui..." 
+            style="flex:1;background:#0a0f1e;border:1px solid #2a3a55;border-radius:10px;padding:12px;color:#fff;font-size:14px;outline:none"
+            onkeydown="if(event.key==='Enter') homeScreen._enviarPerguntaIA()" />
+          <button onclick="homeScreen._enviarPerguntaIA()" 
+            style="background:#4f8ef7;border:none;border-radius:10px;width:44px;height:44px;color:#fff;font-size:18px;cursor:pointer">🚀</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(m);
+  },
+
+  async _enviarPerguntaIA() {
+    const input = document.getElementById('ia-pergunta');
+    const box = document.getElementById('ia-chat-box');
+    const pergunta = input.value.trim();
+    if (!pergunta) return;
+
+    // Add user message
+    const uMsg = document.createElement('div');
+    uMsg.style.cssText = 'background:#4f8ef7;color:#fff;padding:12px 16px;border-radius:14px 14px 0 14px;align-self:flex-end;max-width:85%;font-size:14px;line-height:1.5';
+    uMsg.textContent = pergunta;
+    box.appendChild(uMsg);
+    input.value = '';
+    box.scrollTop = box.scrollHeight;
+
+    // Add loading
+    const lMsg = document.createElement('div');
+    lMsg.id = 'ia-loading';
+    lMsg.style.cssText = 'background:#0a0f1e;color:#718096;padding:12px 16px;border-radius:14px 14px 14px 0;align-self:flex-start;font-size:13px';
+    lMsg.textContent = 'Digitando...';
+    box.appendChild(lMsg);
+    box.scrollTop = box.scrollHeight;
+
+    try {
+      const res = await api.get('ASK_IA_ASSISTANTE', { pergunta });
+      lMsg.remove();
+      const aMsg = document.createElement('div');
+      aMsg.style.cssText = 'background:#0a0f1e;color:#eaf0fb;padding:12px 16px;border-radius:14px 14px 14px 0;align-self:flex-start;max-width:85%;font-size:14px;line-height:1.5;border:1px solid #2a3a55';
+      aMsg.innerHTML = res.resposta.replace(/\n/g, '<br>');
+      box.appendChild(aMsg);
+      box.scrollTop = box.scrollHeight;
+    } catch(e) {
+      lMsg.textContent = 'Erro ao conectar. Tente novamente.';
+    }
   }
 };
