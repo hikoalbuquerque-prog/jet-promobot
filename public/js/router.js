@@ -36,6 +36,13 @@ const router = (() => {
 
   return {
     go(screen, pushHistory = true) {
+      // Interceptação CLT (Fase 8)
+      const user = state.get('promotor');
+      if (user && user.eh_clt) {
+        if (screen === 'home') screen = 'home-clt';
+        if (screen === 'historico') screen = 'historico-clt';
+      }
+
       // Limpar listeners de GPS/timer da tela anterior
       const gpsUnsub   = state.get('_gpsUnsub');
       const timerUnsub = state.get('_timerUnsub');

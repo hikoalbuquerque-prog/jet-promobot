@@ -63,13 +63,23 @@ const ui = {
   },
 
   bottomNav(active) {
-    const items = [
-      { id: 'home',     icon: '🏠', label: 'Home',     screen: 'home' },
-      { id: 'slot',     icon: '⚡', label: 'Jornada',  screen: 'slot', badge: true },
-      { id: 'historico',icon: '📋', label: 'Histórico',screen: 'historico' },
-      { id: 'ranking',  icon: '🏆', label: 'Ranking',  screen: 'ranking' },
-      { id: 'academy',  icon: '🎓', label: 'Academy',  screen: 'academy' },
+    const user = state.get('promotor') || {};
+    const isCLT = !!user.eh_clt;
+
+    const items = isCLT ? [
+      { id: 'home',      icon: '🏠', label: 'Home',      screen: 'home-clt' },
+      { id: 'turno',     icon: '⚡', label: 'Turno',     screen: 'turno-ativo' },
+      { id: 'historico', icon: '📋', label: 'Histórico', screen: 'historico-clt' },
+      { id: 'ranking',   icon: '🏆', label: 'Ranking',   screen: 'ranking' },
+      { id: 'academy',   icon: '🎓', label: 'Academy',   screen: 'academy' },
+    ] : [
+      { id: 'home',      icon: '🏠', label: 'Home',      screen: 'home' },
+      { id: 'slot',      icon: '⚡', label: 'Jornada',   screen: 'slot', badge: true },
+      { id: 'historico', icon: '📋', label: 'Histórico', screen: 'historico' },
+      { id: 'ranking',   icon: '🏆', label: 'Ranking',   screen: 'ranking' },
+      { id: 'academy',   icon: '🎓', label: 'Academy',   screen: 'academy' },
     ];
+
     return `<nav class="bottom-nav">${items.map(it =>
       `<button class="nav-item ${active === it.id ? 'active' : ''}" onclick="router.go('${it.screen}')" style="position:relative">
         <span class="nav-icon">${it.icon}</span>
