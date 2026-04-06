@@ -196,7 +196,11 @@ function doPost(e) {
       case 'REGISTRAR_CHUVA_FISCAL':            return jsonResp_(registrarChuvaFiscal_(user, body));
       case 'REGISTRAR_OCORRENCIA_USUARIO':      return jsonResp_(registrarOcorrenciaUsuario_(user, body));
       case 'REGISTRAR_ORGANIZACAO_PONTO_FISCAL': return jsonResp_(registrarOrganizacaoPontoFiscal_(user, body));
-      case 'CONFIRMAR_TURNO_CLT':         return jsonResp_(confirmarTurnoCLT_(user, body));
+      case 'CONFIRMAR_TURNO_CLT': {
+        const res = confirmarTurnoCLT_(user, body);
+        limparCacheConfig_(); // Força recarregamento
+        return jsonResp_(res);
+      }
       case 'CHECKIN_TURNO_CLT':           return jsonResp_(checkinTurnoCLT_(user, body));
       case 'CHECKOUT_TURNO_CLT':          return jsonResp_(checkoutTurnoCLT_(user, body));
       case 'PAUSAR_TURNO_CLT':            return jsonResp_(pausarTurnoCLT_(user, body));
