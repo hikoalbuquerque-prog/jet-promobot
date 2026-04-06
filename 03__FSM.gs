@@ -356,7 +356,25 @@ function executarCheckout_(ss, jornada, user, body, horarioServidor, excepcional
     }
 
 
-    return { ok: true, jornada_id: jornada.jornada_id, slot, duracao, excepcional };
+    const resIntegracoes = [];
+    
+    // IA: RESUMO DE TURNO (MOTIVAÇÃO)
+    const promptResumo = `O promotor ${user.nome_completo} acaba de encerrar o turno. 
+    Duração: ${duracao}. 
+    Status: ${excepcional ? 'Encaminhado pelo suporte' : 'Checkout normal'}.
+    Gere uma mensagem motivacional curta (2 frases) celebrando o trabalho feito e incentivando o próximo turno. Use emojis.`;
+    
+    const resumoIA = callGeminiAI_(promptResumo, "Você é o Coach de Performance da JET. Seja entusiasmado e humano.");
+    if (resumoIA) {
+      resIntegracoes.push({
+        canal: 'telegram', tipo: 'private_message',
+        telegram_user_id: String(user.telegram_user_id || getTelegramUserId_(ss, user.user_id)),
+        parse_mode: 'HTML',
+        text_html: `🌟 <b>Resumo do seu Turno:</b>\n\n${resumoIA}`
+      });
+    }
+
+    return { ok: true, jornada_id: jornada.jornada_id, slot, duracao, excepcional, integracoes: resIntegracoes };
 
   } catch (e) {
     return { ok: false, erro: 'Erro ao encerrar jornada, tente novamente.' };

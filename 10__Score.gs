@@ -383,3 +383,64 @@ function verificarDesafiosEquipe_(ss) {
     }
   });
 }
+
+/**
+ * Trigger Automático: Reciclagem IA
+ * Analisa promotores com falhas recorrentes e sugere módulos do Academy.
+ */
+function verificarReciclagemIA() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const wsJ = ss.getSheetByName('JORNADAS');
+  if (!wsJ) return;
+
+  const dataJ = wsJ.getDataRange().getValues(), hJ = dataJ[0].map(v => String(v).toLowerCase().trim());
+  const iUsr = hJ.indexOf('user_id'), iTrust = hJ.indexOf('location_trust_score'), iStatus = hJ.indexOf('status'), iCri = hJ.indexOf('criado_em');
+  
+  const falhasPorUser = {};
+  const hoje = new Date();
+  const seteDiasAtras = new Date(hoje.getTime() - 7 * 86400000);
+
+  for (let r = 1; r < dataJ.length; r++) {
+    const dataCri = new Date(dataJ[r][iCri]);
+    if (dataCri < seteDiasAtras) continue;
+
+    const uId = String(dataJ[r][iUsr]).trim();
+    const trust = parseFloat(dataJ[r][iTrust] || '100');
+    const status = String(dataJ[r][iStatus]).toUpperCase();
+
+    if (trust < 60 || status === 'CANCELADO') {
+      if (!falhasPorUser[uId]) falhasPorUser[uId] = { gps: 0, faltas: 0 };
+      if (trust < 60) falhasPorUser[uId].gps++;
+      if (status === 'CANCELADO') falhasPorUser[uId].faltas++;
+    }
+  }
+
+  const integracoes = [];
+  const promMap = _getPromotoresMap_(ss);
+
+  Object.entries(falhasPorUser).forEach(([uId, falhas]) => {
+    if (falhas.gps >= 2 || falhas.faltas >= 2) {
+      const p = promMap[uId];
+      if (!p || !p.telegram_user_id) return;
+
+      const motivo = falhas.gps >= 2 ? "dificuldades com o GPS" : "cancelamentos frequentes";
+      const moduloSugerido = falhas.gps >= 2 ? "APP-03 (Check-in e Segurança)" : "APP-02 (Vagas e Sugestões)";
+
+      const promptReciclagem = `O promotor ${p.nome} teve ${falhas.gps} falhas de GPS e ${falhas.faltas} cancelamentos na última semana.
+      Gere uma mensagem amigável sugerindo que ele revise o módulo ${moduloSugerido} do Academy para melhorar sua performance e evitar bloqueios.`;
+
+      const msgIA = callGeminiAI_(promptReciclagem, "Você é o Mentor de Carreira da JET. Seu objetivo é ajudar o promotor a evoluir.");
+
+      if (msgIA) {
+        integracoes.push({
+          canal: 'telegram', tipo: 'private_message',
+          telegram_user_id: String(p.telegram_user_id),
+          parse_mode: 'HTML',
+          text_html: `🎓 <b>Dica do seu Mentor JET:</b>\n\n${msgIA}`
+        });
+      }
+    }
+  });
+
+  processIntegracoes(integracoes, { evento: 'RECICLAGEM_IA_AUTOMATICA' });
+}
