@@ -57,6 +57,23 @@ function abrirSolicitacao_(user, body, tipo) {
         });
       }
     });
+
+    // IA: RESPOSTA INSTANTÂNEA PARA O PROMOTOR
+    const feedbackIA = callGeminiAI_(
+      `O promotor relatou o seguinte problema: "${body.descricao || 'Faltam patinetes ou bateria baixa'}". 
+       Tipo: ${tipoLabel}. Local: ${body.slot_id}. 
+       Dê uma resposta curta (máx 3 frases) e empática em português, sugerindo uma ação básica enquanto o líder não chega.`,
+      "Você é o assistente técnico do JET Promobot. Seja prestativo e direto."
+    );
+
+    if (feedbackIA) {
+      integracoes.push({
+        canal: 'telegram', tipo: 'private_message',
+        telegram_user_id: String(user.telegram_user_id || getTelegramUserId_(ss, user.user_id)),
+        parse_mode: 'HTML',
+        text_html: `🤖 <b>Assistente JET:</b>\n\n${feedbackIA}`
+      });
+    }
   }
 
   return { ok: true, solicitacao_id: solId, integracoes };

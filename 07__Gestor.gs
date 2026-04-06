@@ -979,3 +979,45 @@ function salvarAviso_(token, body) {
 
   return { ok: true, aviso_id: avisoId };
 }
+
+function getIAInsights_(token) {
+  const adminUser = _assertGestor_(token);
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  
+  // 1. Coletar dados do dia
+  const kpiRes = getKpisDia_(token);
+  const kpis = kpiRes.data || {};
+  
+  // 2. Coletar ocorrências abertas
+  const wsSol = ss.getSheetByName('SOLICITACOES_OPERACIONAIS');
+  let ocorrenciasResumo = "";
+  if (wsSol) {
+    const sData = wsSol.getDataRange().getValues(), sh = sData[0].map(v => String(v).toLowerCase().trim());
+    const iStt = sh.indexOf('status'), iDesc = sh.indexOf('descricao'), iCri = sh.indexOf('criado_em');
+    const hoje = new Date().toISOString().substring(0, 10);
+    
+    let count = 0;
+    for (let r = 1; r < sData.length; r++) {
+      if (String(sData[r][iCri]).substring(0, 10) === hoje) {
+        count++;
+        ocorrenciasResumo += `- ${sData[r][iDesc]} (Status: ${sData[r][iStt]})\n`;
+      }
+      if (count > 10) break; 
+    }
+  }
+
+  const prompt = `Gere um resumo executivo da operação de hoje:
+  - Promotores Ativos: ${kpis.promotores_ativos || 0}
+  - Em Operação: ${kpis.em_operacao || 0}
+  - Slots Vagos: ${kpis.slots_disponiveis || 0}
+  - Solicitações Abertas: ${kpis.solicitacoes_abertas || 0}
+  
+  Ocorrências Recentes:
+  ${ocorrenciasResumo || "Nenhuma ocorrência grave registrada até o momento."}
+  
+  Dê 3 recomendações acionáveis para o gestor regional focar nas próximas horas. Seja curto e profissional.`;
+
+  const insight = callGeminiAI_(prompt, "Você é o Analista de Operações Sênior da JET.");
+
+  return { ok: true, insight: insight || "Não foi possível gerar insights no momento. Verifique a chave de API." };
+}

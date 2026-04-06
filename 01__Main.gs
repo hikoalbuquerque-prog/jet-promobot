@@ -78,6 +78,7 @@ function doGet(e) {
       case 'GET_PROMOTORES_LISTA':          return jsonResp_(getPromotoresLista_(token));
       case 'GET_RELATORIO_EXPORT':          return jsonResp_(getRelatorioExport_(token, params));
       case 'GET_MURAL_AVISOS':              return jsonResp_(getMuralAvisos_(user));
+      case 'GET_IA_INSIGHTS':               return jsonResp_(getIAInsights_(token));
       case 'REPLICAR_ESCALA':               return jsonResp_(replicarEscala_(token, params));
       case 'REPLICAR_SEMANA':               return jsonResp_(replicarSemana_(token, params));
 

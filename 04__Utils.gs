@@ -696,3 +696,139 @@ function _getLideresDoUsuario_(ss, userId) {
 
   return lideres;
 }
+
+// ============================================================
+//  Inteligência Artificial (Gemini API)
+// ============================================================
+
+/**
+ * Chama a API do Gemini para processar textos e gerar insights.
+ */
+function callGeminiAI_(prompt, systemInstruction = "") {
+  const apiKey = getConfig_('gemini_api_key');
+  if (!apiKey) {
+    console.log('Gemini API Key não encontrada em CONFIG.');
+    return null;
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  
+  const payload = {
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: (systemInstruction ? systemInstruction + "\n\n" : "") + prompt }]
+      }
+    ],
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 800,
+    }
+  };
+
+  try {
+    const response = UrlFetchApp.fetch(url, {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+
+    const resJson = JSON.parse(response.getContentText());
+    if (resJson.candidates && resJson.candidates[0] && resJson.candidates[0].content) {
+      return resJson.candidates[0].content.parts[0].text;
+    } else {
+      console.log('Erro na resposta do Gemini:', response.getContentText());
+      return null;
+    }
+  } catch (e) {
+    console.log('Erro ao chamar Gemini:', e.message);
+    return null;
+  }
+}
+
+/**
+ * Obtém a previsão do tempo básica para um par de coordenadas.
+ * Usa a API do OpenWeather (requer openweather_api_key em CONFIG).
+ */
+function getPrevisaoClima_(lat, lng) {
+  const apiKey = getConfig_('openweather_api_key');
+  if (!apiKey) return { ok: false, msg: 'OpenWeather API Key não configurada.' };
+
+  const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${apiKey}&units=metric&lang=pt_br`;
+  
+  try {
+    const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    const data = JSON.parse(response.getContentText());
+    if (data.weather) {
+      return {
+        ok: true,
+        temp: data.main.temp,
+        clima: data.weather[0].description,
+        icone: data.weather[0].icon,
+        chuva: (data.rain && data.rain['1h']) ? data.rain['1h'] : 0,
+        nuvens: data.clouds.all
+      };
+    }
+  } catch (e) {}
+  return { ok: false };
+}
+
+/**
+ * Analisa o risco climático para todos os slots do dia.
+ * Deve ser configurado como um gatilho a cada 1 ou 2 horas.
+ */
+function analisarRiscoClimatico() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const hoje = Utilities.formatDate(new Date(), "GMT-3", "yyyy-MM-dd");
+  
+  // Buscar slots de hoje
+  const wsS = ss.getSheetByName('SLOTS');
+  if (!wsS) return;
+  const sData = wsS.getDataRange().getValues(), sh = sData[0].map(v => String(v).toLowerCase().trim());
+  const iLat = sh.indexOf('lat'), iLng = sh.indexOf('lng'), iNom = sh.indexOf('local_nome'), iCid = sh.indexOf('cidade'), iStt = sh.indexOf('status'), iDt = sh.indexOf('data');
+
+  const coordenadasVistas = new Set();
+  const alertas = [];
+
+  for (let r = 1; r < sData.length; r++) {
+    const dt = String(sData[r][iDt]).substring(0, 10);
+    const st = String(sData[r][iStt]).toUpperCase();
+    if (dt !== hoje || st === 'CANCELADO') continue;
+
+    const lat = sData[r][iLat], lng = sData[r][iLng];
+    const key = `${lat},${lng}`;
+    if (coordenadasVistas.has(key)) continue;
+    coordenadasVistas.add(key);
+
+    const clima = getPrevisaoClima_(lat, lng);
+    if (clima.ok && (clima.chuva > 0 || clima.clima.toLowerCase().includes('chuva') || clima.clima.toLowerCase().includes('tempestade'))) {
+      alertas.push({
+        cidade: sData[r][iCid],
+        local: sData[r][iNom] || 'Ponto Operacional',
+        descricao: clima.clima,
+        temp: clima.temp,
+        chuva: clima.chuva
+      });
+    }
+  }
+
+  if (alertas.length > 0) {
+    const resumo = alertas.map(a => `- ${a.cidade} (${a.local}): ${a.descricao} (${a.temp}°C)`).join('\n');
+    
+    // IA: GERAR INSIGHT OPERACIONAL
+    const insightIA = callGeminiAI_(
+      `Temos alerta de chuva nos seguintes pontos operacionais:\n${resumo}\n\nCom base nisso, gere uma recomendação curta e direta para os gestores sobre o que fazer com os patinetes e as equipes nestas cidades.`,
+      "Você é o Diretor de Operações Logísticas da JET. Seja pragmático e focado em segurança e preservação do patrimônio."
+    );
+
+    if (insightIA) {
+      processIntegracoes([{
+        canal: 'telegram', tipo: 'group_message',
+        cidade: 'TODAS', topic_key: 'ALERTAS',
+        parse_mode: 'HTML',
+        text_html: `⛈️ <b>ALERTA CLIMÁTICO & INSIGHT IA</b>\n\n${insightIA}\n\n<b>Pontos Afetados:</b>\n${resumo}`
+      }], { evento: 'ALERTA_CLIMATICO_IA' });
+    }
+  }
+}

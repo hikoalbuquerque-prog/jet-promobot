@@ -20,14 +20,15 @@ const router = (() => {
     broadcast:    { module: broadcast,           method: 'render',     hasNav: true,  navId: 'nav-broadcast' },
     equipes:      { module: equipesScreen,       method: 'render',     hasNav: true,  navId: 'nav-equipes'   },
     relatorios:   { module: relatoriosScreen,    method: 'render',     hasNav: true,  navId: 'nav-relatorios' },
+    'insights-ia':{ module: iaScreen,            method: 'render',     hasNav: true,  navId: 'nav-ia' },
   };
 
   // Configuração de Permissões (RBAC)
   const _PERMISSIONS = {
     FISCAL: ['mapa', 'slots', 'dashboard'], // Fiscais só veem operacional básico
-    LIDER:  ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'equipes'],
-    GESTOR: ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'cadastros', 'broadcast', 'equipes', 'relatorios'], // Gestor vê tudo
-    REGIONAL: ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'cadastros', 'broadcast', 'equipes', 'relatorios']
+    LIDER:  ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'equipes', 'insights-ia'],
+    GESTOR: ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'cadastros', 'broadcast', 'equipes', 'relatorios', 'insights-ia'], // Gestor vê tudo
+    REGIONAL: ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'cadastros', 'broadcast', 'equipes', 'relatorios', 'insights-ia']
   };
 
   let _alertInterval = null;
@@ -223,6 +224,9 @@ const router = (() => {
             </button>
             <button class="nav-item" id="nav-relatorios" data-route="relatorios">
               📄 Relatórios
+            </button>
+            <button class="nav-item" id="nav-ia" data-route="insights-ia">
+              🤖 Insights IA
             </button>
           </nav>
 
