@@ -193,8 +193,18 @@ const mapaScreen = (() => {
       const marker = L.marker([s.lat, s.lng], { icon }).addTo(_layerSlots);
       
       let pop = `<div style="padding:4px;font-family:'IBM Plex Sans',sans-serif">
-        <div style="font-weight:700;font-size:14px;color:#1a1a2e;margin-bottom:2px">📍 ${s.nome}</div>
-        <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${s.cidade}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-weight:700;font-size:14px;color:#1a1a2e;margin-bottom:2px">📍 ${s.nome}</div>
+            <div style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${s.cidade}</div>
+          </div>
+          ${s.clima ? `
+            <div style="text-align:right;background:rgba(0,0,0,0.05);padding:4px 8px;border-radius:8px">
+              <img src="https://openweathermap.org/img/wn/${s.clima.icone}.png" style="width:24px;height:24px;display:block;margin:0 auto" />
+              <div style="font-size:10px;font-weight:800;color:#1a1a2e">${Math.round(s.clima.temp)}°C</div>
+            </div>
+          ` : ''}
+        </div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>⏰ Horário:</span><strong>${s.inicio_slot} – ${s.fim_slot}</strong></div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:8px"><span>📊 Ocupação:</span><strong>${s.vagas_ocupadas} / ${s.max_promotores}</strong></div>`;
       

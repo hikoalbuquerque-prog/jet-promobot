@@ -18,6 +18,11 @@ const kpisScreen = (() => {
           <span id="kpi-updated" class="screen-subtitle">Sincronizando...</span>
         </div>
 
+        <div id="ai-quick-insight" style="display:none;margin-bottom:20px;background:linear-gradient(90deg, rgba(99,179,237,0.1), transparent);border:1px solid rgba(99,179,237,0.2);border-radius:12px;padding:16px;display:flex;gap:12px;align-items:center">
+          <span style="font-size:24px">🤖</span>
+          <div style="font-size:13px;color:#eaf0fb;font-weight:500" id="ai-insight-text">Gerando insight rápido...</div>
+        </div>
+
         <div class="kpi-grid" id="kpi-grid">
           ${_cardSkeleton(6)}
         </div>
@@ -85,6 +90,7 @@ const kpisScreen = (() => {
       _renderCards(kpis);
       _renderPromotores(promotores);
       _renderEquipesChart(kpis.performance_equipes || []);
+      _renderQuickAI(kpis.insight_rapido);
 
       const now = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
       const el = document.getElementById('kpi-updated');
@@ -204,6 +210,19 @@ const kpisScreen = (() => {
         }).join('')}
       </div>
     `;
+  }
+
+  function _renderEquipesChart(equipes) {
+    // ... existing ...
+  }
+
+  function _renderQuickAI(text) {
+    const el = document.getElementById('ai-quick-insight');
+    const txt = document.getElementById('ai-insight-text');
+    if (!el || !txt || !text) return;
+    
+    txt.textContent = text;
+    el.style.display = 'flex';
   }
 
   function _statusBadge(status) {

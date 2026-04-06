@@ -221,7 +221,16 @@ function getSlotsHoje_(token, params) {
     const chave = nome + '__' + inicio + '__' + fim + '__' + lat + '__' + lng;
 
     if (!locaisMap[chave]) {
-      locaisMap[chave] = { slot_id:slotId, nome:nome, lat:lat, lng:lng, raio_metros:raio, cidade:cidade, inicio_slot:inicio, fim_slot:fim, data_slot:dataSlot, max_promotores:maxProm, slots:[], promotores:[], vagas_ocupadas:0, status_geral:'DISPONIVEL', problemas: [] };
+      // IA Clima: Buscar clima do local (apenas uma vez por chave de local)
+      const clima = getPrevisaoClima_(lat, lng);
+      
+      locaisMap[chave] = { 
+        slot_id:slotId, nome:nome, lat:lat, lng:lng, raio_metros:raio, cidade:cidade, 
+        inicio_slot:inicio, fim_slot:fim, data_slot:dataSlot, max_promotores:maxProm, 
+        slots:[], promotores:[], vagas_ocupadas:0, status_geral:'DISPONIVEL', 
+        problemas: [],
+        clima: clima.ok ? { temp: clima.temp, desc: clima.clima, icone: clima.icone } : null
+      };
     }
 
     const local = locaisMap[chave];
@@ -431,7 +440,18 @@ function getKpisDia_(token) {
     pontos: eq.pontos
   }));
 
-  return{ok:true,data:{promotores_ativos,em_operacao,slots_ocupados,slots_disponiveis,checkins_hoje,solicitacoes_abertas,performance_equipes}};
+  // IA: Insight Rápido (Cache de 1 hora)
+  const cache = CacheService.getScriptCache();
+  const cachedInsight = cache.get('ai_quick_insight_' + adminUser.user_id);
+  let insight_rapido = cachedInsight;
+
+  if (!insight_rapido) {
+    const prompt = `Resuma em uma única frase curta e impactante o status atual da operação para este gestor: ${promotores_ativos} ativos, ${solicitacoes_abertas} solicitações.`;
+    insight_rapido = callGeminiAI_(prompt, "Você é o assistente de performance JET.");
+    if (insight_rapido) cache.put('ai_quick_insight_' + adminUser.user_id, insight_rapido, 3600);
+  }
+
+  return{ok:true,data:{promotores_ativos,em_operacao,slots_ocupados,slots_disponiveis,checkins_hoje,solicitacoes_abertas,performance_equipes,insight_rapido}};
 }
 
 function getHistoricoLocalizacao_(token,params) {
@@ -983,26 +1003,30 @@ function salvarAviso_(token, body) {
 function getIAInsights_(token) {
   const adminUser = _assertGestor_(token);
   const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const allowedUsers = _getUsersDaHierarquia_(ss, adminUser);
   
-  // 1. Coletar dados do dia
+  // 1. Coletar dados do dia (já respeita a hierarquia internamente)
   const kpiRes = getKpisDia_(token);
   const kpis = kpiRes.data || {};
   
-  // 2. Coletar ocorrências abertas
+  // 2. Coletar ocorrências abertas filtradas pela hierarquia
   const wsSol = ss.getSheetByName('SOLICITACOES_OPERACIONAIS');
   let ocorrenciasResumo = "";
   if (wsSol) {
     const sData = wsSol.getDataRange().getValues(), sh = sData[0].map(v => String(v).toLowerCase().trim());
-    const iStt = sh.indexOf('status'), iDesc = sh.indexOf('descricao'), iCri = sh.indexOf('criado_em');
+    const iStt = sh.indexOf('status'), iDesc = sh.indexOf('descricao'), iCri = sh.indexOf('criado_em'), iUsr = sh.indexOf('user_id');
     const hoje = new Date().toISOString().substring(0, 10);
     
     let count = 0;
     for (let r = 1; r < sData.length; r++) {
+      const uId = String(sData[r][iUsr]).trim();
+      if (allowedUsers && !allowedUsers.has(uId)) continue; // Filtro de Hierarquia
+
       if (String(sData[r][iCri]).substring(0, 10) === hoje) {
         count++;
         ocorrenciasResumo += `- ${sData[r][iDesc]} (Status: ${sData[r][iStt]})\n`;
       }
-      if (count > 10) break; 
+      if (count > 15) break; 
     }
   }
 
