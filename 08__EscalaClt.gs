@@ -70,6 +70,35 @@ function _isFolgaCLT_(perfil, regras, data_iso, folgasMap) {
   return { folga: false, motivo: '' };
 }
 
+function confirmarTurnoCLT_(user, params) {
+  const turnoId = String(params.turno_id || '').trim();
+  const resposta = String(params.resposta || 'CONFIRMADO').toUpperCase();
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const ws = ss.getSheetByName('TURNOS_CLT');
+  if (!ws) throw new Error('Aba TURNOS_CLT não encontrada.');
+
+  const data = ws.getDataRange().getValues();
+  const h = data[0].map(v => String(v).toLowerCase().trim());
+  const iTid = h.indexOf('turno_id'), iUid = h.indexOf('user_id'), iStt = h.indexOf('status');
+
+  for (let r = 1; r < data.length; r++) {
+    if (String(data[r][iTid]).trim() === turnoId && String(data[r][iUid]).trim() === user.user_id) {
+      ws.getRange(r + 1, iStt + 1).setValue(resposta);
+      registrarAuditoria_({
+        tabela: 'TURNOS_CLT',
+        registro_id: turnoId,
+        campo: 'status',
+        valor_anterior: data[r][iStt],
+        valor_novo: resposta,
+        alterado_por: user.user_id,
+        origem: 'app_clt'
+      });
+      return { ok: true, mensagem: 'Presença confirmada!', status: resposta };
+    }
+  }
+  throw new Error('Turno não encontrado.');
+}
+
 function _formatDataISO_(val) {
   if (!val) return "";
   if (val instanceof Date) return val.toISOString().substring(0, 10);
