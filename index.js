@@ -193,8 +193,15 @@ app.get('/app/query', async (req, res) => {
       }
 
       if (evento === 'GET_ME' && user) {
-        // Remover campos sensíveis
-        const u = { ...user }; delete u.token; delete u.senha_hash;
+        // Remover campos sensíveis e injetar eh_clt (Fase 8)
+        const u = { ...user };
+        delete u.token;
+        delete u.senha_hash;
+        
+        const cargosCLT = ['SCOUT', 'CHARGER', 'MOTORISTA', 'FISCAL', 'LIDER', 'GESTOR'];
+        const cargo = String(u.cargo_principal || '').toUpperCase().trim();
+        u.eh_clt = cargosCLT.includes(cargo);
+        
         return res.json({ ok: true, user: u, _cache: true });
       }
 
