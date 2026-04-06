@@ -31,12 +31,17 @@ const fiscalTurnoScreen = (() => {
     _loadTurno();
   }
 
+  function _getHojeISO() {
+    const d = new Date();
+    return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
+  }
+
   async function _loadTurno() {
     try {
       const res = await api.get('GET_MEUS_TURNOS_CLT');
-      const hoje = new Date().toISOString().split('T')[0];
+      const hoje = _getHojeISO();
       const turnoHoje = (res.data || []).find(t =>
-        t.data === hoje && ['ESCALADO','CONFIRMADO','EM_ANDAMENTO','PAUSADO'].includes(t.status)
+        String(t.data).substring(0,10) === hoje && ['ESCALADO','CONFIRMADO','EM_ANDAMENTO','PAUSADO'].includes(t.status)
       );
       _turno = turnoHoje || null;
       _renderEstado();
@@ -47,9 +52,7 @@ const fiscalTurnoScreen = (() => {
   }
 
   function _renderEstado() {
-    if (!_turno) {
-      _renderSemTurno(); return;
-    }
+    if (!_turno) { _renderSemTurno(); return; }
     if (_turno.status === 'EM_ANDAMENTO') { _renderAtivo(); return; }
     if (_turno.status === 'PAUSADO')      { _renderPausado(); return; }
     _renderAguardando();
@@ -74,10 +77,10 @@ const fiscalTurnoScreen = (() => {
       </div>
       <div id="ft-gps-strip" style="background:#0d1526;border:1px solid rgba(99,179,237,.15);border-radius:8px;padding:12px;display:flex;align-items:center;gap:10px;margin-bottom:12px">
         <div style="width:10px;height:10px;border-radius:50%;background:#f5b700;flex-shrink:0" id="ft-gps-dot"></div>
-        <div style="flex:1;font-size:13px;color:#a0aec0" id="ft-gps-status">Obtendo GPS...</div>
+        <div style="flex:1;font-size:13px;color:#a0aec0" id="ft-gps-status">Obtendo localização...</div>
         <div style="font-size:11px;color:#718096" id="ft-gps-acc"></div>
       </div>
-      <button id="btn-ft-checkin" class="btn-success" disabled onclick="fiscalTurnoScreen._fazerCheckin()" style="width:100%;padding:14px;border-radius:8px;font-size:15px;font-weight:700;border:none;cursor:pointer;opacity:.5">
+      <button id="btn-ft-checkin" class="btn-success" onclick="fiscalTurnoScreen._fazerCheckin()" style="width:100%;padding:18px;border-radius:12px;font-size:16px;font-weight:700;border:none;cursor:pointer;">
         ✅ Iniciar Turno
       </button>`;
     _iniciarGPS();
@@ -124,126 +127,36 @@ const fiscalTurnoScreen = (() => {
     _iniciarHeartbeat();
   }
 
-  function _abrirModoFiscalizacao() {
-    const modal = document.createElement('div');
-    modal.id = 'modal-modo-fiscalizacao';
-    modal.style.cssText = 'position:fixed;inset:0;background:#0a0f1e;z-index:9999;display:flex;flex-direction:column;padding:20px;';
-    modal.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <h2 style="font-size:18px;font-weight:700;margin:0">🚨 MODO FISCALIZAÇÃO</h2>
-        <button onclick="document.body.removeChild(this.parentElement.parentElement)" style="background:none;border:none;color:#718096;font-size:24px">×</button>
-      </div>
-      <p style="font-size:12px;color:#718096;margin-bottom:20px">Clique no botão para registrar a infração detectada. O GPS será capturado automaticamente.</p>
-      
-      <div style="display:flex;flex-direction:column;gap:12px;flex:1;overflow-y:auto">
-        <button onclick="fiscalTurnoScreen._enviarInfracao('DUAS_PESSOAS')" class="btn-infra">👥 Duas pessoas no patinete</button>
-        <button onclick="fiscalTurnoScreen._enviarInfracao('MENOR_IDADE')" class="btn-infra">🔞 Menor de 18 anos</button>
-        <button onclick="fiscalTurnoScreen._enviarInfracao('ESTACIONAMENTO_IRREGULAR')" class="btn-infra">🅿️ Estacionamento irregular</button>
-        <button onclick="fiscalTurnoScreen._enviarInfracao('TRANSITO_PERIGOSO')" class="btn-infra">🚲 Condução perigosa</button>
-        <button onclick="fiscalTurnoScreen._enviarInfracao('DANO_INTENCIONAL')" class="btn-infra">🔨 Dano ao patrimônio</button>
-      </div>
-      <style>
-        .btn-infra { background:#1e2a45; border:1px solid #2a3a55; color:#fff; border-radius:12px; padding:20px; font-size:14px; font-weight:700; text-align:left; cursor:pointer; }
-        .btn-infra:active { background:#2a3a55; }
-      </style>
-    `;
-    document.body.appendChild(modal);
-  }
-
-  function _acionarSOS() {
-    if (confirm('🚨 ACIONAR BOTÃO DE PÂNICO?\n\nIsso enviará sua localização em tempo real para a segurança e para todos os grupos de gestão.')) {
-      const gps = state.get('gps_fiscal') || {};
-      api.post('REGISTRAR_SOS_FISCAL', {
-        lat: gps.lat,
-        lng: gps.lng,
-        accuracy: gps.accuracy
-      }).then(() => alert('🆘 SOS ACIONADO! Permaneça em local seguro.'));
-    }
-  }
-
-  function _iniciarTimer() {
-    if (_timer) clearInterval(_timer);
-    const inicio = _turno.checkin_hora ? new Date(_turno.checkin_hora).getTime() : Date.now();
-    _timer = setInterval(() => {
-      const el = document.getElementById('ft-timer');
-      if (!el) { clearInterval(_timer); return; }
-      const diff = Math.floor((Date.now() - inicio) / 1000);
-      const h = Math.floor(diff/3600), m = Math.floor((diff%3600)/60), s = diff%60;
-      el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    }, 1000);
-  }
-
-  function _iniciarHeartbeat() {
-    if (_heartbeat) clearInterval(_heartbeat);
-    _heartbeat = setInterval(() => {
-      const gps = state.get('gps_fiscal') || {};
-      if (!gps.ok || !_turno) return;
-      const el = document.getElementById('ft-gps-coords-live');
-      if (el) el.textContent = gps.lat.toFixed(5) + ', ' + gps.lng.toFixed(5);
-      api.post('HEARTBEAT_CLT', {
-        turno_id: _turno.turno_id,
-        lat:      gps.lat,
-        lng:      gps.lng,
-        accuracy: gps.accuracy || 999,
-      }).catch(() => {});
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          pos => state.set('gps_fiscal', { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, ok: true }),
-          () => {}, { enableHighAccuracy: true, timeout: 5000, maximumAge: 10000 }
-        );
-      }
-    }, 180000);
-  }
-
   function _iniciarGPS() {
-    if (!navigator.geolocation) {
-      const btn = document.getElementById('btn-ft-checkin');
-      if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
-      return;
-    }
+    if (!navigator.geolocation) return;
+    
     _watchId = navigator.geolocation.watchPosition(
       pos => {
         const dot = document.getElementById('ft-gps-dot');
         const st  = document.getElementById('ft-gps-status');
         const acc = document.getElementById('ft-gps-acc');
-        const btn = document.getElementById('btn-ft-checkin');
         if (dot) dot.style.background = '#68d391';
         if (st)  st.textContent = 'GPS ativo';
         if (acc) acc.textContent = '±' + Math.round(pos.coords.accuracy) + 'm';
-        if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
         state.set('gps_fiscal', { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, ok: true });
       },
-      err => {
-        console.warn('[GPS] Erro:', err.message);
-        const btn = document.getElementById('btn-ft-checkin');
-        if (btn && btn.disabled) { btn.disabled = false; btn.style.opacity = '1'; }
-      },
+      err => { console.warn('[GPS] Erro:', err.message); },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
-
-    setTimeout(() => {
-      const btn = document.getElementById('btn-ft-checkin');
-      if (btn && btn.disabled) {
-        btn.disabled = false;
-        btn.style.opacity = '1';
-        const st = document.getElementById('ft-gps-status');
-        if (st) st.textContent = 'GPS lento — checkin liberado';
-      }
-    }, 10000);
   }
 
   async function _fazerCheckin() {
     const btn = document.getElementById('btn-ft-checkin');
     if (btn) { btn.textContent = 'Iniciando...'; btn.disabled = true; }
-    const gps = state.get('gps_fiscal') || {};
+    const gpsData = state.get('gps_fiscal') || {};
     const gestor = state.get('gestor');
     try {
       const res = await api.post('CHECKIN_TURNO_CLT', {
         token:    gestor.token,
         turno_id: _turno.turno_id,
-        lat:      gps.lat  || null,
-        lng:      gps.lng  || null,
-        accuracy: gps.accuracy || null,
+        lat:      gpsData.lat  || null,
+        lng:      gpsData.lng  || null,
+        accuracy: gpsData.accuracy || null,
         foto_base64: 'LOGADO_VIA_GESTOR_BYPASS'
       });
       if (res.ok) {
@@ -254,9 +167,13 @@ const fiscalTurnoScreen = (() => {
         alert('Erro: ' + (res.erro || res.mensagem));
         if (btn) { btn.textContent = '✅ Iniciar Turno'; btn.disabled = false; }
       }
-    } catch(e) { alert('Erro de conexão.'); if (btn) { btn.textContent = '✅ Iniciar Turno'; btn.disabled = false; } }
+    } catch(e) { 
+      alert('Erro de conexão.'); 
+      if (btn) { btn.textContent = '✅ Iniciar Turno'; btn.disabled = false; }
+    }
   }
 
+  // ... (restante das funções _pausar, _retomar, _encerrar, etc permanecem as mesmas)
   async function _pausar() {
     const gestor = state.get('gestor');
     try {
@@ -340,43 +257,82 @@ const fiscalTurnoScreen = (() => {
     } catch(e) { lista.innerHTML = '<div style="text-align:center;color:#fc8181;font-size:11px">Erro ao carregar roteiro.</div>'; }
   }
 
+  function _abrirModoFiscalizacao() {
+    const modal = document.createElement('div');
+    modal.id = 'modal-modo-fiscalizacao';
+    modal.style.cssText = 'position:fixed;inset:0;background:#0a0f1e;z-index:9999;display:flex;flex-direction:column;padding:20px;';
+    modal.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <h2 style="font-size:18px;font-weight:700;margin:0">🚨 MODO FISCALIZAÇÃO</h2>
+        <button onclick="document.getElementById('modal-modo-fiscalizacao').remove()" style="background:none;border:none;color:#718096;font-size:24px">×</button>
+      </div>
+      <p style="font-size:12px;color:#718096;margin-bottom:20px">Clique no botão para registrar a infração detectada.</p>
+      <div style="display:flex;flex-direction:column;gap:12px;flex:1;overflow-y:auto">
+        <button onclick="fiscalTurnoScreen._enviarInfracao('DUAS_PESSOAS')" class="btn-infra">👥 Duas pessoas no patinete</button>
+        <button onclick="fiscalTurnoScreen._enviarInfracao('MENOR_IDADE')" class="btn-infra">🔞 Menor de 18 anos</button>
+        <button onclick="fiscalTurnoScreen._enviarInfracao('ESTACIONAMENTO_IRREGULAR')" class="btn-infra">🅿️ Estacionamento irregular</button>
+        <button onclick="fiscalTurnoScreen._enviarInfracao('TRANSITO_PERIGOSO')" class="btn-infra">🚲 Condução perigosa</button>
+        <button onclick="fiscalTurnoScreen._enviarInfracao('DANO_INTENCIONAL')" class="btn-infra">🔨 Dano ao patrimônio</button>
+      </div>
+      <style>
+        .btn-infra { background:#1e2a45; border:1px solid #2a3a55; color:#fff; border-radius:12px; padding:20px; font-size:14px; font-weight:700; text-align:left; cursor:pointer; }
+      </style>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  function _acionarSOS() {
+    if (confirm('🚨 ACIONAR BOTÃO DE PÂNICO?')) {
+      const gps = state.get('gps_fiscal') || {};
+      api.post('REGISTRAR_SOS_FISCAL', { lat: gps.lat, lng: gps.lng }).then(() => alert('🆘 SOS ACIONADO!'));
+    }
+  }
+
+  function _iniciarTimer() {
+    if (_timer) clearInterval(_timer);
+    const inicio = _turno.checkin_hora ? new Date(_turno.checkin_hora).getTime() : Date.now();
+    _timer = setInterval(() => {
+      const el = document.getElementById('ft-timer');
+      if (!el) { clearInterval(_timer); return; }
+      const diff = Math.floor((Date.now() - inicio) / 1000);
+      const h = Math.floor(diff/3600), m = Math.floor((diff%3600)/60), s = diff%60;
+      el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }, 1000);
+  }
+
+  function _iniciarHeartbeat() {
+    if (_heartbeat) clearInterval(_heartbeat);
+    _heartbeat = setInterval(() => {
+      const gps = state.get('gps_fiscal') || {};
+      if (!gps.ok || !_turno) return;
+      api.post('HEARTBEAT_CLT', { turno_id: _turno.turno_id, lat: gps.lat, lng: gps.lng, accuracy: gps.accuracy || 999 }).catch(() => {});
+    }, 180000);
+  }
+
   async function _enviarInfracao(tipo) {
-    if (!confirm('Registrar infração "' + tipo + '" no local atual?')) return;
+    if (!confirm('Confirmar registro?')) return;
     const gps = state.get('gps_fiscal') || {};
     try {
-      await api.post('REGISTRAR_INFRACAO_FISCAL', {
-        tipo_infracao: tipo,
-        lat: gps.lat,
-        lng: gps.lng,
-        accuracy: gps.accuracy
-      });
-      alert('Infração registrada com sucesso!');
+      await api.post('REGISTRAR_INFRACAO_FISCAL', { tipo_infracao: tipo, lat: gps.lat, lng: gps.lng });
+      alert('Sucesso!');
       document.getElementById('modal-modo-fiscalizacao').remove();
-    } catch(e) { alert('Erro ao registrar infração.'); }
+    } catch(e) { alert('Erro.'); }
   }
 
   function _abrirSolicitacao() {
-    const m = prompt('Informe o motivo do suporte:');
-    if (m) {
-      api.post('REGISTRAR_SOLICITACAO_FISCAL', { motivo: m })
-        .then(() => alert('Solicitação enviada!'));
-    }
+    const m = prompt('Motivo:');
+    if (m) api.post('REGISTRAR_SOLICITACAO_FISCAL', { motivo: m }).then(() => alert('Enviado!'));
   }
 
   function _registrarChuva() {
-    if (confirm('Registrar chuva no local atual?')) {
-      api.post('REGISTRAR_CHUVA_FISCAL', { status: 'CHUVA' })
-        .then(() => alert('Registro de chuva enviado!'));
-    }
+    if (confirm('Registrar chuva?')) api.post('REGISTRAR_CHUVA_FISCAL', { status: 'CHUVA' }).then(() => alert('Enviado!'));
   }
 
   function destroy() {
-    if (_timer)    { clearInterval(_timer); _timer = null; }
-    if (_heartbeat){ clearInterval(_heartbeat); _heartbeat = null; }
-    if (_watchId !== null) { navigator.geolocation.clearWatch(_watchId); _watchId = null; }
+    if (_timer) clearInterval(_timer);
+    if (_heartbeat) clearInterval(_heartbeat);
+    if (_watchId !== null) navigator.geolocation.clearWatch(_watchId);
   }
-
-  window._fiscalCheckin = _fazerCheckin;
 
   return { render, _fazerCheckin, _pausar, _retomar, _encerrar, _registrarChuva, _abrirSolicitacao, _acionarSOS, _enviarInfracao, destroy };
 })();
