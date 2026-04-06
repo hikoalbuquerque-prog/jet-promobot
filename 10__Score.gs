@@ -54,6 +54,7 @@ function getRankings_(user, periodo) {
   const totaisEquipe = {};
   
   const promMap = _getPromotoresMap_(ss);
+  const isFiscal = (user?.cargo_principal || '').toUpperCase() === 'FISCAL';
   
   // Mapeamento de Equipes
   const userToEquipe = {};
@@ -79,6 +80,16 @@ function getRankings_(user, periodo) {
     if (dataLimite && dataRegistro < dataLimite) continue;
     const uid = String(data[r][iUsr]).trim();
     if (!uid) continue;
+    
+    // Filtro de Categoria (Fiscal vs Promotor)
+    const p = promMap[uid];
+    const pCargo = (p?.cargo_principal || '').toUpperCase();
+    if (isFiscal) {
+      if (pCargo !== 'FISCAL') continue;
+    } else {
+      if (pCargo === 'FISCAL') continue;
+    }
+
     const pts = parseFloat(data[r][iPts] || '0');
     totais[uid] = (totais[uid] || 0) + pts;
     

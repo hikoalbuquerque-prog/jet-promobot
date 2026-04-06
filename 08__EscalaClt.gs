@@ -117,21 +117,40 @@ function getMeusTurnosCLT_(user){
 }
 
 function checkinTurnoCLT_(user,params){
-  var turno_id=params.turno_id||'', ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws=ss.getSheetByName('TURNOS_CLT'); if(!ws) throw new Error('Aba TURNOS_CLT nao encontrada.');
+  var turno_id=String(params.turno_id||'').trim(), ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws=ss.getSheetByName('TURNOS_CLT'); if(!ws) throw new Error('Aba TURNOS_CLT nao encontrada.');
   var rows=ws.getDataRange().getValues(), h=rows[0].map(v => String(v).toLowerCase().trim());
+  
+  const iTid = h.indexOf('turno_id'), iUid = h.indexOf('user_id'), iStt = h.indexOf('status');
+
   for(var r=1;r<rows.length;r++){
-    if(String(rows[r][h.indexOf('turno_id')]).trim()!==turno_id) continue;
-    if(String(rows[r][h.indexOf('user_id')]).trim()!==user.user_id) throw new Error('Turno nao pertence a este usuario.');
-    var stt=String(rows[r][h.indexOf('status')]).trim(); if(stt==='EM_ANDAMENTO') return{ok:true,mensagem:'Checkin ja realizado.'};
+    if(String(rows[r][iTid]).trim()!==turno_id) continue;
+    if(String(rows[r][iUid]).trim()!==user.user_id) throw new Error('Turno nao pertence a este usuario.');
+    
+    var stt=String(rows[r][iStt]).trim(); 
+    if(stt==='EM_ANDAMENTO') return{ok:true,mensagem:'Checkin ja realizado.', eh_clt: true};
+    
     if (params.foto_base64) {
       const validacaoIA = callGeminiVisionAI_(params.foto_base64, "Analise esta foto de um fiscal da JET iniciando o turno. Verifique se é uma foto real de uma pessoa, preferencialmente uniformizada. Responda APENAS 'APROVADO' ou 'REPROVADO'.");
       if (validacaoIA && validacaoIA.toUpperCase().indexOf('REPROVADO') > -1) throw new Error('⛔ Foto de check-in reprovada pela IA. Certifique-se de estar uniformizado.');
-    } else { throw new Error('Foto de check-in obrigatória para Fiscais.'); }
-    var agora=new Date().toISOString(); ws.getRange(r+1,h.indexOf('status')+1).setValue('EM_ANDAMENTO'); ws.getRange(r+1,h.indexOf('checkin_hora')+1).setValue(agora);
+    } else { 
+      throw new Error('Foto de check-in obrigatória para Fiscais.'); 
+    }
+    
+    var agora=new Date().toISOString(); 
+    ws.getRange(r+1,iStt+1).setValue('EM_ANDAMENTO'); 
+    ws.getRange(r+1,h.indexOf('checkin_hora')+1).setValue(agora);
+    
     registrarAuditoria_({tabela:'TURNOS_CLT',registro_id:turno_id,campo:'status',valor_anterior:stt,valor_novo:'EM_ANDAMENTO',alterado_por:user.user_id,origem:'app_clt'});
-    return{ok:true,turno_id:turno_id,checkin_hora:agora,mensagem:'Check-in registrado.'};
+    
+    return {
+      ok:true,
+      turno_id:turno_id,
+      checkin_hora:agora,
+      mensagem:'Check-in registrado.',
+      eh_clt: true // Garante que o App mantenha o modo Fiscal
+    };
   }
-  throw new Error('Turno nao encontrado.');
+  throw new Error('Turno ID "'+turno_id+'" nao encontrado para check-in.');
 }
 
 function checkoutTurnoCLT_(user,params){
