@@ -47,7 +47,7 @@ const turnoCLT = {
       const hoje = new Date().toISOString().split('T')[0];
       const ativo = turnos.find(t =>
         t.data === hoje &&
-        ['ESCALADO','CONFIRMADO','EM_ANDAMENTO'].includes(t.status)
+        ['PLANEJADO','ESCALADO','CONFIRMADO','EM_ANDAMENTO'].includes(t.status)
       );
 
       if (!ativo) {

@@ -23,11 +23,11 @@ const homeScreenCLT = {
 
     const content = document.createElement('div');
     content.style.cssText = 'padding:16px;display:flex;flex-direction:column;gap:14px';
-    content.innerHTML = '<div style="font-size:11px;color:#a0aec0;font-weight:700;letter-spacing:1px">PROXIMOS TURNOS</div><div id="clt-turnos-lista"><div style="text-align:center;padding:20px;color:#a0aec0;font-size:13px">Carregando...</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px"><button onclick="router.go(\'historico\')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600"><span style="font-size:24px">&#x1F4CB;</span>Historico</button><button onclick="homeScreenCLT.verBancoHoras()" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600"><span style="font-size:24px">&#x23F1;</span>Banco Horas</button></div>';
+    content.innerHTML = '<div style="font-size:11px;color:#a0aec0;font-weight:700;letter-spacing:1px">PROXIMOS TURNOS</div><div id="clt-turnos-lista"><div style="text-align:center;padding:20px;color:#a0aec0;font-size:13px">Carregando...</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px"><button onclick="router.go(\'historico-clt\')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600"><span style="font-size:24px">&#x1F4CB;</span>Historico</button><button onclick="homeScreenCLT.verBancoHoras()" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600"><span style="font-size:24px">&#x23F1;</span>Banco Horas</button></div>';
 
     const nav = document.createElement('nav');
     nav.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#16213e;border-top:1px solid #2a3a55;display:flex;justify-content:space-around;padding:10px 0 calc(10px + env(safe-area-inset-bottom,0px));z-index:100';
-    nav.innerHTML = '<button onclick="router.go(\'home-clt\')" style="background:none;border:none;color:#4f8ef7;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><span style="font-size:22px">&#x1F3E0;</span>Home</button><button onclick="router.go(\'turno-ativo\')" style="background:none;border:none;color:#6c7a8d;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><span style="font-size:22px">&#x26A1;</span>Turno</button><button onclick="router.go(\'historico\')" style="background:none;border:none;color:#6c7a8d;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><span style="font-size:22px">&#x1F4CB;</span>Historico</button>';
+    nav.innerHTML = '<button onclick="router.go(\'home-clt\')" style="background:none;border:none;color:#4f8ef7;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><span style="font-size:22px">&#x1F3E0;</span>Home</button><button onclick="router.go(\'turno-ativo\')" style="background:none;border:none;color:#6c7a8d;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><span style="font-size:22px">&#x26A1;</span>Turno</button><button onclick="router.go(\'historico-clt\')" style="background:none;border:none;color:#6c7a8d;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><span style="font-size:22px">&#x1F4CB;</span>Historico</button>';
 
     wrap.appendChild(header);
     wrap.appendChild(content);
@@ -47,7 +47,7 @@ const homeScreenCLT = {
         el.innerHTML = '<div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:14px;padding:20px;text-align:center;color:#a0aec0;font-size:14px">Nenhum turno escalado nos proximos dias</div>';
         return;
       }
-      const cores = { ESCALADO:'#4f8ef7', CONFIRMADO:'#2ecc71', EM_ANDAMENTO:'#f1c40f', ENCERRADO:'#6c7a8d' };
+      const cores = { PLANEJADO:'#4f8ef7', ESCALADO:'#4f8ef7', CONFIRMADO:'#2ecc71', EM_ANDAMENTO:'#f1c40f', ENCERRADO:'#6c7a8d' };
       const hoje = new Date().toISOString().split('T')[0];
       el.innerHTML = turnos.map(function(t) {
         var cor   = cores[t.status] || '#6c7a8d';
@@ -61,7 +61,7 @@ const homeScreenCLT = {
         html += '<span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;background:' + cor + '22;color:' + cor + ';border:1px solid ' + cor + '44">' + t.status + '</span></div>';
         html += '<div style="font-size:15px;font-weight:600;margin-bottom:4px">&#x23F0; ' + ini + ' - ' + fim + '</div>';
         html += '<div style="font-size:12px;color:#a0aec0">' + (t.zona_nome || '') + '</div>';
-        if (eHoje && t.status === 'ESCALADO') {
+        if (eHoje && (t.status === 'ESCALADO' || t.status === 'PLANEJADO')) {
           html += '<button onclick="homeScreenCLT._confirmarPresenca(\'' + t.turno_id + '\')" style="width:100%;margin-top:12px;padding:10px;background:#4f8ef722;border:1px solid #4f8ef744;border-radius:10px;color:#4f8ef7;font-size:13px;font-weight:700;cursor:pointer">Confirmar presenca</button>';
         }
         if (eHoje && t.status === 'CONFIRMADO') {
