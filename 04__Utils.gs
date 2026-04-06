@@ -929,3 +929,84 @@ function askIAAssistante_(user, params) {
   const resposta = callGeminiAI_(pergunta, systemPrompt);
   return { ok: true, resposta: resposta || "Estou com um pouco de instabilidade agora. Tente novamente em alguns segundos!" };
 }
+
+/**
+ * Trigger Diário: Limpeza de Logs Antigos
+ * Apaga registros operacionais com mais de 10 dias.
+ */
+function limparLogsAntigos() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const limite = new Date(Date.now() - 10 * 86400000);
+  
+  const abas = ['INFRACOES_RUA', 'ORGANIZACAO_PONTOS', 'EVENT_LOG'];
+  abas.forEach(nome => {
+    const ws = ss.getSheetByName(nome);
+    if (!ws) return;
+    const data = ws.getDataRange().getValues(), h = data[0].map(v => String(v).toLowerCase().trim());
+    const iDt = h.indexOf('criado_em') > -1 ? h.indexOf('criado_em') : h.indexOf('data_hora');
+    if (iDt === -1) return;
+
+    for (let r = data.length - 1; r >= 1; r--) {
+      const dt = new Date(data[r][iDt]);
+      if (dt < limite) ws.deleteRow(r + 1);
+    }
+  });
+}
+
+/**
+ * Valida se a foto enviada condiz com o contexto da transição de turno.
+ */
+function validarFotoTransicaoIA_(base64, transicao) {
+  const prompts = {
+    'CHECKIN': 'Esta é uma foto de check-in. O colaborador deve estar uniformizado e no ambiente de trabalho. Responda APROVADO ou REPROVADO.',
+    'PAUSA': 'Esta é uma foto de início de pausa. O colaborador deve estar saindo do ponto. Responda APROVADO ou REPROVADO.',
+    'RETORNO': 'Esta é uma foto de retorno da pausa. O colaborador deve estar novamente uniformizado no ponto. Responda APROVADO ou REPROVADO.',
+    'CHECKOUT': 'Esta é uma foto de encerramento. Deve mostrar o ponto de trabalho finalizado e organizado. Responda APROVADO ou REPROVADO.',
+    'ORGANIZACAO': 'Compare estas duas imagens (Antes e Depois) da organização dos patinetes. Houve melhoria real na organização e alinhamento? Responda APROVADO ou REPROVADO.'
+  };
+
+  const res = callGeminiVisionAI_(base64, prompts[transicao] || prompts['CHECKIN']);
+  return (res && res.toUpperCase().indexOf('APROVADO') > -1);
+}
+
+// ─── WRAPPERS PARA TRIGGERS (Públicos) ──────────────────────────────────────
+
+/**
+ * Trigger: Rodar a cada 1 minuto.
+ * Processa a fila de mensagens do Telegram e integrações externas.
+ */
+function jobProcessarIntegracoes() {
+  if (typeof processarFilaIntegracoes_ === 'function') {
+    processarFilaIntegracoes_();
+  }
+}
+
+/**
+ * Trigger: Rodar a cada 10 minutos.
+ * Verifica se algum promotor ou fiscal parou de enviar GPS sem encerrar o turno.
+ */
+function jobMonitorarInatividade() {
+  if (typeof monitorarInatividadeHeartbeat_ === 'function') {
+    monitorarInatividadeHeartbeat_();
+  }
+}
+
+/**
+ * Trigger: Rodar a cada 1 hora.
+ * Sincroniza o conteúdo da aba MODULOS com o cache do Cloud Run.
+ */
+function jobSincronizarAcademy() {
+  if (typeof sincronizarAcademyCache_ === 'function') {
+    sincronizarAcademyCache_();
+  }
+}
+
+/**
+ * Trigger: Rodar 1x por dia (ex: entre 00h e 01h).
+ * Notifica os colaboradores sobre a escala do dia seguinte.
+ */
+function jobCheckEscala() {
+  if (typeof checkEscalaDiaria_ === 'function') {
+    checkEscalaDiaria_();
+  }
+}
