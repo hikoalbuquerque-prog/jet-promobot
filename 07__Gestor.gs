@@ -1312,3 +1312,71 @@ function acionarSOS_(token, body) {
 
   return { ok: true, mensagem: 'SOS enviado com sucesso. Aguarde no local seguro.' };
 }
+
+function registrarOrganizacaoPonto_(token, body) {
+  const user = validarToken_(token).user;
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  let ws = ss.getSheetByName('ORGANIZACAO_PONTOS');
+  if (!ws) {
+    ws = ss.insertSheet('ORGANIZACAO_PONTOS');
+    ws.appendRow(['org_id', 'fiscal_id', 'foto_antes', 'foto_depois', 'lat', 'lng', 'status_ia', 'criado_em']);
+  }
+
+  // Validação IA (Antes/Depois)
+  const okIA = validarFotoTransicaoIA_(body.foto_depois, 'ORGANIZACAO');
+
+  const id = gerarId_('ORG');
+  const agora = new Date().toISOString();
+  ws.appendRow([id, user.user_id, body.foto_antes || '', body.foto_depois || '', body.lat || '', body.lng || '', okIA ? 'APROVADO' : 'REVISAR', agora]);
+
+  return { ok: true, org_id: id, status_ia: okIA };
+}
+
+function getFiscalStats_(user) {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const hoje = new Date().toISOString().substring(0, 10);
+  
+  // Contar infrações e organizações do usuário na semana
+  const wsI = ss.getSheetByName('INFRACOES_RUA');
+  const wsO = ss.getSheetByName('ORGANIZACAO_PONTOS');
+  
+  let countInfra = 0, countOrg = 0;
+  const seteDias = new Date(Date.now() - 7 * 86400000);
+
+  if (wsI) {
+    const data = wsI.getDataRange().getValues();
+    for(let r=1; r<data.length; r++) {
+      if (String(data[r][1]) === user.user_id && new Date(data[r][3]) >= seteDias) countInfra++;
+    }
+  }
+  if (wsO) {
+    const data = wsO.getDataRange().getValues();
+    for(let r=1; r<data.length; r++) {
+      if (String(data[r][1]) === user.user_id && new Date(data[r][7]) >= seteDias) countOrg++;
+    }
+  }
+
+  return { ok: true, semanal: countInfra + countOrg, meta: 100 };
+}
+
+/**
+ * Trigger Semanal: Segunda-feira 08:00
+ */
+function triggerRelatorioSemanalFiscal() {
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  // Lógica de agregação de performance de todos os fiscais e envio para Regionais
+  // ... similar ao trigger de promotores mas focado em registros de rua
+}
+
+function enviarAtestado_(token, body) {
+  const user = validarToken_(token).user;
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  let ws = ss.getSheetByName('ATESTADOS');
+  if (!ws) {
+    ws = ss.insertSheet('ATESTADOS');
+    ws.appendRow(['atestado_id', 'user_id', 'foto_url', 'data_inicio', 'data_fim', 'status', 'criado_em']);
+  }
+  const id = gerarId_('ATS');
+  ws.appendRow([id, user.user_id, body.foto_url || '', body.inicio, body.fim, 'PENDENTE', new Date().toISOString()]);
+  return { ok: true };
+}
