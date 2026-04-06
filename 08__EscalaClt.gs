@@ -70,16 +70,47 @@ function _isFolgaCLT_(perfil, regras, data_iso, folgasMap) {
   return { folga: false, motivo: '' };
 }
 
+function _formatDataISO_(val) {
+  if (!val) return "";
+  if (val instanceof Date) return val.toISOString().substring(0, 10);
+  const s = String(val).trim();
+  if (s.indexOf('T') > -1) return s.substring(0, 10);
+  return s; // Assume yyyy-mm-dd
+}
+
 function getMeusTurnosCLT_(user){
   var ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws=ss.getSheetByName('TURNOS_CLT'); if(!ws) return{ok:true,data:[]};
   var rows=ws.getDataRange().getValues(), h=rows[0].map(v => String(v).toLowerCase().trim()), hoje=new Date(); hoje.setHours(0,0,0,0);
   var limite=new Date(hoje); limite.setDate(limite.getDate()+14), result=[];
   const metas = _getProgressoMetasFiscal_(ss, user.user_id);
+  
+  const iUid = h.indexOf('user_id'), iStt = h.indexOf('status'), iDt = h.indexOf('data');
+  const iTid = h.indexOf('turno_id'), iIni = h.indexOf('inicio'), iFim = h.indexOf('fim');
+
   for(var r=1;r<rows.length;r++){
-    if(String(rows[r][h.indexOf('user_id')]).trim()!==user.user_id) continue;
-    var stt=String(rows[r][h.indexOf('status')]).trim(); if(stt==='CANCELADO'||stt==='FALTA') continue;
-    var dataStr=String(rows[r][h.indexOf('data')]).substring(0,10), dataD=new Date(dataStr+'T12:00:00'); if(dataD<hoje||dataD>limite) continue;
-    result.push({turno_id: rows[r][h.indexOf('turno_id')], data: dataStr, inicio: rows[r][h.indexOf('inicio')], fim: rows[r][h.indexOf('fim')], status: stt, zona_nome: rows[r][h.indexOf('zona_nome')] || '', zona_lat: parseFloat(rows[r][h.indexOf('zona_lat')]) || 0, zona_lng: parseFloat(rows[r][h.indexOf('zona_lng')]) || 0, ponto_referencia:rows[r][h.indexOf('ponto_referencia')] || '', horas_turno: rows[r][h.indexOf('horas_turno')] || '', checkin_hora: rows[r][h.indexOf('checkin_hora')] ? String(rows[r][h.indexOf('checkin_hora')]) : null, checkout_hora: rows[r][h.indexOf('checkout_hora')]? String(rows[r][h.indexOf('checkout_hora')]): null});
+    if(String(rows[r][iUid]).trim()!==user.user_id) continue;
+    var stt=String(rows[r][iStt]).trim(); if(stt==='CANCELADO'||stt==='FALTA') continue;
+    
+    var dataStr = _formatDataISO_(rows[r][iDt]);
+    if (!dataStr) continue;
+    
+    var dataD = new Date(dataStr+'T12:00:00'); 
+    if(dataD < hoje || dataD > limite) continue;
+    
+    result.push({
+      turno_id: rows[r][iTid], 
+      data: dataStr, 
+      inicio: rows[r][iIni], 
+      fim: rows[r][iFim], 
+      status: stt, 
+      zona_nome: rows[r][h.indexOf('zona_nome')] || '', 
+      zona_lat: parseFloat(rows[r][h.indexOf('zona_lat')]) || 0, 
+      zona_lng: parseFloat(rows[r][h.indexOf('zona_lng')]) || 0, 
+      ponto_referencia:rows[r][h.indexOf('ponto_referencia')] || '', 
+      horas_turno: rows[r][h.indexOf('horas_turno')] || '', 
+      checkin_hora: rows[r][h.indexOf('checkin_hora')] ? String(rows[r][h.indexOf('checkin_hora')]) : null, 
+      checkout_hora: rows[r][h.indexOf('checkout_hora')]? String(rows[r][h.indexOf('checkout_hora')]): null
+    });
   }
   result.sort((a,b) => a.data>b.data?1:-1);
   return{ok:true, data:result, metas_atuais: metas};
