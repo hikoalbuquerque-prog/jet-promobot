@@ -158,9 +158,9 @@ function checkinTurnoCLT_(user,params){
     var stt=String(rows[r][iStt]).trim(); 
     if(stt==='EM_ANDAMENTO') return{ok:true,mensagem:'Checkin ja realizado.', eh_clt: true};
     
-    // Validação de Foto / Bypass via Gestor
-    if (params.foto_base64 === 'LOGADO_VIA_GESTOR_BYPASS') {
-      // Aceita sem validar IA pois vem do painel administrativo
+    // Validação de Foto / Bypass via Gestor ou PWA CLT
+    if (params.foto_base64 === 'LOGADO_VIA_GESTOR_BYPASS' || params.foto_base64 === 'LOGADO_VIA_PWA_CLT_BYPASS') {
+      // Aceita sem validar IA pois vem de interface administrativa ou PWA sem câmera CLT
     } else if (params.foto_base64) {
       const validacaoIA = callGeminiVisionAI_(params.foto_base64, "Analise esta foto de um fiscal da JET iniciando o turno. Verifique se é uma foto real de uma pessoa, preferencialmente uniformizada. Responda APENAS 'APROVADO' ou 'REPROVADO'.");
       if (validacaoIA && validacaoIA.toUpperCase().indexOf('REPROVADO') > -1) throw new Error('⛔ Foto de check-in reprovada pela IA. Certifique-se de estar uniformizado.');
