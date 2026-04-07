@@ -172,8 +172,9 @@ function concluirModulo_(user, body) {
   const wsProg = ss.getSheetByName('ACADEMY_PROGRESSO');
   if (!wsProg) return { ok: false, erro: 'Aba de progresso não encontrada.' };
   
-  // Bloqueio especial para módulos de MANUAL APP (exige experiência em campo)
-  if (moduloId.startsWith('APP-')) {
+  // Bloqueio especial para módulos avançados (exige experiência em campo)
+  // Removido o bloqueio para APP- pois são módulos de onboarding
+  if (moduloId.startsWith('MAS-') || moduloId.startsWith('ESP-')) {
     const wsJor = ss.getSheetByName('JORNADAS');
     if (wsJor) {
       const dataJ = wsJor.getDataRange().getValues();
@@ -182,7 +183,7 @@ function concluirModulo_(user, body) {
       const iStt = hJ.indexOf('status');
       if (iUsr > -1 && iStt > -1) {
         const count = dataJ.filter(r => String(r[iUsr]).trim() === userId && String(r[iStt]).trim() === 'ENCERRADO').length;
-        if (count < 3) return { ok: false, erro: '⚠️ Missão Bloqueada: complete pelo menos 3 jornadas reais no campo para finalizar este módulo.' };
+        if (count < 3) return { ok: false, erro: '⚠️ Missão Bloqueada: complete pelo menos 3 jornadas reais no campo para finalizar este módulo de nível avançado.' };
       }
     }
   }
@@ -191,10 +192,10 @@ function concluirModulo_(user, body) {
   const dataP = wsProg.getDataRange().getValues();
   const jaConcluiu = dataP.some(r => String(r[0]).trim() === userId && String(r[1]).trim() === moduloId);
   if (jaConcluiu) return { ok: true, ja_concluido: true };
-  
+
   // Gravar progresso
   wsProg.appendRow([userId, moduloId, scoreQuiz || 100, new Date().toISOString()]);
-  
+
   // Pontuar promotor
   if (pontos > 0) {
     registrarScore_(ss, userId, 'ACADEMY_CONCLUSAO', pontos, `Módulo ${moduloId}`, '');
@@ -202,7 +203,7 @@ function concluirModulo_(user, body) {
 
   // Verificar conquistas de nível (Badges)
   verificarBadgesAcademy_(ss, userId);
-  
+
   // Invalida cache de sincronização global para refletir no Cloud Run
   try {
     const cache = CacheService.getScriptCache();
@@ -210,9 +211,9 @@ function concluirModulo_(user, body) {
   } catch(e) {}
 
   return { ok: true };
-}
+  }
 
-function verificarBadgesAcademy_(ss, userId) {
+  function verificarBadgesAcademy_(ss, userId) {
   try {
     const wsProg = ss.getSheetByName('ACADEMY_PROGRESSO'), wsMod = ss.getSheetByName('MODULOS'), wsBadges = ss.getSheetByName('BADGES');
     if (!wsProg || !wsMod || !wsBadges) {
@@ -223,7 +224,7 @@ function verificarBadgesAcademy_(ss, userId) {
     const dP = wsProg.getDataRange().getValues(), dM = wsMod.getDataRange().getValues(), hM = dM[0].map(v => String(v).toLowerCase().trim());
     const concluidos = dP.filter(r => String(r[0]).trim() === userId).map(r => String(r[1]).trim());
     const niveis = ['MANUAL APP', 'BASICO', 'INTERMEDIARIO', 'AVANCADO', 'ESPECIALISTA', 'MASTER'];
-    
+
     niveis.forEach(niv => {
       const idxNivel = hM.indexOf('nivel');
       const idxModId = hM.indexOf('modulo_id');
@@ -232,11 +233,12 @@ function verificarBadgesAcademy_(ss, userId) {
       const modsNivel = dM.filter(r => String(r[idxNivel]).trim() === niv).map(r => String(r[idxModId]).trim());
       if (modsNivel.length > 0 && modsNivel.every(id => concluidos.includes(id))) {
         const bTipo = 'ACADEMY_' + niv.replace(' ', '_');
+
+        // Corrigido: buscar na coluna correta (index 1 é user_id)
         const bData = wsBadges.getDataRange().getValues();
-        
-        if (!bData.some(r => String(r[0]).trim() === userId && String(r[1]).trim() === bTipo)) {
-          wsBadges.appendRow([userId, bTipo, 'Certificado ' + niv, new Date().toISOString()]);
-          
+        if (!bData.some(r => String(r[1]).trim() === userId && String(r[2]).trim() === bTipo)) {
+          // Corrigido: seguir padrão [badge_id, user_id, tipo, descricao, criado_em]
+          wsBadges.appendRow([gerarId_('BDG'), userId, bTipo, 'Certificado ' + niv, new Date().toISOString()]);
           // Notificação via Integração (Telegram)
           try {
             const user = getPromotorById_(ss, userId);
