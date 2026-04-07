@@ -162,8 +162,30 @@ function checkinTurnoCLT_(user,params){
     if (params.foto_base64 === 'LOGADO_VIA_GESTOR_BYPASS' || params.foto_base64 === 'LOGADO_VIA_PWA_CLT_BYPASS') {
       // Aceita sem validar IA pois vem de interface administrativa ou PWA sem câmera CLT
     } else if (params.foto_base64) {
-      const validacaoIA = callGeminiVisionAI_(params.foto_base64, "Analise esta foto de um fiscal da JET iniciando o turno. Verifique se é uma foto real de uma pessoa, preferencialmente uniformizada. Responda APENAS 'APROVADO' ou 'REPROVADO'.");
-      if (validacaoIA && validacaoIA.toUpperCase().indexOf('REPROVADO') > -1) throw new Error('⛔ Foto de check-in reprovada pela IA. Certifique-se de estar uniformizado.');
+      // Upload the photo
+      const agora = new Date();
+      const nome_arquivo = `checkin_${user.user_id}_${agora.getTime()}`;
+      const checkin_foto_url = _uploadFotoParaDrive_(params.foto_base64, nome_arquivo, 'drive_folder_id_checkin', user.cidade_base || '', user.nome_completo || ''); // Pass config key for checkin folder
+      if (!checkin_foto_url) {
+        throw new Error('Falha ao salvar a foto de check-in.');
+      }
+
+      const promptIA = "Analise esta foto de um fiscal da JET iniciando o turno. Verifique se é uma foto real de uma pessoa, preferencialmente uniformizada. Responda 'APROVADO' ou, se houver problemas, explique CONCISAMENTE o motivo da REPROVAÇÃO (Ex: 'Uniforme não detectado', 'Rosto não visível').";
+      const validacaoIA = callGeminiVisionAI_(params.foto_base64, promptIA);
+      if (validacaoIA && validacaoIA.toUpperCase().indexOf('APROVADO') === -1) { // Se não for explicitamente APROVADO
+        throw new Error(`⛔ Foto de check-in reprovada pela IA: ${validacaoIA}.`);
+      }
+      
+      // Update the sheet with the photo URL
+      // Find the index of 'checkin_foto_url' column dynamically
+      const iCheckinFotoUrl = h.indexOf('checkin_foto_url');
+      if (iCheckinFotoUrl > -1) {
+          ws.getRange(r + 1, iCheckinFotoUrl + 1).setValue(checkin_foto_url);
+      } else {
+          // Log an error or throw if the column is mandatory and missing
+          logErro_('checkinTurnoCLT_', new Error('Coluna "checkin_foto_url" não encontrada na aba TURNOS_CLT. Certifique-se de adicioná-la.'));
+          // Optionally, you might append the value to the last column if it's not critical to have a specific column
+      }
     } else { 
       throw new Error('Foto de check-in obrigatória para Fiscais.'); 
     }
@@ -202,8 +224,7 @@ function checkoutTurnoCLT_(user,params){
     let msgCoach = ""; try { msgCoach = callGeminiAI_(`Fiscal ${user.nome_completo}. Meta hoje: ${metas.hoje}/15. Meta semana: ${metas.semana}/100. Ocioso: ${tempoIneficiente}min. Se abaixo da meta, recomende FORTEMENTE refazer o módulo FIS-01 no Academy.`, "Supervisor JET."); } catch(e) { msgCoach = "Bom descanso! Meta semanal: "+metas.semana+"/100."; }
     var integracoesCho=[{canal:'telegram', tipo:'group_message', cidade:perfil.cidade_base||'', topic_key:'ENCERRAMENTOS', parse_mode:'HTML', text_html:`🔴 <b>Checkout CLT (FISCAL)</b>\n\n👤 <b>${user.nome_completo}</b>\n📸 Metas: <b>${metas.hoje}/15 (dia) | ${metas.semana}/100 (sem)</b>\n⚠️ Ociosidade: <b>${tempoIneficiente} min</b>\n\n🤖 <b>Coach JET:</b>\n<i>"${msgCoach}"</i>`}];
     if (tempoIneficiente > 20 || metas.hoje < 10) integracoesCho.push({canal: 'telegram', tipo: 'group_message', cidade: perfil.cidade_base||'', topic_key: 'GESTAO_FISCAL', parse_mode: 'HTML', text_html: `🚨 <b>ALERTA PRODUTIVIDADE</b>\n\n👤 Fiscal: <b>${user.nome_completo}</b>\n⚠️ Registros hoje: <b>${metas.hoje}</b> (mín 15)\n⚠️ Ociosidade: <b>${tempoIneficiente} min</b>.`});
-    cache.remove(ociosidadeKey); return{ok:true, turno_id:turno_id, checkout_hora:agora, mensagem:'Checkout registrado.', integracoes:integracoesCho};
-  }
+    cache.remove(ociosidadeKey); return{ok:true, turno_id:turno_id, checkout_hora:agora, mensagem:'Checkout registrado.', msg_coach: msgCoach, integracoes:integracoesCho};  }
   throw new Error('Turno nao encontrado.');
 }
 
@@ -270,9 +291,28 @@ function _getProgressoMetasFiscal_(ss, userId) {
 }
 
 function getRoadmapFiscal_(user, params) {
-  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), perfil = _getPerfilCLTMap_(ss)[user.user_id];
-  if (!perfil || !perfil.zona_poligono) return { ok: true, roadmap: [] };
-  return { ok: true, roadmap: [{nome: "Hotspots de Usuários", poligono: perfil.zona_poligono, descricao: "Foco em flagrantes de duplas e menores."}] };
+  const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
+  const perfil = _getPerfilCLTMap_(ss)[user.user_id];
+  
+  let roadmap = [];
+
+  // 1. Adicionar a zona de patrulha principal do fiscal
+  if (perfil && perfil.zona_poligono) {
+    roadmap.push({
+      nome: "Minha Zona de Patrulha",
+      poligono: perfil.zona_poligono,
+      descricao: "Sua área de cobertura principal. Foco em rondas e fiscalização geral.",
+      tipo: 'ZONA'
+    });
+  }
+
+  // 2. Adicionar os hotspots de infrações
+  const hotspots = _gerarHotspotsInfracoes_(ss);
+  
+  // 3. Combinar e retornar
+  roadmap = roadmap.concat(hotspots);
+
+  return { ok: true, roadmap: roadmap };
 }
 
 function getMeusHistoricoTurnosCLT_(user) {

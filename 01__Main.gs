@@ -80,6 +80,7 @@ function doGet(e) {
       case 'GET_RELATORIO_EXPORT':          return jsonResp_(getRelatorioExport_(token, params));
       case 'GET_MURAL_AVISOS':              return jsonResp_(getMuralAvisos_(user));
       case 'GET_IA_INSIGHTS':               return jsonResp_(getIAInsights_(token));
+      case 'GET_METAS_FISCAL':              return jsonResp_({ ok: true, metas: _getProgressoMetasFiscal_(SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), user.user_id) });
       case 'GET_CHURN_PREDICTION':          return jsonResp_(getChurnPrediction_(token, params));
       case 'GET_TEAM_CHURN_SUMMARY':        return jsonResp_(getTeamChurnSummary_(token));
       case 'GET_FISCAL_STATS':              return jsonResp_(getFiscalStats_(user));
@@ -197,6 +198,7 @@ function doPost(e) {
       case 'REGISTRAR_CHUVA_FISCAL':            return jsonResp_(registrarChuvaFiscal_(user, body));
       case 'REGISTRAR_OCORRENCIA_USUARIO':      return jsonResp_(registrarOcorrenciaUsuario_(user, body));
       case 'REGISTRAR_ORGANIZACAO_PONTO_FISCAL': return jsonResp_(registrarOrganizacaoPontoFiscal_(user, body));
+      case 'REGISTRAR_INFRACAO_FISCAL':         return jsonResp_(registrarInfracaoFiscal_(user, body));
       case 'CONFIRMAR_TURNO_CLT': {
         const res = confirmarTurnoCLT_(user, body);
         limparCacheConfig_(); // Força recarregamento

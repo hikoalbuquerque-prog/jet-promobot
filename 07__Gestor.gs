@@ -7,7 +7,8 @@ function _assertGestor_(token) {
   const auth = validarToken_(token);
   if (!auth.ok) throw new Error(auth.erro || 'Token inválido.');
   const role = (auth.user.tipo_vinculo || '').toUpperCase();
-  if (!['GESTOR', 'FISCAL', 'LIDER'].includes(role)) throw new Error('Acesso negado. Perfil "' + role + '" não autorizado.');
+  // FISCAL permitido aqui para consultas operacionais (Roteiro/Mapa)
+  if (!['GESTOR', 'LIDER', 'FISCAL'].includes(role)) throw new Error('Acesso negado. Perfil "' + role + '" não autorizado.');
   return auth.user;
 }
 
@@ -1332,31 +1333,23 @@ function registrarOrganizacaoPonto_(token, body) {
   return { ok: true, org_id: id, status_ia: okIA };
 }
 
-function getFiscalStats_(user) {
+function getFiscalStats_(token, params) {
+  const adminUser = _assertGestor_(token);
   const ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master'));
-  const hoje = new Date().toISOString().substring(0, 10);
   
-  // Contar infrações e organizações do usuário na semana
-  const wsI = ss.getSheetByName('INFRACOES_RUA');
-  const wsO = ss.getSheetByName('ORGANIZACAO_PONTOS');
-  
-  let countInfra = 0, countOrg = 0;
-  const seteDias = new Date(Date.now() - 7 * 86400000);
+  const metas = _getProgressoMetasFiscal_(ss, adminUser.user_id);
 
-  if (wsI) {
-    const data = wsI.getDataRange().getValues();
-    for(let r=1; r<data.length; r++) {
-      if (String(data[r][1]) === user.user_id && new Date(data[r][3]) >= seteDias) countInfra++;
-    }
-  }
-  if (wsO) {
-    const data = wsO.getDataRange().getValues();
-    for(let r=1; r<data.length; r++) {
-      if (String(data[r][1]) === user.user_id && new Date(data[r][7]) >= seteDias) countOrg++;
-    }
-  }
+  // Assumimos uma meta diária e semanal para o dashboard, por exemplo
+  const metaDiaria = 15;
+  const metaSemanal = 100;
 
-  return { ok: true, semanal: countInfra + countOrg, meta: 100 };
+  return { 
+    ok: true, 
+    hoje: metas.hoje,
+    meta_diaria: metaDiaria,
+    semanal: metas.semana, 
+    meta_semanal: metaSemanal 
+  };
 }
 
 /**
