@@ -5,6 +5,7 @@ const homeScreenCLT = {
 
     const nome  = p.nome_completo || p.nome || 'Funcionário';
     const cargo = p.cargo_principal || '';
+    const isFiscal = (cargo || '').toUpperCase() === 'FISCAL';
 
     const el = document.getElementById('app');
     el.innerHTML = `
@@ -14,7 +15,10 @@ const homeScreenCLT = {
             <div style="font-size:17px;font-weight:700">${nome}</div>
             <div style="font-size:12px;color:#a0aec0">${cargo} &middot; CLT</div>
           </div>
-          <span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:#2ecc7122;color:#2ecc71;border:1px solid #2ecc7144">CLT</span>
+          <div id="home-saldo-banco" style="text-align:right;display:none">
+             <div style="font-size:9px;color:#a0aec0;text-transform:uppercase;letter-spacing:1px">Saldo Banco</div>
+             <div id="val-saldo-banco" style="font-size:15px;font-weight:800;color:#2ecc71">00:00</div>
+          </div>
           <button onclick="auth.logout()" style="margin-left:8px;background:#e74c3c22;border:1px solid #e74c3c44;color:#e74c3c;border-radius:8px;font-size:12px;font-weight:700;padding:6px 10px;cursor:pointer">Sair</button>
         </div>
         <div style="padding:16px;display:flex;flex-direction:column;gap:14px">
@@ -22,10 +26,12 @@ const homeScreenCLT = {
           <div id="clt-turnos-lista">
             <div style="text-align:center;padding:40px;color:#a0aec0">Carregando turnos...</div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">
+          <div style="display:grid;grid-template-columns:1fr 1fr ${isFiscal ? '1fr' : ''};gap:10px;margin-top:4px">
             <button onclick="router.go('historico-clt')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600"><span style="font-size:24px">📋</span>Histórico</button>
             <button onclick="homeScreenCLT.verBancoHoras()" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600"><span style="font-size:24px">⏱️</span>Banco Horas</button>
+            ${isFiscal ? `<button onclick="router.go('mapa')" style="background:#1e2a45;border:1px solid #4f8ef744;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600"><span style="font-size:24px">🗺️</span>Mapa</button>` : ''}
           </div>
+          <div style="text-align:center;padding:10px;font-size:10px;color:#4a5568;letter-spacing:1px">v1.3.9-GH</div>
         </div>
         <nav style="position:fixed;bottom:0;left:0;right:0;background:#16213e;border-top:1px solid #2a3a55;display:flex;justify-content:space-around;padding:10px 0 calc(10px + env(safe-area-inset-bottom,0px));z-index:100">
           <button onclick="router.go('home-clt')" style="background:none;border:none;color:#4f8ef7;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><span style="font-size:22px">🏠</span>Home</button>
@@ -39,6 +45,20 @@ const homeScreenCLT = {
     `;
 
     await this._carregarTurnos();
+    this._carregarSaldoBanco();
+  },
+
+  async _carregarSaldoBanco() {
+    try {
+      const res = await api.get('GET_MEU_BANCO_HORAS');
+      const wrap = document.getElementById('home-saldo-banco');
+      const val = document.getElementById('val-saldo-banco');
+      if (res.ok && wrap && val) {
+        val.textContent = res.saldo_formatado || '00:00';
+        val.style.color = (res.saldo_minutos || 0) >= 0 ? '#2ecc71' : '#e74c3c';
+        wrap.style.display = 'block';
+      }
+    } catch(e) {}
   },
 
   async _carregarTurnos() {
