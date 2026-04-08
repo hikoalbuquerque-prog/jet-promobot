@@ -22,36 +22,37 @@ jobs:
 
       - name: Create .clasprc.json and Extract Credentials
         env:
-          # This environment variable holds the secret content
           CLASPRC_CONTENT: ${{ secrets.CLASPRC_JSON }}
         run: |
           # Create the .clasprc.json file from the secret
           echo "$CLASPRC_CONTENT" > ~/.clasprc.json
 
-          # Use Node.js to parse the specific JSON structure and set CLASP environment variables
-          # Clasp will automatically use these environment variables for authentication
-          NODE_PATH=$(npm root -g) node -e "
-            const fs = require('fs');
-            const path = require('path');
-            const claspRcPath = path.join(process.env.HOME, '.clasprc.json');
-            try {
-              const config = JSON.parse(fs.readFileSync(claspRcPath, 'utf8'));
-              const defaultToken = config.tokens.default;
-              if (defaultToken && defaultToken.refresh_token && defaultToken.client_id && defaultToken.client_secret) {
-                // Set environment variables for the next steps in the job
-                fs.appendFileSync(process.env.GITHUB_ENV, `CLASP_REFRESH_TOKEN=${defaultToken.refresh_token}\n`);
-                fs.appendFileSync(process.env.GITHUB_ENV, `CLASP_CLIENT_ID=${defaultToken.client_id}\n`);
-                fs.appendFileSync(process.env.GITHUB_ENV, `CLASP_CLIENT_SECRET=${defaultToken.client_secret}\n`);
-                console.log('Clasp credentials set successfully.');
-              } else {
-                console.error('ERROR: Could not find tokens.default in .clasprc.json');
-                process.exit(1);
-              }
-            } catch (e) {
-              console.error('ERROR: Failed to parse .clasprc.json: ' + e.message);
+          # Create a temporary Node.js script to avoid shell substitution issues
+          cat <<'EOF' > setup_clasp.js
+          const fs = require('fs');
+          const path = require('path');
+          const claspRcPath = path.join(process.env.HOME, '.clasprc.json');
+          try {
+            const config = JSON.parse(fs.readFileSync(claspRcPath, 'utf8'));
+            const defaultToken = config.tokens.default;
+            if (defaultToken && defaultToken.refresh_token && defaultToken.client_id && defaultToken.client_secret) {
+              // Set environment variables for the next steps in the job
+              fs.appendFileSync(process.env.GITHUB_ENV, `CLASP_REFRESH_TOKEN=${defaultToken.refresh_token}\n`);
+              fs.appendFileSync(process.env.GITHUB_ENV, `CLASP_CLIENT_ID=${defaultToken.client_id}\n`);
+              fs.appendFileSync(process.env.GITHUB_ENV, `CLASP_CLIENT_SECRET=${defaultToken.client_secret}\n`);
+              console.log('Clasp credentials set successfully.');
+            } else {
+              console.error('ERROR: Could not find tokens.default in .clasprc.json');
               process.exit(1);
             }
-          "
+          } catch (e) {
+            console.error('ERROR: Failed to parse .clasprc.json: ' + e.message);
+            process.exit(1);
+          }
+          EOF
+
+          # Execute the script, ensuring Node.js can find global modules
+          NODE_PATH=$(npm root -g) node setup_clasp.js
         shell: bash
 
       - name: Push files to Google Apps Script
