@@ -31,7 +31,8 @@ const router = (() => {
     academy:            () => academy.render(),
     // CLT
     'turno-ativo':      () => turnoCLT.render(),
-    'historico-clt':    () => historicoCLT.render(),
+    'historico-clt':    () => historico.render(),
+    'banco-horas':      () => historico.renderBancoHoras(),
   };
 
   return {
@@ -42,7 +43,7 @@ const router = (() => {
       if (isCLT) {
         if (screen === 'home') screen = 'home-clt';
         if (screen === 'historico') screen = 'historico-clt';
-        if (screen === 'slot') screen = 'turno-ativo';
+        if (screen === 'slot' || screen === 'operacao') screen = 'turno-ativo';
       }
 
       // Limpar listeners de GPS/timer da tela anterior

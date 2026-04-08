@@ -6,7 +6,7 @@ const CONFIG = {
   APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxsWriuYAFDkqiwDDoKpu0L34u5DGa23rIz4qwN6hLklxw3qnXQrbZXjbut0kSBe56N/exec',
 
   // Tipos de vínculo autorizados a acessar o painel gestor
-  GESTOR_ROLES: ['GESTOR', 'FISCAL', 'LIDER'],
+  GESTOR_ROLES: ['GESTOR', 'LIDER'],
 
   // Intervalo de atualização do mapa (ms)
   MAP_REFRESH_INTERVAL: 15_000,

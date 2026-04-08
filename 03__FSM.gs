@@ -432,6 +432,7 @@ function cancelarSlot_(user, body) {
 
     const hojeStr = new Date().toISOString().split('T')[0];
     const dataSlot = String(slot?.data || '').substring(0, 10);
+    console.log(`[cancelarSlot_] DEBUG: Verificando se o slot ${slotId} é para hoje. Data do Slot: ${dataSlot}, Hoje: ${hojeStr}`);
     if (dataSlot === hojeStr) {
       broadcastVagaUrgente_(ss, slot);
     }
@@ -446,6 +447,7 @@ function cancelarSlot_(user, body) {
 }
 
 function broadcastVagaUrgente_(ss, slot) {
+  console.log(`[broadcastVagaUrgente_] DEBUG: Iniciando broadcast para slot urgente: ${slot.slot_id}`);
   const cidade = slot.cidade || '';
   const local = slot.local_nome || slot.local || slot.slot_id;
   const horario = (slot.inicio || '') + ' - ' + (slot.fim || '');

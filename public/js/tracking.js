@@ -88,7 +88,13 @@ const heartbeat = (() => {
     if (sw) sw.postMessage({ type: 'SALVAR_HEARTBEAT_STATE', payload: null });
   }
 
-  async function _ping(jornadaId) {
+  async function _ping(id) {
+    const user = state.get('promotor');
+    const vinculo = (user?.tipo_vinculo || '').toUpperCase();
+    const isCLT = vinculo === 'CLT' || vinculo === 'FISCAL';
+    const evento = isCLT ? 'HEARTBEAT_CLT' : 'HEARTBEAT';
+    const idKey  = isCLT ? 'turno_id' : 'jornada_id';
+
     let g = state.get('gps') || {};
     try {
       const pos = await new Promise((res, rej) =>
@@ -97,11 +103,16 @@ const heartbeat = (() => {
       g = { ok: true, lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, isMock: false };
       state.patch('gps', g);
     } catch(_) {}
-    _salvarEstadoSW(jornadaId);
+    _salvarEstadoSW(id);
     try {
-      await api.post({ evento: 'HEARTBEAT', jornada_id: jornadaId, token: state.get('token'),
+      const payload = { 
+        evento, 
+        [idKey]: id, 
+        token: state.get('token'),
         lat: g.lat||null, lng: g.lng||null, accuracy: g.accuracy||null,
-        is_mock: g.isMock||false, horario_dispositivo: new Date().toISOString() }, { skipToken: true });
+        is_mock: g.isMock||false, horario_dispositivo: new Date().toISOString() 
+      };
+      await api.post(payload, { skipToken: true });
     } catch(_) {}
   }
 
@@ -140,20 +151,21 @@ const heartbeat = (() => {
     } else { _iniciarTimer(_jornadaId); _adquirirWakeLock(); }
   }
 
-  function _iniciarTimer(jornadaId) {
+  function _iniciarTimer(id) {
     if (_interval) return;
-    _ping(jornadaId);
-    _interval = setInterval(() => _ping(jornadaId), INTERVAL_MS);
+    _ping(id);
+    _interval = setInterval(() => _ping(id), INTERVAL_MS);
   }
 
-  function iniciar(jornadaId) {
+  function iniciar(id) {
     if (_jornadaId) return;
 
     const user = state.get('promotor');
     if (!user) return;
     
     // Verificação de LGPD e Preferência
-    const isCLT = (user.tipo_vinculo || '').toUpperCase() === 'CLT';
+    const vinculo = (user.tipo_vinculo || '').toUpperCase();
+    const isCLT = vinculo === 'CLT' || vinculo === 'FISCAL';
     const aceiteLGPD = user.lgpd_aceite || false;
     const prefContinuo = state.get('pref_rastreio_continuo') !== false; // default true
     
@@ -162,9 +174,9 @@ const heartbeat = (() => {
     if (!aceiteLGPD) return;
     if (!isCLT && !prefContinuo) return;
 
-    _jornadaId = jornadaId;
-    _salvarEstadoSW(jornadaId);
-    _iniciarTimer(jornadaId);
+    _jornadaId = id;
+    _salvarEstadoSW(id);
+    _iniciarTimer(id);
     _adquirirWakeLock();
     document.addEventListener('visibilitychange', _onVisibility);
   }

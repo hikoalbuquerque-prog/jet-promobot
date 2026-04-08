@@ -1,0 +1,6 @@
+# Ignora os diretórios e arquivos mais comuns que não devem ir para o GAS
+**/.git/**
+**/.github/**
+**/node_modules/**
+.clasp.json
+README.md

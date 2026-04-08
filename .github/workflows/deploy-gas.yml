@@ -1,0 +1,27 @@
+name: Deploy to Google Apps Script
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy-gas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Google Apps Script CLI (clasp)
+        run: npm install -g @google/clasp
+
+      - name: Create .clasprc.json for authentication
+        run: echo '${{ secrets.CLASPRC_JSON }}' > ~/.clasprc.json
+
+      - name: Push files to Google Apps Script
+        run: clasp push --force

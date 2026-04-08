@@ -1,5 +1,37 @@
 # Cloud Run — Telegram Gateway
 
+## Workflow de Desenvolvimento e Deploy (Google Apps Script)
+
+Este projeto utiliza um fluxo de CI/CD para automatizar o deploy do código do Google Apps Script (arquivos `.gs` e `.html`) diretamente do GitHub.
+
+### Fonte da Verdade
+O repositório no **GitHub é a única fonte da verdade**. Nenhuma alteração de código deve ser feita diretamente no editor do Google Apps Script, pois será sobrescrita.
+
+### Ciclo de Desenvolvimento
+1.  **Edite Localmente:** Faça todas as alterações de código na sua máquina local, dentro da pasta `JET Promo/`.
+
+2.  **Salve as Alterações (Commit):** Use o Git para salvar suas alterações com uma mensagem descritiva.
+    ```bash
+    # Adiciona todos os arquivos modificados
+    git add .
+
+    # Cria um "commit" com uma mensagem clara
+    git commit -m "Descreva a mudança que você fez"
+    ```
+
+3.  **Envie para o GitHub (Gatilho do Deploy):** Envie suas alterações para o repositório remoto. Este passo aciona o deploy automático.
+    ```bash
+    git push origin master
+    ```
+
+### Deploy Automático
+O `git push` para a branch `master` aciona um workflow no GitHub Actions que executa o `clasp push --force`. Isso atualiza os scripts no ambiente do Google Apps Script em 1-2 minutos. Você pode acompanhar o progresso na aba "Actions" do seu repositório.
+
+### Observação sobre o Ambiente Local
+Devido a um problema específico no ambiente local do Windows, os comandos `clasp pull` e `clasp status` podem não funcionar. O deploy via GitHub Actions, no entanto, funciona perfeitamente, pois ocorre em um ambiente limpo.
+
+---
+
 ## Papel deste serviço
 Este serviço é o **único responsável pelo Telegram**:
 - recebe webhook
@@ -86,6 +118,27 @@ curl -X POST "<CLOUD_RUN_URL>/internal/publish-available-slots" \
   -H "X-Admin-Secret: <ADMIN_SECRET>" \
   -d '{"cidade":"São Paulo","limit":50}'
 ```
+
+## Interfaces de Usuário
+
+O ecossistema JET possui duas interfaces principais servidas por este serviço:
+
+### 1. App do Promotor / Operacional (PWA)
+- **Acesso:** URL raiz (`/`)
+- **Público:** Promotores (MEI), Fiscais (CLT), Motoristas e Scouts.
+- **Funcionalidades:** 
+  - Login via CPF e Data de Nascimento.
+  - Controle de Jornada (Check-in, Pausa, Checkout).
+  - **Módulo Fiscal:** Ferramentas exclusivas para o cargo **FISCAL** (Registro de Infrações, Botão SOS, Roteiro de Fiscalização e Mapa de Promotores).
+  - Histórico, Ranking, Academy e Suporte.
+
+### 2. Painel do Gestor (Restrito)
+- **Acesso:** `/gestor`
+- **Público:** Gestores Regionais e Líderes de Equipe.
+- **Funcionalidades:** 
+  - Visão macro da operação, Mapas de Calor, KPIs e Relatórios.
+  - Gestão de Escalas CLT e Aprovação de Cadastros.
+  - **Segurança:** O acesso de Fiscais a este painel foi desativado para garantir a separação entre operação de rua e gestão administrativa.
 
 ## App PWA
 ### Leituras

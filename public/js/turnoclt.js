@@ -4,6 +4,10 @@
 const turnoCLT = {
   _timer: null,
   _watchId: null,
+  _streamCheckin: null,
+  _fotoCheckin: null,
+  _streamInfra: null,
+  _fotoInfra: null,
 
   async render() {
     const p = state.get('promotor');
@@ -57,6 +61,13 @@ const turnoCLT = {
             </div>
           </div>
 
+          <div id="checkin-camera-container" style="display:none;background:#0d1526;border-radius:14px;overflow:hidden;border:1px solid #2a3a55;position:relative;aspect-ratio:4/3">
+            <video id="video-checkin" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>
+            <canvas id="canvas-checkin" style="display:none"></canvas>
+            <div id="foto-preview-checkin" style="display:none;position:absolute;inset:0;background-size:cover;background-position:center"></div>
+            <button onclick="turnoCLT._tirarFotoCheckin()" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);width:64px;height:64px;border-radius:50%;border:4px solid #fff;background:rgba(255,255,255,0.3);cursor:pointer;z-index:10"></button>
+          </div>
+
           <div id="gps-status-clt" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:10px;padding:12px;display:flex;align-items:center;gap:10px">
             <div style="width:10px;height:10px;border-radius:50%;background:#f1c40f;animation:pulse 1.5s infinite"></div>
             <span style="font-size:13px;color:#a0aec0">Obtendo GPS...</span>
@@ -77,26 +88,132 @@ const turnoCLT = {
       </div>`;
 
     this._iniciarGPS();
+    
+    // Abrir câmera automaticamente se for Fiscal
+    const u = state.get('promotor');
+    if (u && (u.cargo_principal||'').toUpperCase() === 'FISCAL') {
+      this._abrirCameraCheckin();
+    }
+  },
+
+  async _abrirCameraCheckin() {
+    const container = document.getElementById('checkin-camera-container');
+    const video = document.getElementById('video-checkin');
+    if (!container || !video) return;
+    container.style.display = 'block';
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      video.srcObject = stream;
+      this._streamCheckin = stream;
+    } catch(e) {
+      ui.toast('Erro ao abrir câmera. Verifique permissões.', 'error');
+    }
+  },
+
+  _tirarFotoCheckin() {
+    const video = document.getElementById('video-checkin');
+    const canvas = document.getElementById('canvas-checkin');
+    const preview = document.getElementById('foto-preview-checkin');
+    if (!video || !canvas || !preview) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    
+    const base64 = canvas.toDataURL('image/jpeg', 0.7);
+    this._fotoCheckin = base64;
+
+    preview.style.backgroundImage = `url(${base64})`;
+    preview.style.display = 'block';
+    video.style.display = 'none';
+    
+    if (this._streamCheckin) {
+      this._streamCheckin.getTracks().forEach(t => t.stop());
+    }
+  },
+
+  async _fazerCheckin(turnoId) {
+    const btn = document.getElementById('btn-checkin-clt');
+    const g = state.get('gps_clt') || {};
+    const u = state.get('promotor') || {};
+    const isFiscal = (u.cargo_principal||'').toUpperCase() === 'FISCAL';
+    
+    if (isFiscal && !this._fotoCheckin) {
+      ui.toast('Foto obrigatória para o Fiscal!', 'error');
+      return;
+    }
+
+    if (btn) { btn.textContent = 'Processando...'; btn.disabled = true; }
+
+    try {
+      const payload = {
+        evento: 'CHECKIN_TURNO_CLT',
+        turno_id: turnoId,
+        lat: g.lat || null,
+        lng: g.lng || null,
+        accuracy: g.accuracy || null,
+        foto_base64: this._fotoCheckin || null
+      };
+
+      const res = await api.post(payload);
+
+      if (res.ok) {
+        ui.toast('✅ Check-in realizado!', 'success');
+        this.render();
+      } else {
+        alert('Erro: ' + (res.erro || res.mensagem));
+        if (btn) { btn.textContent = '✅ Registrar Check-in'; btn.disabled = false; }
+        if (isFiscal) this._abrirCameraCheckin();
+      }
+    } catch(e) {
+      ui.toast('Erro de conexão.', 'error');
+      if (btn) { btn.textContent = '✅ Registrar Check-in'; btn.disabled = false; }
+    }
   },
 
   _renderAtivo(turno) {
+    const p = state.get('promotor');
+    const isFiscal = (p.cargo_principal || '').toUpperCase() === 'FISCAL';
     const checkinHora = turno.checkin_hora
       ? new Date(turno.checkin_hora).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})
       : '—';
 
     document.getElementById('app').innerHTML = `
       <div style="min-height:100dvh;background:#1a1a2e;color:#eaf0fb;font-family:-apple-system,sans-serif;padding-bottom:80px">
-        ${_navHeader('Turno em Andamento')}
+        ${_navHeader(isFiscal ? 'Turno Fiscal' : 'Turno em Andamento')}
         <div style="padding:16px;display:flex;flex-direction:column;gap:14px">
 
           <div style="background:#1e2a45;border:1px solid #2ecc7144;border-left:4px solid #2ecc71;border-radius:14px;padding:18px">
-            <div style="font-size:11px;color:#2ecc71;font-weight:700;letter-spacing:1px;margin-bottom:10px">EM ANDAMENTO</div>
-            <div style="font-size:22px;font-weight:800;font-family:monospace;color:#2ecc71" id="clt-timer">00:00:00</div>
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+              <div>
+                <div style="font-size:11px;color:#2ecc71;font-weight:700;letter-spacing:1px;margin-bottom:4px">EM ANDAMENTO</div>
+                <div style="font-size:22px;font-weight:800;font-family:monospace;color:#2ecc71" id="clt-timer">00:00:00</div>
+              </div>
+              ${isFiscal ? `
+              <div style="text-align:right">
+                <div style="font-size:10px;color:#a0aec0;text-transform:uppercase">Meta Diária</div>
+                <div id="ft-meta-cont" style="font-size:18px;font-weight:800;color:#f1c40f">--/15</div>
+              </div>` : ''}
+            </div>
             <div style="font-size:13px;color:#a0aec0;margin-top:6px">Check-in às ${checkinHora}</div>
             <div style="margin-top:10px;font-size:14px;font-weight:600">${turno.zona_nome || '—'}</div>
             ${turno.ponto_referencia ? `<div style="font-size:13px;color:#a0aec0">${turno.ponto_referencia}</div>` : ''}
           </div>
 
+          ${isFiscal ? `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <button onclick="turnoCLT._abrirModoFiscalizacao()" style="background:#4f8ef7;color:#fff;border:none;border-radius:12px;padding:16px;font-size:13px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px">
+              <span style="font-size:24px">🚨</span> Infração
+            </button>
+            <button onclick="turnoCLT._acionarSOS()" style="background:#e74c3c;color:#fff;border:none;border-radius:12px;padding:16px;font-size:13px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px">
+              <span style="font-size:24px">🆘</span> SOS
+            </button>
+          </div>
+          <div id="ft-roteiro" style="display:none">
+            <div style="font-size:11px;color:#a0aec0;font-weight:700;letter-spacing:1px;margin-bottom:8px">📍 ROTEIRO DE FISCALIZAÇÃO</div>
+            <div id="ft-roteiro-lista" style="display:flex;flex-direction:column;gap:10px"></div>
+          </div>
+          ` : `
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:14px;text-align:center">
               <div style="font-size:10px;color:#6c7a8d;margin-bottom:4px">PREVISTO FIM</div>
@@ -107,22 +224,32 @@ const turnoCLT = {
               <div style="font-size:16px;font-weight:700">${turno.horas_turno || '—'}h</div>
             </div>
           </div>
+          `}
 
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <button onclick="turnoCLT._pausar('${turno.turno_id}')" id="btn-pause-clt"
               style="background:#f1c40f22;border:1px solid #f1c40f44;color:#f1c40f;border-radius:12px;font-size:15px;font-weight:700;padding:14px;cursor:pointer">
               ⏸️ Pausar
             </button>
-            <button onclick="turnoCLT._fazerCheckout('${turno.turno_id}')" id="btn-checkout-clt"
-              style="background:#e74c3c;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;padding:14px;cursor:pointer">
-              🔴 Check-out
+            <button onclick="turnoCLT._registrarChuva()"
+              style="background:#63b3ed22;border:1px solid #63b3ed44;color:#63b3ed;border-radius:12px;font-size:15px;font-weight:700;padding:14px;cursor:pointer">
+              🌧️ Chuva
             </button>
           </div>
+          <button onclick="turnoCLT._abrirSolicitacao()" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#a0aec0;border-radius:12px;padding:14px;font-size:14px;font-weight:600;cursor:pointer">🔔 Suporte / Ocorrência</button>
+          <button onclick="turnoCLT._fazerCheckout('${turno.turno_id}')" id="btn-checkout-clt"
+            style="background:#e74c3c;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;padding:18px;width:100%;cursor:pointer;margin-top:10px">
+            🏁 ENCERRAR TURNO
+          </button>
         </div>
         ${_navBottom('turno-ativo')}
       </div>`;
 
     heartbeat.iniciar(turno.turno_id);
+    if (isFiscal) {
+      this._carregarRoteiro();
+      this._atualizarMetas();
+    }
 
     if (turno.checkin_hora) {
       const inicio = new Date(turno.checkin_hora).getTime();
@@ -134,6 +261,129 @@ const turnoCLT = {
         el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
       }, 1000);
     }
+  },
+
+  async _carregarRoteiro() {
+    const rot = document.getElementById('ft-roteiro');
+    const lista = document.getElementById('ft-roteiro-lista');
+    if (!rot || !lista) return;
+    try {
+      const res = await api.get('GET_SLOTS_HOJE');
+      const ativos = (res.data || res.slots || []).filter(s => s.vagas_ocupadas > 0);
+      if (ativos.length > 0) {
+        rot.style.display = 'block';
+        lista.innerHTML = ativos.map(s => `
+          <div style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:14px;display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:14px;font-weight:700;color:#fff">${s.nome||s.local_nome||'Ponto'}</div>
+              <div style="font-size:11px;color:#a0aec0">${s.vagas_ocupadas} promotor(es) ativo(s)</div>
+            </div>
+            <button style="background:#4f8ef7;color:#fff;border:none;border-radius:8px;padding:8px 12px;font-size:11px;font-weight:700;cursor:pointer" onclick="router.go('mapa')">📍 MAPA</button>
+          </div>
+        `).join('');
+      }
+    } catch(e) {}
+  },
+
+  _acionarSOS() {
+    if (confirm('🚨 ACIONAR BOTÃO DE PÂNICO?')) {
+      const g = state.get('gps_clt') || {};
+      api.post({ evento: 'REGISTRAR_SOS_FISCAL', lat: g.lat, lng: g.lng }).then(() => alert('🆘 SOS ACIONADO! SEGURANÇA NOTIFICADA.'));
+    }
+  },
+
+  _abrirModoFiscalizacao() {
+    const modal = document.createElement('div');
+    modal.id = 'modal-modo-fiscalizacao';
+    modal.style.cssText = 'position:fixed;inset:0;background:#0a0f1e;z-index:9999;display:flex;flex-direction:column;padding:20px;';
+    modal.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <h2 style="font-size:18px;font-weight:700;margin:0;color:#fff">🚨 MODO FISCALIZAÇÃO</h2>
+        <button onclick="document.getElementById('modal-modo-fiscalizacao').remove()" style="background:none;border:none;color:#718096;font-size:24px;cursor:pointer">×</button>
+      </div>
+      
+      <div id="infra-camera-wrap" style="background:#000;border-radius:14px;overflow:hidden;margin-bottom:16px;aspect-ratio:4/3;position:relative">
+         <video id="video-infra" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>
+         <canvas id="canvas-infra" style="display:none"></canvas>
+         <div id="foto-preview-infra" style="display:none;position:absolute;inset:0;background-size:cover;background-position:center"></div>
+         <button onclick="turnoCLT._tirarFotoInfra()" style="position:absolute;bottom:15px;left:50%;transform:translateX(-50%);width:50px;height:50px;border-radius:50%;border:3px solid #fff;background:rgba(255,255,255,0.2);z-index:10"></button>
+      </div>
+
+      <div style="background:#1e2a45;border-radius:12px;padding:12px;margin-bottom:16px">
+        <div style="font-size:11px;color:#a0aec0;margin-bottom:6px">NÚMERO DO PATINETE (6 DÍGITOS)</div>
+        <input type="tel" id="infra-patinete" placeholder="000000" maxlength="6"
+          style="width:100%;background:#0d1526;border:1px solid #2a3a55;border-radius:8px;padding:12px;color:#fff;font-size:18px;font-weight:700;text-align:center;outline:none" />
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;flex:1;overflow-y:auto">
+        <button onclick="turnoCLT._enviarInfracao('DUAS_PESSOAS')" class="btn-infra">👥 Duas pessoas no patinete</button>
+        <button onclick="turnoCLT._enviarInfracao('MENOR_IDADE')" class="btn-infra">🔞 Menor de 18 anos</button>
+        <button onclick="turnoCLT._enviarInfracao('ESTACIONAMENTO_IRREGULAR')" class="btn-infra">🅿️ Estacionamento irregular</button>
+        <button onclick="turnoCLT._enviarInfracao('TRANSITO_PERIGOSO')" class="btn-infra">🚲 Condução perigosa</button>
+        <button onclick="turnoCLT._enviarInfracao('DANO_INTENCIONAL')" class="btn-infra">🔨 Dano ao patrimônio</button>
+      </div>
+      <style>.btn-infra{background:#1e2a45;border:1px solid #2a3a55;color:#fff;border-radius:12px;padding:16px;font-size:13px;font-weight:700;text-align:left;cursor:pointer;}</style>
+    `;
+    document.body.appendChild(modal);
+    this._abrirCameraInfra();
+  },
+
+  async _abrirCameraInfra() {
+    const video = document.getElementById('video-infra');
+    if (!video) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      video.srcObject = stream;
+      this._streamInfra = stream;
+    } catch(e) { ui.toast('Câmera não disponível.', 'error'); }
+  },
+
+  _tirarFotoInfra() {
+    const video = document.getElementById('video-infra');
+    const canvas = document.getElementById('canvas-infra');
+    const preview = document.getElementById('foto-preview-infra');
+    if (!video || !canvas || !preview) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    const base64 = canvas.toDataURL('image/jpeg', 0.6);
+    this._fotoInfra = base64;
+    preview.style.backgroundImage = `url(${base64})`;
+    preview.style.display = 'block';
+    video.style.display = 'none';
+    if (this._streamInfra) this._streamInfra.getTracks().forEach(t => t.stop());
+  },
+
+  async _enviarInfracao(tipo) {
+    const patinete = (document.getElementById('infra-patinete')?.value || '').trim();
+    if (patinete.length !== 6) { ui.toast('Informe o patinete (6 dígitos)!', 'error'); return; }
+    if (!this._fotoInfra) { ui.toast('Tire uma foto da infração!', 'error'); return; }
+
+    const g = state.get('gps_clt') || {};
+    try {
+      ui.toast('Registrando...', 'info');
+      await api.post({ 
+        evento: 'REGISTRAR_INFRACAO_FISCAL', 
+        tipo_infracao: tipo, 
+        lat: g.lat, 
+        lng: g.lng,
+        patinete_id: patinete,
+        foto_base64: this._fotoInfra
+      });
+      ui.toast('✅ Infração registrada!', 'success');
+      const m = document.getElementById('modal-modo-fiscalizacao');
+      if (m) m.remove();
+      this._fotoInfra = null;
+    } catch(e) { ui.toast('Erro ao registrar.', 'error'); }
+  },
+
+  _abrirSolicitacao() {
+    const m = prompt('Motivo do suporte / ocorrência:');
+    if (m) api.post({ evento: 'REGISTRAR_SOLICITACAO_FISCAL', motivo: m }).then(() => ui.toast('✅ Enviado!', 'success'));
+  },
+
+  _registrarChuva() {
+    if (confirm('Registrar chuva no local?')) api.post({ evento: 'REGISTRAR_CHUVA_FISCAL', status: 'CHUVA' }).then(() => ui.toast('✅ Enviado!', 'success'));
   },
 
   _iniciarGPS() {
@@ -150,42 +400,6 @@ const turnoCLT = {
     state.set('_gpsUnsubCLT', unsub);
   },
 
-  async _fazerCheckin(turnoId) {
-    const btn = document.getElementById('btn-checkin-clt');
-    const g = state.get('gps_clt') || {};
-    const u = state.get('promotor') || {};
-    
-    if (btn) { btn.textContent = 'Processando...'; btn.disabled = true; }
-
-    try {
-      const payload = {
-        evento: 'CHECKIN_TURNO_CLT',
-        turno_id: turnoId,
-        lat: g.lat || null,
-        lng: g.lng || null,
-        accuracy: g.accuracy || null
-      };
-
-      // Bypass automático de foto para Fiscais no PWA (até termos UI de câmera aqui)
-      if (['FISCAL','SCOUT','MOTORISTA','CHARGER'].includes((u.cargo_principal||'').toUpperCase())) {
-        payload.foto_base64 = 'LOGADO_VIA_PWA_CLT_BYPASS';
-      }
-
-      const res = await api.post(payload);
-
-      if (res.ok) {
-        ui.toast('✅ Check-in realizado!', 'success');
-        this.render();
-      } else {
-        alert('Erro: ' + (res.erro || res.mensagem));
-        if (btn) { btn.textContent = '✅ Registrar Check-in'; btn.disabled = false; }
-      }
-    } catch(e) {
-      ui.toast('Erro de conexão.', 'error');
-      if (btn) { btn.textContent = '✅ Registrar Check-in'; btn.disabled = false; }
-    }
-  },
-
   async _pausar(turnoId) {
     try {
       const res = await api.post({ evento: 'PAUSAR_TURNO_CLT', turno_id: turnoId });
@@ -193,17 +407,54 @@ const turnoCLT = {
     } catch(e) { ui.toast('Erro ao pausar', 'error'); }
   },
 
+  async _atualizarMetas() {
+    try {
+      const res = await api.get('GET_METAS_FISCAL');
+      const el = document.getElementById('ft-meta-cont');
+      if (res.ok && el) {
+        el.textContent = `${res.metas.hoje}/15`;
+        el.style.color = res.metas.hoje >= 15 ? '#2ecc71' : '#f1c40f';
+      }
+    } catch(e) {}
+  },
+
   async _fazerCheckout(turnoId) {
     if (!confirm('Encerrar turno agora?')) return;
     try {
+      ui.toast('Encerrando...', 'info');
       const res = await api.post({ evento: 'CHECKOUT_TURNO_CLT', turno_id: turnoId });
       if (res.ok) {
         clearInterval(this._timer);
         heartbeat.parar();
-        this.render();
+        
+        // Mostrar Coach JET se houver mensagem
+        if (res.msg_coach) {
+          this._mostrarCoachJet(res.msg_coach);
+        } else {
+          this.render();
+        }
       }
     } catch(e) { ui.toast('Erro ao encerrar', 'error'); }
-  }
+  },
+
+  _mostrarCoachJet(msg) {
+    const modalId = 'modal-coach-jet';
+    const m = document.createElement('div');
+    m.id = modalId;
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px;';
+    m.innerHTML = `
+      <div style="background:#16213e;border:1px solid #4f8ef7;border-radius:24px;padding:30px;width:100%;max-width:400px;text-align:center;position:relative">
+        <div style="font-size:48px;margin-bottom:20px">🤖</div>
+        <h2 style="font-size:20px;font-weight:800;color:#fff;margin-bottom:16px;letter-spacing:1px">COACH JET</h2>
+        <div style="font-size:15px;color:#a0aec0;line-height:1.6;margin-bottom:30px;font-style:italic">"${msg}"</div>
+        <button onclick="document.getElementById('${modalId}').remove(); turnoCLT.render();" 
+          style="background:#4f8ef7;color:#fff;border:none;border-radius:12px;padding:16px;width:100%;font-size:15px;font-weight:700;cursor:pointer">
+          ENTENDIDO
+        </button>
+      </div>
+    `;
+    document.body.appendChild(m);
+  },
 };
 
 function _navHeader(t) {

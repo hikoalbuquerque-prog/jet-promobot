@@ -6,24 +6,25 @@ const app = express();
 // ── PWA e Painel Gestor: registrar ANTES de qualquer configuração de runtime ──
 // Isso garante que os frontends funcionam mesmo se loadConfig() falhar.
 
+// Forçar atualização de arquivos estáticos (JS/HTML) para evitar cache antigo do PWA
+app.use((req, res, next) => {
+  if (req.url.match(/\.(js|html|css|json)$/) || req.url === '/' || req.url === '/gestor') {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
+
 // Painel do gestor
 app.use('/gestor', express.static(path.join(__dirname, 'public-gestor')));
 app.get('/gestor', (_req, res) => res.sendFile(path.join(__dirname, 'public-gestor', 'index.html')));
 app.get('/gestor/*', (_req, res) => res.sendFile(path.join(__dirname, 'public-gestor', 'index.html')));
 
 // PWA do promotor
-// Manifest e SW nunca em cache — essencial para PWA instalável
-app.get('/manifest.json', (_req, res) => {
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.sendFile(path.join(__dirname, 'public', 'manifest.json'));
-});
-app.get('/sw.js', (_req, res) => {
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.sendFile(path.join(__dirname, 'public', 'sw.js'));
-});
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.get('/version', (_req, res) => res.json({ ok: true, service: 'promo-telegram-gateway', version: '1.3.5', now: new Date().toISOString() }));
+app.get('/version', (_req, res) => res.json({ ok: true, service: 'promo-telegram-gateway', version: '1.3.9-GH', now: new Date().toISOString() }));
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.use(express.json({ limit: '1mb' }));

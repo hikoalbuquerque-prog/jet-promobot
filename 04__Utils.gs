@@ -165,7 +165,7 @@ function getMapaPromotor_(user, params) {
   }
 
   const role = (user.tipo_vinculo || '').toUpperCase();
-  const isGestor = ['GESTOR','FISCAL','LIDER'].includes(role);
+  const isGestor = ['GESTOR','LIDER','FISCAL'].includes(role);
 
   const pontos = [];
   const seen = new Set();
@@ -227,9 +227,11 @@ function getBroadcastFilters_() {
 
 function processIntegracoes(integracoes, contexto) {
   if (!integracoes || !integracoes.length) return;
+  console.log(`[processIntegracoes] DEBUG: Processando ${integracoes.length} integrações para o evento: ${contexto?.evento || 'N/A'}`);
   const url = getConfig_('cloud_run_url') + '/app/event';
   integracoes.forEach(integ => {
     try {
+      console.log(`[processIntegracoes] DEBUG: Enviando integração para o Cloud Run: Tipo=${integ.tipo}, Canal=${integ.canal}, Cidade=${integ.cidade}, Topic=${integ.topic_key}`);
       UrlFetchApp.fetch(url, {
         method: 'post', contentType: 'application/json',
         payload: JSON.stringify({ integration_secret: getConfig_('integration_secret'), ...integ }),
