@@ -4,3 +4,5 @@ patch_*.py
 *.bak
 node_modules/
 .env
+JetEstacoes/
+
