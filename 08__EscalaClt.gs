@@ -145,66 +145,101 @@ function getMeusTurnosCLT_(user){
   return{ok:true, data:result, metas_atuais: metas};
 }
 
-function checkinTurnoCLT_(user,params){
-  var turno_id=String(params.turno_id||'').trim(), ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws=ss.getSheetByName('TURNOS_CLT'); if(!ws) throw new Error('Aba TURNOS_CLT nao encontrada.');
-  var rows=ws.getDataRange().getValues(), h=rows[0].map(v => String(v).toLowerCase().trim());
-  
-  const iTid = h.indexOf('turno_id'), iUid = h.indexOf('user_id'), iStt = h.indexOf('status');
+function checkinTurnoCLT_(user, params) {
+  var turno_id = String(params.turno_id || '').trim(),
+    ss = SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')),
+    ws = ss.getSheetByName('TURNOS_CLT');
+  if (!ws) throw new Error('Aba TURNOS_CLT nao encontrada.');
+  var rows = ws.getDataRange().getValues(),
+    h = rows[0].map(v => String(v).toLowerCase().trim());
 
-  for(var r=1;r<rows.length;r++){
-    if(String(rows[r][iTid]).trim()!==turno_id) continue;
-    if(String(rows[r][iUid]).trim()!==user.user_id) throw new Error('Turno nao pertence a este usuario.');
-    
-    var stt=String(rows[r][iStt]).trim(); 
-    if(stt==='EM_ANDAMENTO') return{ok:true,mensagem:'Checkin ja realizado.', eh_clt: true};
-    
-    // Validação de Foto / Bypass via Gestor ou PWA CLT
-    if (params.foto_base64 === 'LOGADO_VIA_GESTOR_BYPASS' || params.foto_base64 === 'LOGADO_VIA_PWA_CLT_BYPASS') {
-      // Aceita sem validar IA pois vem de interface administrativa ou PWA sem câmera CLT
+  const iTid = h.indexOf('turno_id'),
+    iUid = h.indexOf('user_id'),
+    iStt = h.indexOf('status');
+
+  for (var r = 1; r < rows.length; r++) {
+    if (String(rows[r][iTid]).trim() !== turno_id) continue;
+    if (String(rows[r][iUid]).trim() !== user.user_id) throw new Error('Turno nao pertence a este usuario.');
+
+    var stt = String(rows[r][iStt]).trim();
+    if (stt === 'EM_ANDAMENTO') return { ok: true, mensagem: 'Checkin ja realizado.', eh_clt: true };
+
+    // --- Nova Lógica de Validação ---
+    const bypassGestor = params.foto_base64 === 'LOGADO_VIA_GESTOR_BYPASS';
+    const bypassPWA = params.foto_base64 === 'LOGADO_VIA_PWA_CLT_BYPASS';
+    const bypassUniforme = params.iniciar_sem_uniforme === true; // Novo parâmetro do frontend
+
+    if (bypassGestor || bypassPWA) {
+      // Lógica de bypass existente mantida
+    } else if (bypassUniforme) {
+      // Usuário escolheu iniciar sem uniforme. A foto já foi validada para o rosto.
+      registrarAuditoria_({
+        tabela: 'TURNOS_CLT',
+        registro_id: turno_id,
+        campo: 'checkin_uniforme',
+        valor_anterior: 'N/A',
+        valor_novo: 'INICIADO_SEM_UNIFORME_CONFIRMADO',
+        alterado_por: user.user_id,
+        origem: 'app_clt',
+        motivo_override: params.motivo_reprovacao_ia || 'Usuário confirmou início sem uniforme.'
+      });
     } else if (params.foto_base64) {
-      // Upload the photo
       const agora = new Date();
       const nome_arquivo = `checkin_${user.user_id}_${agora.getTime()}`;
-      const checkin_foto_url = _uploadFotoParaDrive_(params.foto_base64, nome_arquivo, 'drive_folder_id_checkin', user.cidade_base || '', user.nome_completo || ''); // Pass config key for checkin folder
-      if (!checkin_foto_url) {
-        throw new Error('Falha ao salvar a foto de check-in.');
+      const checkin_foto_url = _uploadFotoParaDrive_(params.foto_base64, nome_arquivo, 'drive_folder_id_checkin', user.cidade_base || '', user.nome_completo || '');
+      if (!checkin_foto_url) throw new Error('Falha ao salvar a foto de check-in.');
+
+      const promptIA = "Sua tarefa é validar a foto de check-in de um fiscal da JET e retornar um objeto JSON. A foto DEVE ser uma selfie nítida da pessoa e ela DEVE estar vestindo o uniforme obrigatório: uma camisa preta, branca ou azul com a logo da JET ou um colete de identificação da JET. Analise os seguintes pontos: 1. A imagem é uma foto real. 2. O rosto está visível. 3. O uniforme está correto. Responda com um objeto JSON com as chaves 'rosto_ok' (true/false), 'uniforme_ok' (true/false), e 'motivo' (string com a falha ou 'APROVADO'). Exemplo: {\"rosto_ok\": true, \"uniforme_ok\": false, \"motivo\": \"Uniforme (camisa/colete JET) não identificado\"}.";
+      
+      let validacaoIA;
+      try {
+        const respostaIA = callGeminiVisionAI_(params.foto_base64, promptIA);
+        validacaoIA = JSON.parse(respostaIA);
+      } catch (e) {
+        throw new Error(`⛔ Falha ao analisar a resposta da IA. A IA respondeu: ${e.message}`);
       }
 
-      const promptIA = "Analise esta foto de um fiscal da JET iniciando o turno. Verifique se é uma foto real de uma pessoa, preferencialmente uniformizada. Responda 'APROVADO' ou, se houver problemas, explique CONCISAMENTE o motivo da REPROVAÇÃO (Ex: 'Uniforme não detectado', 'Rosto não visível').";
-      const validacaoIA = callGeminiVisionAI_(params.foto_base64, promptIA);
-      if (validacaoIA && validacaoIA.toUpperCase().indexOf('APROVADO') === -1) { // Se não for explicitamente APROVADO
-        throw new Error(`⛔ Foto de check-in reprovada pela IA: ${validacaoIA}.`);
+      if (!validacaoIA || !validacaoIA.rosto_ok) {
+        throw new Error(`⛔ Foto de check-in inválida: ${validacaoIA.motivo || 'Rosto não detectado ou foto irreal.'}`);
+      }
+
+      if (!validacaoIA.uniforme_ok) {
+        // Uniforme é o único problema. Retorna para o app tomar a decisão.
+        return {
+          ok: false,
+          acao_requerida: 'ESCOLHA_UNIFORME_AUSENTE',
+          motivo: validacaoIA.motivo || 'Uniforme não identificado.'
+        };
       }
       
-      // Update the sheet with the photo URL
-      // Find the index of 'checkin_foto_url' column dynamically
+      // Se chegou aqui, tudo foi aprovado. Salva a URL da foto.
       const iCheckinFotoUrl = h.indexOf('checkin_foto_url');
       if (iCheckinFotoUrl > -1) {
-          ws.getRange(r + 1, iCheckinFotoUrl + 1).setValue(checkin_foto_url);
+        ws.getRange(r + 1, iCheckinFotoUrl + 1).setValue(checkin_foto_url);
       } else {
-          // Log an error or throw if the column is mandatory and missing
-          logErro_('checkinTurnoCLT_', new Error('Coluna "checkin_foto_url" não encontrada na aba TURNOS_CLT. Certifique-se de adicioná-la.'));
-          // Optionally, you might append the value to the last column if it's not critical to have a specific column
+        logErro_('checkinTurnoCLT_', new Error('Coluna "checkin_foto_url" não encontrada.'));
       }
-    } else { 
-      throw new Error('Foto de check-in obrigatória para Fiscais.'); 
+
+    } else {
+      throw new Error('Foto de check-in obrigatória para Fiscais.');
     }
-    
-    var agora=new Date().toISOString(); 
-    ws.getRange(r+1,iStt+1).setValue('EM_ANDAMENTO'); 
-    ws.getRange(r+1,h.indexOf('checkin_hora')+1).setValue(agora);
-    
-    registrarAuditoria_({tabela:'TURNOS_CLT',registro_id:turno_id,campo:'status',valor_anterior:stt,valor_novo:'EM_ANDAMENTO',alterado_por:user.user_id,origem:'app_clt'});
-    
+    // --- Fim da Nova Lógica ---
+
+    var agoraISO = new Date().toISOString();
+    ws.getRange(r + 1, iStt + 1).setValue('EM_ANDAMENTO');
+    ws.getRange(r + 1, h.indexOf('checkin_hora') + 1).setValue(agoraISO);
+
+    registrarAuditoria_({ tabela: 'TURNOS_CLT', registro_id: turno_id, campo: 'status', valor_anterior: stt, valor_novo: 'EM_ANDAMENTO', alterado_por: user.user_id, origem: 'app_clt' });
+
     return {
-      ok:true,
-      turno_id:turno_id,
-      checkin_hora:agora,
-      mensagem:'Check-in registrado.',
-      eh_clt: true // Garante que o App mantenha o modo Fiscal
+      ok: true,
+      turno_id: turno_id,
+      checkin_hora: agoraISO,
+      mensagem: 'Check-in registrado.',
+      eh_clt: true
     };
   }
-  throw new Error('Turno ID "'+turno_id+'" nao encontrado para check-in.');
+  throw new Error('Turno ID "' + turno_id + '" nao encontrado para check-in.');
 }
 
 function checkoutTurnoCLT_(user,params){
