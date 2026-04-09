@@ -70,4 +70,6 @@ jobs:
         shell: bash
 
       - name: Push files to Google Apps Script
-        run: clasp push --force
+        run: |
+          cd "JET Promo"
+          clasp push --force
