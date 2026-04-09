@@ -105,7 +105,22 @@ function processarFSM_(user, body, evento) {
     case 'ACEITAR_SLOT':          resultado = aceitarSlot_(ss, user, body, horarioServidor);              break;
     case 'CHECKIN':               resultado = executarCheckin_(ss, jornada, user, body, horarioServidor); break;
     case 'PAUSE':                 resultado = mudarStatus_(ss, jornada, transicao.proximo_estado, horarioServidor); break;
-    case 'RESUME':                resultado = mudarStatus_(ss, jornada, transicao.proximo_estado, horarioServidor); break;
+    case 'RESUME': {
+      // Validação com IA para o retorno da pausa
+      const promptIA = "Analise esta foto de um fiscal da JET retornando de uma pausa. Verifique se é uma foto real e nítida de uma pessoa em um ambiente de trabalho (não em casa ou em um restaurante, por exemplo). O rosto deve estar visível. Responda APENAS 'APROVADO' ou, se houver problemas, explique CONCISAMENTE o motivo (Ex: 'A foto não parece ser em ambiente de trabalho', 'Rosto não visível').";
+      
+      // Assumimos que a variável 'foto' (body.foto_url) contém a string base64 da imagem.
+      const validacaoIA = callGeminiVisionAI_(foto, promptIA); 
+      
+      if (validacaoIA && validacaoIA.toUpperCase().indexOf('APROVADO') === -1) {
+        // Retorna um erro se a foto for reprovada, impedindo o retorno da pausa.
+        return { ok: false, erro: `⛔ Foto de retorno da pausa reprovada pela IA: ${validacaoIA}.` };
+      }
+      
+      // Se aprovado, continua com a mudança de status.
+      resultado = mudarStatus_(ss, jornada, transicao.proximo_estado, horarioServidor); 
+      break;
+    }
     case 'CHECKOUT':              resultado = executarCheckout_(ss, jornada, user, body, horarioServidor, false); break;
     case 'CHECKOUT_EXCEPCIONAL':  resultado = executarCheckout_(ss, jornada, user, body, horarioServidor, true);  break;
     default:                      resultado = mudarStatus_(ss, jornada, transicao.proximo_estado, horarioServidor);
