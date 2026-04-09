@@ -261,10 +261,34 @@ function checkoutTurnoCLT_(user,params){
     const motivoAuditoria = `Ocorrências: ${metasOcorrencias.hoje}/15, ${metasOcorrencias.semana}/100 | Organização: ${metasOrganizacao.hoje}/15 | Ocioso: ${tempoIneficiente}min`;
     registrarAuditoria_({tabela:'TURNOS_CLT', registro_id:turno_id, campo:'status', valor_anterior:'EM_ANDAMENTO', valor_novo:'ENCERRADO', alterado_por:user.user_id, origem:'app_clt', motivo_override: motivoAuditoria});
     
-    const promptCoach = `Fiscal ${user.nome_completo}. Ocorrências hoje: ${metasOcorrencias.hoje}/15. Ocorrências semana: ${metasOcorrencias.semana}/100. Organização hoje: ${metasOrganizacao.hoje}/15. Ocioso: ${tempoIneficiente}min. Se abaixo da meta, recomende FORTEMENTE refazer o módulo FIS-01 no Academy.`;
-    let msgCoach = ""; try { msgCoach = callGeminiAI_(promptCoach, "Supervisor JET."); } catch(e) { msgCoach = "Bom descanso! Meta de ocorrências semanais: "+metasOcorrencias.semana+"/100."; }
+    const promptCoach = `Análise de performance para o fiscal ${user.nome_completo}. Dados do turno: Ocorrências: ${metasOcorrencias.hoje}/15, Organização: ${metasOrganizacao.hoje}/15, Ociosidade: ${tempoIneficiente} min. Gere uma resposta JSON com duas chaves: "mensagem_motivacional" (seja humano e breve, parabenizando ou incentivando) e "nota_performance" (um número de 1 a 5, onde 5 é excelente, com base na produtividade).`;
+    
+    let msgCoach = "Bom descanso! Verifique suas metas no app.";
+    let notaPerformance = 0;
 
-    const textoTelegram = `🔴 <b>Checkout CLT (FISCAL)</b>\n\n👤 <b>${user.nome_completo}</b>\n📸 Ocorrências: <b>${metasOcorrencias.hoje}/15 (dia) | ${metasOcorrencias.semana}/100 (sem)</b>\n🧹 Organização: <b>${metasOrganizacao.hoje}/15 (dia)</b>\n⚠️ Ociosidade: <b>${tempoIneficiente} min</b>\n\n🤖 <b>Coach JET:</b>\n<i>"${msgCoach}"</i>`;
+    try {
+      const respostaIA = callGeminiAI_(promptCoach, "Você é um Supervisor de Operações da JET.");
+      const analiseIA = JSON.parse(respostaIA);
+      msgCoach = analiseIA.mensagem_motivacional || msgCoach;
+      notaPerformance = analiseIA.nota_performance || 0;
+
+      if (notaPerformance > 0) {
+        registrarAuditoria_({
+          tabela: 'PERFORMANCE_IA',
+          registro_id: turno_id,
+          campo: 'nota_checkout',
+          valor_anterior: '',
+          valor_novo: notaPerformance,
+          alterado_por: 'SISTEMA_IA',
+          origem: 'checkout_clt',
+          motivo_override: `Stats: Ocor=${metasOcorrencias.hoje}, Org=${metasOrganizacao.hoje}, Ocioso=${tempoIneficiente}`
+        });
+      }
+    } catch (e) {
+      logErro_('checkoutTurnoCLT_ IA Coach', e);
+    }
+    
+    const textoTelegram = `🔴 <b>Checkout CLT (FISCAL)</b>\n\n👤 <b>${user.nome_completo}</b>\n📸 Ocorrências: <b>${metasOcorrencias.hoje}/15 (dia) | ${metasOcorrencias.semana}/100 (sem)</b>\n🧹 Organização: <b>${metasOrganizacao.hoje}/15 (dia)</b>\n⚠️ Ociosidade: <b>${tempoIneficiente} min</b>\n⭐️ Nota do Turno (IA): <b>${notaPerformance > 0 ? notaPerformance + '/5' : 'N/A'}</b>\n\n🤖 <b>Coach JET:</b>\n<i>"${msgCoach}"</i>`;
     var integracoesCho=[{canal:'telegram', tipo: 'group_message', cidade:perfil.cidade_base||'', topic_key:'ENCERRAMENTOS', parse_mode:'HTML', text_html: textoTelegram}];
 
     if (tempoIneficiente > 20 || metasOcorrencias.hoje < 10) integracoesCho.push({canal: 'telegram', tipo: 'group_message', cidade: perfil.cidade_base||'', topic_key: 'GESTAO_FISCAL', parse_mode: 'HTML', text_html: `🚨 <b>ALERTA PRODUTIVIDADE</b>\n\n👤 Fiscal: <b>${user.nome_completo}</b>\n⚠️ Registros de ocorrência hoje: <b>${metasOcorrencias.hoje}</b> (mín 15)\n⚠️ Ociosidade: <b>${tempoIneficiente} min</b>.`});
