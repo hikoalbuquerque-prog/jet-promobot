@@ -111,7 +111,8 @@ function getMeusTurnosCLT_(user){
   var ss=SpreadsheetApp.openById(getConfig_('spreadsheet_id_master')), ws=ss.getSheetByName('TURNOS_CLT'); if(!ws) return{ok:true,data:[]};
   var rows=ws.getDataRange().getValues(), h=rows[0].map(v => String(v).toLowerCase().trim()), hoje=new Date(); hoje.setHours(0,0,0,0);
   var limite=new Date(hoje); limite.setDate(limite.getDate()+14), result=[];
-  const metas = _getProgressoMetasFiscal_(ss, user.user_id);
+  const metasOcorrencias = _getProgressoMetasFiscal_(ss, user.user_id);
+  const metasOrganizacao = _getProgressoMetasOrganizacao_(ss, user.user_id);
   
   const iUid = h.indexOf('user_id'), iStt = h.indexOf('status'), iDt = h.indexOf('data');
   const iTid = h.indexOf('turno_id'), iIni = h.indexOf('inicio'), iFim = h.indexOf('fim');
@@ -142,7 +143,7 @@ function getMeusTurnosCLT_(user){
     });
   }
   result.sort((a,b) => a.data>b.data?1:-1);
-  return{ok:true, data:result, metas_atuais: metas};
+  return { ok:true, data:result, metas: { ocorrencias: metasOcorrencias, organizacao: metasOrganizacao } };
 }
 
 function checkinTurnoCLT_(user, params) {
@@ -250,15 +251,23 @@ function checkoutTurnoCLT_(user,params){
     if(String(rows[r][h.indexOf('user_id')]).trim()!==user.user_id) throw new Error('Turno nao pertence a este usuario.');
     var agora=new Date().toISOString(), checkinHora=rows[r][h.indexOf('checkin_hora')], duracaoReal=checkinHora?Math.round((new Date(agora)-new Date(checkinHora))/36000)/100:0;
     const cache = CacheService.getScriptCache(), ociosidadeKey = `ociosidade_fiscal_${user.user_id}`, logOciosidade = JSON.parse(cache.get(ociosidadeKey) || '{"promotor_id":null, "minutos":0}'), tempoIneficiente = logOciosidade.minutos || 0;
-    const metas = _getProgressoMetasFiscal_(ss, user.user_id);
+    const metasOcorrencias = _getProgressoMetasFiscal_(ss, user.user_id);
+    const metasOrganizacao = _getProgressoMetasOrganizacao_(ss, user.user_id);
     ws.getRange(r+1,h.indexOf('status')+1).setValue('ENCERRADO'); ws.getRange(r+1,h.indexOf('checkout_hora')+1).setValue(agora);
     if(h.indexOf('duracao_real_horas')>-1) ws.getRange(r+1,h.indexOf('duracao_real_horas')+1).setValue(duracaoReal);
     var dataStr=String(rows[r][h.indexOf('data')]).substring(0,10), perfilMap=_getPerfilCLTMap_(ss), perfil=perfilMap[user.user_id];
     if(perfil) _atualizarRealizadasBancoHoras_(ss,user.user_id,dataStr,duracaoReal);
-    registrarAuditoria_({tabela:'TURNOS_CLT', registro_id:turno_id, campo:'status', valor_anterior:'EM_ANDAMENTO', valor_novo:'ENCERRADO', alterado_por:user.user_id, origem:'app_clt', motivo_override: `Metas: ${metas.hoje}/15, ${metas.semana}/100 | Ocioso: ${tempoIneficiente}min`});
-    let msgCoach = ""; try { msgCoach = callGeminiAI_(`Fiscal ${user.nome_completo}. Meta hoje: ${metas.hoje}/15. Meta semana: ${metas.semana}/100. Ocioso: ${tempoIneficiente}min. Se abaixo da meta, recomende FORTEMENTE refazer o módulo FIS-01 no Academy.`, "Supervisor JET."); } catch(e) { msgCoach = "Bom descanso! Meta semanal: "+metas.semana+"/100."; }
-    var integracoesCho=[{canal:'telegram', tipo:'group_message', cidade:perfil.cidade_base||'', topic_key:'ENCERRAMENTOS', parse_mode:'HTML', text_html:`🔴 <b>Checkout CLT (FISCAL)</b>\n\n👤 <b>${user.nome_completo}</b>\n📸 Metas: <b>${metas.hoje}/15 (dia) | ${metas.semana}/100 (sem)</b>\n⚠️ Ociosidade: <b>${tempoIneficiente} min</b>\n\n🤖 <b>Coach JET:</b>\n<i>"${msgCoach}"</i>`}];
-    if (tempoIneficiente > 20 || metas.hoje < 10) integracoesCho.push({canal: 'telegram', tipo: 'group_message', cidade: perfil.cidade_base||'', topic_key: 'GESTAO_FISCAL', parse_mode: 'HTML', text_html: `🚨 <b>ALERTA PRODUTIVIDADE</b>\n\n👤 Fiscal: <b>${user.nome_completo}</b>\n⚠️ Registros hoje: <b>${metas.hoje}</b> (mín 15)\n⚠️ Ociosidade: <b>${tempoIneficiente} min</b>.`});
+    
+    const motivoAuditoria = `Ocorrências: ${metasOcorrencias.hoje}/15, ${metasOcorrencias.semana}/100 | Organização: ${metasOrganizacao.hoje}/15 | Ocioso: ${tempoIneficiente}min`;
+    registrarAuditoria_({tabela:'TURNOS_CLT', registro_id:turno_id, campo:'status', valor_anterior:'EM_ANDAMENTO', valor_novo:'ENCERRADO', alterado_por:user.user_id, origem:'app_clt', motivo_override: motivoAuditoria});
+    
+    const promptCoach = `Fiscal ${user.nome_completo}. Ocorrências hoje: ${metasOcorrencias.hoje}/15. Ocorrências semana: ${metasOcorrencias.semana}/100. Organização hoje: ${metasOrganizacao.hoje}/15. Ocioso: ${tempoIneficiente}min. Se abaixo da meta, recomende FORTEMENTE refazer o módulo FIS-01 no Academy.`;
+    let msgCoach = ""; try { msgCoach = callGeminiAI_(promptCoach, "Supervisor JET."); } catch(e) { msgCoach = "Bom descanso! Meta de ocorrências semanais: "+metasOcorrencias.semana+"/100."; }
+
+    const textoTelegram = `🔴 <b>Checkout CLT (FISCAL)</b>\n\n👤 <b>${user.nome_completo}</b>\n📸 Ocorrências: <b>${metasOcorrencias.hoje}/15 (dia) | ${metasOcorrencias.semana}/100 (sem)</b>\n🧹 Organização: <b>${metasOrganizacao.hoje}/15 (dia)</b>\n⚠️ Ociosidade: <b>${tempoIneficiente} min</b>\n\n🤖 <b>Coach JET:</b>\n<i>"${msgCoach}"</i>`;
+    var integracoesCho=[{canal:'telegram', tipo: 'group_message', cidade:perfil.cidade_base||'', topic_key:'ENCERRAMENTOS', parse_mode:'HTML', text_html: textoTelegram}];
+
+    if (tempoIneficiente > 20 || metasOcorrencias.hoje < 10) integracoesCho.push({canal: 'telegram', tipo: 'group_message', cidade: perfil.cidade_base||'', topic_key: 'GESTAO_FISCAL', parse_mode: 'HTML', text_html: `🚨 <b>ALERTA PRODUTIVIDADE</b>\n\n👤 Fiscal: <b>${user.nome_completo}</b>\n⚠️ Registros de ocorrência hoje: <b>${metasOcorrencias.hoje}</b> (mín 15)\n⚠️ Ociosidade: <b>${tempoIneficiente} min</b>.`});
     cache.remove(ociosidadeKey); return{ok:true, turno_id:turno_id, checkout_hora:agora, mensagem:'Checkout registrado.', msg_coach: msgCoach, integracoes:integracoesCho};  }
   throw new Error('Turno nao encontrado.');
 }
@@ -321,6 +330,16 @@ function _getProgressoMetasFiscal_(ss, userId) {
   const hoje = new Date(); hoje.setHours(0,0,0,0);
   const pSemana = new Date(hoje); pSemana.setDate(hoje.getDate() - hoje.getDay() + (hoje.getDay() === 0 ? -6 : 1));
   let contH = 0, contS = 0; const tM = ['DUPLA_NO_PATINETE', 'MENOR_DE_IDADE'];
+  for (let r = 1; r < data.length; r++) { if (String(data[r][iUsr]).trim() !== userId || !tM.includes(String(data[r][iTipo]))) continue; const cri = new Date(data[r][iCri]); if (cri >= hoje) contH++; if (cri >= pSemana) contS++; }
+  return { hoje: contH, semana: contS };
+}
+
+function _getProgressoMetasOrganizacao_(ss, userId) {
+  const ws = ss.getSheetByName('SOLICITACOES_OPERACIONAIS'); if (!ws) return { hoje: 0, semana: 0 };
+  const data = ws.getDataRange().getValues(), h = data[0].map(v => String(v).toLowerCase().trim()), iUsr = h.indexOf('user_id'), iTipo = h.indexOf('tipo'), iCri = h.indexOf('criado_em');
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const pSemana = new Date(hoje); pSemana.setDate(hoje.getDate() - hoje.getDay() + (hoje.getDay() === 0 ? -6 : 1));
+  let contH = 0, contS = 0; const tM = ['ORGANIZACAO_PONTO'];
   for (let r = 1; r < data.length; r++) { if (String(data[r][iUsr]).trim() !== userId || !tM.includes(String(data[r][iTipo]))) continue; const cri = new Date(data[r][iCri]); if (cri >= hoje) contH++; if (cri >= pSemana) contS++; }
   return { hoje: contH, semana: contS };
 }
