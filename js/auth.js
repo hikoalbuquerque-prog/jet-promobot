@@ -107,7 +107,7 @@ const auth = {
           </button>
         </div>
         ${erro ? `<div style="color:#e74c3c;font-size:13px;text-align:center;padding:10px 16px;background:rgba(231,76,60,.15);border-radius:8px;border:1px solid rgba(231,76,60,.3);width:100%;max-width:340px;box-sizing:border-box">${erro}</div>` : ""}
-        <div style="font-size:10px;color:#4a5568;text-align:center;margin-top:10px;letter-spacing:1px">VERSÃO v1.3.9-GH</div>
+        <div style="font-size:10px;color:#4a5568;text-align:center;margin-top:10px;letter-spacing:1px">VERSÃO v1.3.14-GH</div>
         <div style="font-size:12px;color:#6c7a8d;text-align:center;max-width:300px">
           Use o CPF e sua data de nascimento para entrar
         </div>
@@ -235,7 +235,7 @@ const homeScreen = {
   _indicar() {
     const p = state.get('promotor');
     if (!p) return;
-    const link = 'https://promo-telegram-gateway-v3-476120210909.southamerica-east1.run.app/indicacao?ref=' + p.user_id;
+    const link = 'https://promo-telegram-gateway-476120210909.southamerica-east1.run.app/indicacao?ref=' + p.user_id;
     if (navigator.share) {
       navigator.share({ title: 'Seja um Promotor JET', text: 'Olha essa vaga de promotor!', url: link });
     } else {
