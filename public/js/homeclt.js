@@ -83,7 +83,8 @@ const homeScreenCLT = {
         const cor   = cores[t.status] || '#6c7a8d';
         
         let acao = "";
-        if (t.status === 'CONFIRMADO' || ativo) acao = "router.go('turno-ativo')";
+        if (t.status === 'EM_ANDAMENTO' || t.status === 'CONFIRMADO' || ativo) acao = "router.go('turno-ativo')";
+        else if (t.status === 'PAUSADO') acao = "router.go('turno-ativo')";
         else if (t.status === 'PLANEJADO' || t.status === 'ESCALADO') acao = `homeScreenCLT._confirmarPresenca('${t.turno_id}')`;
 
         return `
@@ -96,6 +97,7 @@ const homeScreenCLT = {
             <div style="font-size:12px;color:#a0aec0">${t.zona_nome || ''}</div>
             ${eHoje && (t.status === 'ESCALADO' || t.status === 'PLANEJADO') ? '<div style="width:100%;margin-top:12px;padding:12px;background:#4f8ef7;border-radius:10px;color:#fff;font-size:14px;font-weight:700;text-align:center">Confirmar presença</div>' : ''}
             ${eHoje && t.status === 'CONFIRMADO' ? '<div style="width:100%;margin-top:12px;padding:12px;background:#2ecc71;border-radius:10px;color:#fff;font-size:14px;font-weight:700;text-align:center">▶️ Iniciar turno</div>' : ''}
+            ${eHoje && t.status === 'PAUSADO' ? '<div style="width:100%;margin-top:12px;padding:12px;background:rgba(241,196,15,0.2);border:1px solid #f1c40f;border-radius:10px;color:#f1c40f;font-size:14px;font-weight:700;text-align:center">▶️ Retomar turno pausado</div>' : ''}
             ${ativo ? '<div style="width:100%;margin-top:12px;padding:12px;background:rgba(241,196,15,0.2);border:1px solid #f1c40f;border-radius:10px;color:#f1c40f;font-size:14px;font-weight:700;text-align:center">Abrir turno ativo</div>' : ''}
           </div>`;
       }).join('');
