@@ -24,7 +24,7 @@ const turnoCLT = {
       
       const ativo = turnos.find(t =>
         String(t.data).substring(0,10) === hoje &&
-        ['PLANEJADO','ESCALADO','CONFIRMADO','EM_ANDAMENTO'].includes(t.status)
+        ['PLANEJADO','ESCALADO','CONFIRMADO','EM_ANDAMENTO','PAUSADO'].includes(t.status)
       );
 
       if (!ativo) {
@@ -36,12 +36,48 @@ const turnoCLT = {
 
       if (ativo.status === 'EM_ANDAMENTO') {
         this._renderAtivo(ativo);
+      } else if (ativo.status === 'PAUSADO') {
+        this._renderPausado(ativo);
       } else {
         this._renderCheckin(ativo);
       }
     } catch(e) {
       document.getElementById('app').innerHTML = _renderErro(e.message);
     }
+  },
+
+  _renderPausado(turno) {
+    const isFiscal = ((state.get('promotor') || {}).cargo_principal || '').toUpperCase() === 'FISCAL';
+    document.getElementById('app').innerHTML = `
+      <div style="min-height:100dvh;background:#1a1a2e;color:#eaf0fb;font-family:-apple-system,sans-serif;padding-bottom:80px">
+        ${_navHeader(isFiscal ? 'Turno Fiscal' : 'Turno em Andamento')}
+        <div style="padding:16px;display:flex;flex-direction:column;gap:14px">
+          <div style="background:#1e2a45;border:1px solid #f1c40f44;border-left:4px solid #f1c40f;border-radius:14px;padding:18px;text-align:center">
+            <div style="font-size:11px;color:#f1c40f;font-weight:700;letter-spacing:1px;margin-bottom:8px">TURNO PAUSADO</div>
+            <div style="font-size:15px;color:#a0aec0;margin-bottom:4px">${turno.zona_nome || ''}</div>
+            <div style="font-size:13px;color:#718096">Horario: ${_fh(turno.inicio)} - ${_fh(turno.fim)}</div>
+          </div>
+          <button onclick="turnoCLT._retomar('${turno.turno_id}')" id="btn-retomar-clt"
+            style="background:#2ecc71;color:#fff;border:none;border-radius:12px;font-size:17px;font-weight:700;padding:20px;width:100%;cursor:pointer">
+            ▶️ RETOMAR TURNO
+          </button>
+          <button onclick="turnoCLT._fazerCheckout('${turno.turno_id}')"
+            style="background:#e74c3c;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;padding:14px;width:100%;cursor:pointer">
+            🏁 Encerrar Turno
+          </button>
+        </div>
+        ${_navBottom('turno-ativo')}
+      </div>`;
+  },
+
+  async _retomar(turnoId) {
+    const btn = document.getElementById('btn-retomar-clt');
+    if (btn) { btn.disabled = true; btn.textContent = 'Retomando...'; }
+    try {
+      const res = await api.post({ evento: 'RETOMAR_TURNO_CLT', turno_id: turnoId });
+      if (res.ok) { ui.toast('Turno retomado!', 'success'); this.render(); }
+      else { ui.toast(res.erro || 'Erro ao retomar.', 'error'); if (btn) { btn.disabled = false; btn.textContent = '▶️ RETOMAR TURNO'; } }
+    } catch(e) { ui.toast('Sem conexao.', 'error'); if (btn) { btn.disabled = false; btn.textContent = '▶️ RETOMAR TURNO'; } }
   },
 
   _renderCheckin(turno) {
