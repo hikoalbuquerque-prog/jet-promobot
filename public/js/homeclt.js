@@ -45,7 +45,7 @@ const homeScreenCLT = {
     `;
 
     await this._carregarTurnos();
-    this._carregarSaldoBanco();
+    this._carregarSaldoBanco().catch(() => {});
   },
 
   async _carregarSaldoBanco() {
@@ -53,12 +53,12 @@ const homeScreenCLT = {
       const res = await api.get('GET_MEU_BANCO_HORAS');
       const wrap = document.getElementById('home-saldo-banco');
       const val = document.getElementById('val-saldo-banco');
-      if (res.ok && wrap && val) {
+      if (res && res.ok && wrap && val) {
         val.textContent = res.saldo_formatado || '00:00';
         val.style.color = (res.saldo_minutos || 0) >= 0 ? '#2ecc71' : '#e74c3c';
         wrap.style.display = 'block';
       }
-    } catch(e) {}
+    } catch(e) { /* banco de horas indisponivel — silencioso */ }
   },
 
   async _carregarTurnos() {
