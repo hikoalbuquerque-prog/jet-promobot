@@ -69,15 +69,15 @@ jobs:
           NODE_PATH=$(npm root -g) node reformat_clasp.js
         shell: bash
 
-      - name: Push and Verify Deployment
+      - name: List files and attempt push
         run: |
-          cd "JET Promo"
-          echo "--- 1. Pushing files to Google Apps Script... ---"
-          clasp push --force
+          echo "--- Listing all files checked out from repository... ---"
+          ls -R
           
-          echo "--- 2. Pulling files back from project for verification... ---"
-          clasp pull
+          cd "JET Promo"
+          
+          echo "--- Listing files inside 'JET Promo' before push... ---"
+          ls -lA
 
-          echo "--- 3. Verifying contents... ---"
-          echo "Files in project after pull:"
-          ls -R .
+          echo "--- Attempting push... ---"
+          clasp push --force
