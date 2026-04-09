@@ -254,7 +254,8 @@ function executarCheckin_(ss, jornada, user, body, horarioServidor) {
     }
 
     const score = calcularLocationTrustScore_({ lat, lng, isMock: body.is_mock === true, accuracy: body.accuracy || 999 });
-    
+    const resIntegracoes = []; // Inicializa o array de integrações
+
     // BLOQUEIO GPS FALSO
     if (body.is_mock === true || score < 20) {
       return { ok: false, erro: '⛔ GPS FALSO DETECTADO. O uso de simuladores de localização é proibido e pode gerar suspensão.' };
@@ -297,7 +298,6 @@ function executarCheckin_(ss, jornada, user, body, horarioServidor) {
     } catch(_) {}
 
     // Notificação para Gestão se fora do raio
-    const resIntegracoes = [];
     if (foraRaio && forcar) {
       resIntegracoes.push({
         canal: 'telegram', tipo: 'group_message',
@@ -305,6 +305,17 @@ function executarCheckin_(ss, jornada, user, body, horarioServidor) {
         topic_key: 'ALERTAS',
         parse_mode: 'HTML',
         text_html: `⚠️ <b>CHECK-IN FORA DO RAIO</b>\n\n👤 <b>${user.nome_completo || user.nome}</b>\n📍 ${slot.local_nome || slot.slot_id}\n📏 Distância: <b>${Math.round(distM)}m</b> (máx ${raio}m)\n⏰ Horário: ${Utilities.formatDate(new Date(horarioServidor), "GMT-3", "HH:mm")}\n\n<i>O promotor confirmou estar no local apesar da divergência de GPS.</i>`
+      });
+    }
+
+    // Notificação para Gestão se check-in adiantado
+    if (atrasoMin < -5) { // Se for mais de 5 minutos adiantado
+      resIntegracoes.push({
+        canal: 'telegram', tipo: 'group_message',
+        cidade: slot.cidade || '',
+        topic_key: 'ALERTAS',
+        parse_mode: 'HTML',
+        text_html: `🔔 <b>CHECK-IN ADIANTADO</b>\n\n👤 <b>${user.nome_completo || user.nome}</b>\n📍 ${slot.local_nome || slot.slot_id}\n⏰ Realizado com <b>${Math.abs(Math.round(atrasoMin))} min</b> de antecedência.`
       });
     }
 
