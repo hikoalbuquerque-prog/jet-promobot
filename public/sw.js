@@ -1,4 +1,4 @@
-const SW_VERSION = 'jet-ops-gh-v1.3.13-GH';
+const SW_VERSION = 'jet-ops-gh-v1.3.14-GH';
 const BASE = ''; // Servido da raiz do public no Cloud Run
 
 const ASSETS = [
@@ -47,14 +47,19 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
-  
-  // Estratégia: Cache First para Assets, Network First para API (futuro)
+
+  // Network First para navegação (index.html sempre fresco)
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).catch(() => caches.match('index.html'))
+    );
+    return;
+  }
+
+  // Cache First para assets estáticos
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then(cached => {
-      return cached || fetch(e.request).catch(() => {
-        // Fallback offline para navegação
-        if (e.request.mode === 'navigate') return caches.match('index.html');
-      });
+      return cached || fetch(e.request);
     })
   );
 });
