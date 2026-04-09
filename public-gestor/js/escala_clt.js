@@ -15,7 +15,7 @@ const escalaCLTScreen = (() => {
         </div>
 
         <div style="background:#0d1526;border:1px solid rgba(99,179,237,.1);border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:12px">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:10px">
             <div><label class="modal-label">DATA</label>
               <input id="clt-data" type="date" value="${hoje}" class="modal-textarea" style="height:36px;resize:none"/></div>
             <div><label class="modal-label">INÍCIO</label>
@@ -23,11 +23,12 @@ const escalaCLTScreen = (() => {
             <div><label class="modal-label">FIM</label>
               <input id="clt-fim" type="time" value="16:00" class="modal-textarea" style="height:36px;resize:none"/></div>
             <div><label class="modal-label">TURNO</label>
-              <select onchange="(function(v){var m={T1:['00:00','08:00'],T2:['08:00','16:00'],T3:['16:00','00:00']}[v];if(m){document.getElementById('clt-inicio').value=m[0];document.getElementById('clt-fim').value=m[1];}})(this.value)" class="modal-textarea" style="height:36px;resize:none">
+              <select id="clt-turno-preset" onchange="(function(v){var m={T1:['00:00','08:00'],T2:['08:00','16:00'],T3:['16:00','00:00'],FISCAL:['15:00','21:00']}[v];if(m){document.getElementById('clt-inicio').value=m[0];document.getElementById('clt-fim').value=m[1];}})(this.value)" class="modal-textarea" style="height:36px;resize:none">
                 <option value="">Livre</option>
                 <option value="T1">T1 — 00h às 08h</option>
                 <option value="T2" selected>T2 — 08h às 16h</option>
                 <option value="T3">T3 — 16h às 00h</option>
+                <option value="FISCAL">Fiscal — 15h às 21h</option>
               </select></div>
             <div><label class="modal-label">CARGO</label>
               <select id="clt-cargo" class="modal-textarea" style="height:36px;resize:none">
@@ -35,8 +36,27 @@ const escalaCLTScreen = (() => {
                 ${CARGOS_CLT.map(c=>`<option value="${c}">${c}</option>`).join('')}
               </select></div>
           </div>
+
+          <div id="painel-fiscal" style="display:none;background:rgba(72,187,120,.06);border:1px solid rgba(72,187,120,.2);border-radius:6px;padding:12px">
+            <div style="font-size:11px;color:#68d391;font-weight:700;letter-spacing:1px;margin-bottom:8px">&#9889; MODO FISCAL — Geração Automática Semanal</div>
+            <div style="font-size:12px;color:#a0aec0;margin-bottom:10px">Jornada: <strong style="color:#e2e8f0">Ter&#231;a a Domingo &nbsp;·&nbsp; 15:00 – 21:00 &nbsp;·&nbsp; 6h/dia</strong> &nbsp;&nbsp; Folga fixa: <strong style="color:#fc8181">Segunda-feira</strong></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+              <div><label class="modal-label">SEMANA DE (início)</label>
+                <input id="gf-data-inicio" type="date" value="${hoje}" class="modal-textarea" style="height:36px;resize:none"/></div>
+              <div id="gf-preview-dias" style="font-size:11px;color:#a0aec0;padding-top:18px"></div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
+              <input type="checkbox" id="gf-sobrescrever" style="width:14px;height:14px;cursor:pointer"/>
+              <label for="gf-sobrescrever" style="font-size:12px;color:#a0aec0;cursor:pointer">Sobrescrever turnos j&#225; existentes no per&#237;odo</label>
+            </div>
+            <div id="gf-resultado" style="display:none;margin-top:8px;font-size:12px"></div>
+            <button id="btn-gerar-fiscal" style="width:100%;margin-top:10px;background:rgba(72,187,120,.2);border:1px solid rgba(72,187,120,.4);color:#68d391;padding:10px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.5px">
+              &#9889; GERAR SEMANA FISCAL
+            </button>
+          </div>
+
           <button id="btn-buscar" style="background:rgba(99,179,237,.15);border:1px solid rgba(99,179,237,.3);color:#63b3ed;padding:9px;border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:1px">
-            🔍 BUSCAR DISPONÍVEIS
+            &#128269; BUSCAR DISPONÍVEIS
           </button>
         </div>
 
@@ -92,6 +112,9 @@ const escalaCLTScreen = (() => {
     document.getElementById('clt-data').addEventListener('change', () => {
       if (document.querySelector('.clt-tab[data-tab="turnos"]')?.classList.contains('active')) _carregarTurnos();
     });
+    document.getElementById('clt-cargo').addEventListener('change', _onCargoChange);
+    document.getElementById('gf-data-inicio').addEventListener('change', _atualizarPreviewFiscal);
+    document.getElementById('btn-gerar-fiscal').addEventListener('click', _gerarSemanaFiscal);
     ['modal-turno','modal-banco'].forEach(id => {
       document.getElementById(id)?.addEventListener('click', e => { if (e.target.id === id) e.target.classList.add('hidden'); });
     });
@@ -107,6 +130,68 @@ const escalaCLTScreen = (() => {
         if (tab.dataset.tab==='turnos') _carregarTurnos();
       });
     });
+  }
+
+  function _onCargoChange() {
+    var cargo = document.getElementById('clt-cargo').value;
+    var painel = document.getElementById('painel-fiscal');
+    var preset = document.getElementById('clt-turno-preset');
+    if (cargo === 'FISCAL') {
+      painel.style.display = 'block';
+      document.getElementById('clt-inicio').value = '15:00';
+      document.getElementById('clt-fim').value = '21:00';
+      if (preset) preset.value = 'FISCAL';
+      _atualizarPreviewFiscal();
+    } else {
+      painel.style.display = 'none';
+    }
+  }
+
+  function _atualizarPreviewFiscal() {
+    var inicio = document.getElementById('gf-data-inicio').value;
+    var el = document.getElementById('gf-preview-dias');
+    if (!inicio || !el) return;
+    var nomes = ['Dom','Seg','Ter','Qua','Qui','Sex','Sab'];
+    var dias = [];
+    var folgas = [];
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(inicio + 'T12:00:00');
+      d.setDate(d.getDate() + i);
+      var ds = d.getDay();
+      var label = nomes[ds] + ' ' + String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0');
+      if (ds === 1) folgas.push(label);
+      else dias.push(label);
+    }
+    el.innerHTML = '<strong style="color:#68d391">Turnos:</strong> ' + dias.join(', ') +
+      '<br/><strong style="color:#fc8181">Folga:</strong> ' + (folgas[0] || '—');
+  }
+
+  async function _gerarSemanaFiscal() {
+    var btn = document.getElementById('btn-gerar-fiscal');
+    var resEl = document.getElementById('gf-resultado');
+    var inicio = document.getElementById('gf-data-inicio').value;
+    if (!inicio) { resEl.innerHTML = '<span style="color:#fc8181">Selecione a data de in&#237;cio da semana.</span>'; resEl.style.display = 'block'; return; }
+    var fim = new Date(inicio + 'T12:00:00');
+    fim.setDate(fim.getDate() + 6);
+    var fimISO = fim.toISOString().substring(0,10);
+    var sobres = document.getElementById('gf-sobrescrever').checked;
+    btn.disabled = true;
+    btn.textContent = 'Gerando...';
+    resEl.style.display = 'none';
+    try {
+      var payload = { data_inicio: inicio, data_fim: fimISO, sobrescrever: sobres ? 'true' : 'false' };
+      var res = await api.gerarEscalaFiscal(payload);
+      resEl.innerHTML = '<span style="color:#68d391">&#10003; ' + (res.mensagem || 'Escala gerada!') + '</span>' +
+        ' &nbsp; <span style="color:#a0aec0">(' + (res.criados||0) + ' turnos criados, ' + (res.ignorados||0) + ' ignorados)</span>';
+      resEl.style.display = 'block';
+      _carregarTurnos();
+      document.querySelector('.clt-tab[data-tab="turnos"]')?.click();
+    } catch(e) {
+      resEl.innerHTML = '<span style="color:#fc8181">Erro: ' + (e.message||'Sem conex&#227;o.') + '</span>';
+      resEl.style.display = 'block';
+    }
+    btn.disabled = false;
+    btn.textContent = '&#9889; GERAR SEMANA FISCAL';
   }
 
   async function _buscar() {
