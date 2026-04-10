@@ -118,22 +118,22 @@ const equipesScreen = (() => {
     const m = document.createElement('div');
     m.id = 'modal-equipe';
     m.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-    m.innerHTML = \`
+    m.innerHTML = `
       <div class="modal-box" style="width:100%;max-width:550px;max-height:95vh;overflow-y:auto">
         <div class="modal-title" style="display:flex;justify-content:space-between">
-          <span>\${equipeId ? 'Editar Equipe' : 'Nova Equipe'}</span>
-          <span style="font-size:12px;color:#718096">ID: \${equipeId || 'Novo'}</span>
+          <span>${equipeId ? 'Editar Equipe' : 'Nova Equipe'}</span>
+          <span style="font-size:12px;color:#718096">ID: ${equipeId || 'Novo'}</span>
         </div>
         <div class="modal-body" style="margin-top:20px">
           
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px">
             <div>
               <label class="modal-label">Nome da Equipe</label>
-              <input type="text" id="eq-nome" class="modal-textarea" value="\${eq.nome_equipe}" />
+              <input type="text" id="eq-nome" class="modal-textarea" value="${eq.nome_equipe}" />
             </div>
             <div>
               <label class="modal-label">Cidade</label>
-              <input type="text" id="eq-cid" class="modal-textarea" value="\${eq.cidade}" />
+              <input type="text" id="eq-cid" class="modal-textarea" value="${eq.cidade}" />
             </div>
           </div>
 
@@ -141,15 +141,15 @@ const equipesScreen = (() => {
             <div>
               <label class="modal-label">Operação</label>
               <select id="eq-op" class="modal-textarea">
-                <option value="PROMO" \${eq.operacao==='PROMO'?'selected':''}>PROMO</option>
-                <option value="OPERACAO" \${eq.operacao==='OPERACAO'?'selected':''}>OPERAÇÃO</option>
+                <option value="PROMO" ${eq.operacao==='PROMO'?'selected':''}>PROMO</option>
+                <option value="OPERACAO" ${eq.operacao==='OPERACAO'?'selected':''}>OPERAÇÃO</option>
               </select>
             </div>
             <div>
               <label class="modal-label">Ativo</label>
               <select id="eq-ativo" class="modal-textarea">
-                <option value="TRUE" \${String(eq.ativo).toUpperCase()==='TRUE'?'selected':''}>SIM</option>
-                <option value="FALSE" \${String(eq.ativo).toUpperCase()==='FALSE'?'selected':''}>NÃO</option>
+                <option value="TRUE" ${String(eq.ativo).toUpperCase()==='TRUE'?'selected':''}>SIM</option>
+                <option value="FALSE" ${String(eq.ativo).toUpperCase()==='FALSE'?'selected':''}>NÃO</option>
               </select>
             </div>
           </div>
@@ -157,16 +157,16 @@ const equipesScreen = (() => {
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:10px">
              <div>
               <label class="modal-label">Gestor ID (Dono)</label>
-              <input type="text" id="eq-gestor" class="modal-textarea" value="\${eq.gestor_id}" list="list-promotores-all" />
+              <input type="text" id="eq-gestor" class="modal-textarea" value="${eq.gestor_id}" list="list-promotores-all" />
             </div>
             <div>
               <label class="modal-label">Regional ID (Opcional)</label>
-              <input type="text" id="eq-regional" class="modal-textarea" value="\${eq.regional_id}" list="list-promotores-all" />
+              <input type="text" id="eq-regional" class="modal-textarea" value="${eq.regional_id}" list="list-promotores-all" />
             </div>
           </div>
 
           <datalist id="list-promotores-all">
-            \${_promotoresLista.map(p => \`<option value="\${p.user_id}">\${p.nome} (\${p.cidade})</option>\`).join('')}
+            ${_promotoresLista.map(p => `<option value="${p.user_id}">${p.nome} (${p.cidade})</option>`).join('')}
           </datalist>
 
           <hr style="border:0;border-top:1px solid rgba(255,255,255,0.1);margin:20px 0" />
@@ -183,10 +183,10 @@ const equipesScreen = (() => {
         </div>
         <div class="modal-actions" style="margin-top:24px">
           <button class="modal-cancel" onclick="document.getElementById('modal-equipe').remove()" style="flex:1">CANCELAR</button>
-          <button class="btn-success" onclick="equipesScreen.salvar('\${equipeId || ''}')" style="flex:2">SALVAR EQUIPE</button>
+          <button class="btn-success" onclick="equipesScreen.salvar('${equipeId || ''}')" style="flex:2">SALVAR EQUIPE</button>
         </div>
       </div>
-    \`;
+    `;
     document.body.appendChild(m);
     
     // Popular membros iniciais
@@ -205,14 +205,14 @@ const equipesScreen = (() => {
     const row = document.createElement('div');
     row.className = 'membro-row';
     row.style.cssText = 'display:flex;gap:8px;align-items:center';
-    row.innerHTML = \`
-      <input type="text" class="modal-textarea member-uid" placeholder="User ID" value="\${userId}" list="list-promotores-all" style="flex:2" />
+    row.innerHTML = `
+      <input type="text" class="modal-textarea member-uid" placeholder="User ID" value="${userId}" list="list-promotores-all" style="flex:2" />
       <select class="modal-textarea member-papel" style="flex:1.2">
-        <option value="PROMOTOR" \${papel==='PROMOTOR'?'selected':''}>PROMOTOR</option>
-        <option value="LIDER" \${papel==='LIDER'?'selected':''}>LÍDER</option>
+        <option value="PROMOTOR" ${papel==='PROMOTOR'?'selected':''}>PROMOTOR</option>
+        <option value="LIDER" ${papel==='LIDER'?'selected':''}>LÍDER</option>
       </select>
       <button onclick="this.parentElement.remove()" style="background:none;border:none;color:#fc8181;cursor:pointer;font-size:18px;padding:0 5px">×</button>
-    \`;
+    `;
     container.appendChild(row);
   }
 
