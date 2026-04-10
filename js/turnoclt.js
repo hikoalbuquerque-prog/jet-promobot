@@ -666,23 +666,112 @@ const turnoCLT = {
     } catch(e) {}
   },
 
-  async _fazerCheckout(turnoId) {
+  _fazerCheckout(turnoId) {
     if (!confirm('Encerrar turno agora?')) return;
-    const btn = document.getElementById('btn-checkout-clt');
-    if (btn) { btn.disabled = true; btn.textContent = 'Encerrando...'; }
+    // Abre modal de selfie de encerramento antes de enviar
+    turnoCLT._turnoIdCheckout = turnoId;
+    turnoCLT._fotoCheckout = null;
+    const modal = document.createElement('div');
+    modal.id = 'modal-checkout-foto';
+    modal.style.cssText = 'position:fixed;inset:0;background:#0a0f1e;z-index:9999;display:flex;flex-direction:column;padding:20px;';
+    modal.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+        '<h2 style="font-size:17px;font-weight:700;color:#e74c3c;margin:0">🏁 Encerramento de Turno</h2>' +
+      '</div>' +
+      '<div style="font-size:13px;color:#a0aec0;margin-bottom:14px;text-align:center">Tire uma selfie para confirmar o encerramento do turno. A IA irá validar sua presença.</div>' +
+      '<div style="background:#000;border-radius:14px;overflow:hidden;margin-bottom:16px;flex:1;position:relative;max-height:55vh">' +
+        '<video id="video-checkout" autoplay playsinline style="width:100%;height:100%;object-fit:cover"></video>' +
+        '<canvas id="canvas-checkout" style="display:none"></canvas>' +
+        '<div id="preview-checkout" style="display:none;position:absolute;inset:0;background-size:cover;background-position:center"></div>' +
+        '<button onclick="turnoCLT._tirarFotoCheckout()" style="position:absolute;bottom:15px;left:50%;transform:translateX(-50%);width:54px;height:54px;border-radius:50%;border:3px solid #fff;background:rgba(255,255,255,0.2);cursor:pointer;font-size:22px">📷</button>' +
+      '</div>' +
+      '<div id="checkout-ia-status" style="display:none;background:#1e2a45;border-radius:10px;padding:12px;margin-bottom:12px;font-size:13px;color:#a0aec0;text-align:center">Analisando foto...</div>' +
+      '<div id="checkout-error" style="display:none;color:#fc8181;font-size:12px;margin-bottom:10px;padding:8px;background:rgba(252,129,129,.08);border-radius:8px"></div>' +
+      '<button id="btn-confirmar-checkout" onclick="turnoCLT._confirmarCheckoutComFoto()" ' +
+        'style="background:#e74c3c;color:#fff;border:none;border-radius:12px;padding:16px;font-size:15px;font-weight:700;cursor:pointer;width:100%">' +
+        '\u2705 CONFIRMAR ENCERRAMENTO' +
+      '</button>';
+    document.body.appendChild(modal);
+    // Abrir câmera frontal para selfie
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+      .then(function(stream) {
+        var v = document.getElementById('video-checkout');
+        if (v) { v.srcObject = stream; turnoCLT._streamCheckout = stream; }
+      })
+      .catch(function() { ui.toast('Câmera indisponível.', 'error'); });
+  },
+
+  _tirarFotoCheckout() {
+    var video = document.getElementById('video-checkout');
+    var canvas = document.getElementById('canvas-checkout');
+    var preview = document.getElementById('preview-checkout');
+    if (!video || !canvas) return;
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    var base64 = canvas.toDataURL('image/jpeg', 0.7);
+    turnoCLT._fotoCheckout = base64;
+    if (preview) { preview.style.backgroundImage = 'url(' + base64 + ')'; preview.style.display = 'block'; }
+    // Parar câmera após captura
+    if (turnoCLT._streamCheckout) { turnoCLT._streamCheckout.getTracks().forEach(function(t){ t.stop(); }); turnoCLT._streamCheckout = null; }
+    var v = document.getElementById('video-checkout');
+    if (v) v.style.display = 'none';
+    ui.toast('Foto capturada!', 'success');
+  },
+
+  async _confirmarCheckoutComFoto() {
+    var turnoId = turnoCLT._turnoIdCheckout || '';
+    if (!turnoCLT._fotoCheckout) {
+      var errEl = document.getElementById('checkout-error');
+      if (errEl) { errEl.textContent = 'Tire a selfie antes de confirmar.'; errEl.style.display = 'block'; }
+      return;
+    }
+    var btn = document.getElementById('btn-confirmar-checkout');
+    var status = document.getElementById('checkout-ia-status');
+    var errEl = document.getElementById('checkout-error');
+    if (btn) { btn.disabled = true; btn.textContent = 'Validando com IA...'; }
+    if (status) { status.style.display = 'block'; status.textContent = '🤖 Analisando foto com IA...'; }
+    if (errEl) errEl.style.display = 'none';
     try {
-      ui.toast('Encerrando...', 'info');
       const g = state.get('gps_clt') || {};
-      const res = await api.post({ evento: 'CHECKOUT_TURNO_CLT', turno_id: turnoId, lat: g.lat, lng: g.lng });
+      const res = await api.post({
+        evento: 'CHECKOUT_TURNO_CLT',
+        turno_id: turnoId,
+        foto_base64: turnoCLT._fotoCheckout,
+        lat: g.lat, lng: g.lng
+      });
       if (res.ok) {
-        clearInterval(this._timer);
+        // Fechar modal e parar câmera
+        if (turnoCLT._streamCheckout) { turnoCLT._streamCheckout.getTracks().forEach(function(t){ t.stop(); }); }
+        var m = document.getElementById('modal-checkout-foto');
+        if (m) m.remove();
+        clearInterval(turnoCLT._timer);
         heartbeat.parar();
-        this._mostrarRelatorioFinal(res);
+        turnoCLT._fotoCheckout = null;
+        turnoCLT._mostrarRelatorioFinal(res);
+      } else if (res.acao_requerida === 'FOTO_CHECKOUT_INVALIDA') {
+        if (status) { status.style.display = 'none'; }
+        if (errEl) { errEl.textContent = '⛔ ' + (res.motivo || 'Foto inválida. Tente novamente.'); errEl.style.display = 'block'; }
+        if (btn) { btn.disabled = false; btn.textContent = '✅ CONFIRMAR ENCERRAMENTO'; }
+        // Reabrir câmera para nova tentativa
+        turnoCLT._fotoCheckout = null;
+        var preview = document.getElementById('preview-checkout');
+        if (preview) preview.style.display = 'none';
+        var v2 = document.getElementById('video-checkout');
+        if (v2) {
+          navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+            .then(function(stream) { v2.srcObject = stream; v2.style.display = 'block'; turnoCLT._streamCheckout = stream; })
+            .catch(function(){});
+        }
       } else {
-        ui.toast(res.erro || 'Erro ao encerrar.', 'error');
-        if (btn) { btn.disabled = false; btn.textContent = '🏁 ENCERRAR TURNO'; }
+        if (errEl) { errEl.textContent = res.erro || 'Erro ao encerrar.'; errEl.style.display = 'block'; }
+        if (btn) { btn.disabled = false; btn.textContent = '✅ CONFIRMAR ENCERRAMENTO'; }
+        if (status) status.style.display = 'none';
       }
-    } catch(e) { ui.toast('Erro ao encerrar: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = '🏁 ENCERRAR TURNO'; } }
+    } catch(e) {
+      if (errEl) { errEl.textContent = 'Erro: ' + (e.message || 'sem conexão'); errEl.style.display = 'block'; }
+      if (btn) { btn.disabled = false; btn.textContent = '✅ CONFIRMAR ENCERRAMENTO'; }
+      if (status) status.style.display = 'none';
+    }
   },
 
   _mostrarCoachJet(msg) { this._mostrarRelatorioFinal({ msg_coach: msg }); },
