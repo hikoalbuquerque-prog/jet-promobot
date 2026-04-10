@@ -362,12 +362,16 @@ const turnoCLT = {
           style="width:100%;background:#0d1526;border:1px solid #2a3a55;border-radius:8px;padding:12px;color:#fff;font-size:18px;font-weight:700;text-align:center;outline:none" />
       </div>
 
-      <div style="display:flex;flex-direction:column;gap:8px;flex:1;overflow-y:auto">
-        <button onclick="turnoCLT._enviarInfracao('DUAS_PESSOAS')" class="btn-infra">👥 Duas pessoas no patinete</button>
-        <button onclick="turnoCLT._enviarInfracao('MENOR_IDADE')" class="btn-infra">🔞 Menor de 18 anos</button>
-        <button onclick="turnoCLT._enviarInfracao('ESTACIONAMENTO_IRREGULAR')" class="btn-infra">🅿️ Estacionamento irregular</button>
-        <button onclick="turnoCLT._enviarInfracao('TRANSITO_PERIGOSO')" class="btn-infra">🚲 Condução perigosa</button>
-        <button onclick="turnoCLT._enviarInfracao('DANO_INTENCIONAL')" class="btn-infra">🔨 Dano ao patrimônio</button>
+      <div style="font-size:10px;color:#a0aec0;letter-spacing:1px;margin-bottom:4px">REQUER PATINETE + FOTO</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+        <button onclick="turnoCLT._enviarInfracao('DUAS_PESSOAS', true)" class="btn-infra">&#128101; Duas pessoas no patinete</button>
+        <button onclick="turnoCLT._enviarInfracao('MENOR_IDADE', true)" class="btn-infra">&#128286; Menor de 18 anos</button>
+      </div>
+      <div style="font-size:10px;color:#a0aec0;letter-spacing:1px;margin-bottom:4px">FOTO DO LOCAL (patinete opcional)</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button onclick="turnoCLT._enviarInfracao('ESTACIONAMENTO_IRREGULAR', false)" class="btn-infra">&#128371; Estacionamento irregular</button>
+        <button onclick="turnoCLT._enviarInfracao('TRANSITO_PERIGOSO', false)" class="btn-infra">&#128690; Condução perigosa</button>
+        <button onclick="turnoCLT._enviarInfracao('DANO_INTENCIONAL', false)" class="btn-infra">&#128296; Dano ao patrimônio</button>
       </div>
       <style>.btn-infra{background:#1e2a45;border:1px solid #2a3a55;color:#fff;border-radius:12px;padding:16px;font-size:13px;font-weight:700;text-align:left;cursor:pointer;}</style>
     `;
@@ -401,27 +405,33 @@ const turnoCLT = {
     if (this._streamInfra) this._streamInfra.getTracks().forEach(t => t.stop());
   },
 
-  async _enviarInfracao(tipo) {
+  async _enviarInfracao(tipo, patineteObrigatorio) {
     const patinete = (document.getElementById('infra-patinete')?.value || '').trim();
-    if (patinete.length !== 6) { ui.toast('Informe o patinete (6 dígitos)!', 'error'); return; }
+    if (patineteObrigatorio && patinete.length !== 6) { ui.toast('Informe o patinete (6 dígitos)!', 'error'); return; }
+    if (!patineteObrigatorio && patinete.length > 0 && patinete.length !== 6) { ui.toast('Patinete deve ter 6 dígitos ou deixe vazio.', 'error'); return; }
     if (!this._fotoInfra) { ui.toast('Tire uma foto da infração!', 'error'); return; }
 
     const g = state.get('gps_clt') || {};
+    const btn = document.querySelector('#modal-modo-fiscalizacao .btn-infra[onclick*="' + tipo + '"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Registrando...'; }
     try {
-      ui.toast('Registrando...', 'info');
       await api.post({ 
         evento: 'REGISTRAR_INFRACAO_FISCAL', 
         tipo_infracao: tipo, 
-        lat: g.lat, 
-        lng: g.lng,
-        patinete_id: patinete,
+        lat: g.lat, lng: g.lng,
+        patinete_id: patinete || '000000',
         foto_base64: this._fotoInfra
       });
-      ui.toast('✅ Infração registrada!', 'success');
+      // Atualizar contador de metas
+      this._atualizarMetas();
+      ui.toast('Infração registrada! (' + tipo.replace(/_/g,' ') + ')', 'success');
       const m = document.getElementById('modal-modo-fiscalizacao');
       if (m) m.remove();
       this._fotoInfra = null;
-    } catch(e) { ui.toast('Erro ao registrar.', 'error'); }
+    } catch(e) { 
+      ui.toast('Erro: ' + (e.message || 'sem conexão'), 'error');
+      if (btn) { btn.disabled = false; }
+    }
   },
 
   _abrirSolicitacao() {
