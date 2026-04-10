@@ -26,17 +26,23 @@ const homeScreenCLT = {
           <div id="clt-turnos-lista">
             <div style="text-align:center;padding:40px;color:#a0aec0">Carregando turnos...</div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr ${isFiscal ? '1fr' : ''};gap:10px;margin-top:4px">
+          <div style="display:grid;grid-template-columns:${isFiscal ? '1fr 1fr 1fr' : '1fr 1fr'};gap:10px;margin-top:4px">
             <button onclick="router.go('historico-clt')" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600"><span style="font-size:24px">📋</span>Histórico</button>
             <button onclick="homeScreenCLT.verBancoHoras()" style="background:#1e2a45;border:1px solid #2a3a55;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600"><span style="font-size:24px">⏱️</span>Banco Horas</button>
             ${isFiscal ? `<button onclick="router.go('mapa')" style="background:#1e2a45;border:1px solid #4f8ef744;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600"><span style="font-size:24px">🗺️</span>Mapa</button>` : ''}
           </div>
+          ${isFiscal ? `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:0px">
+            <button onclick="router.go('academy')" style="background:#1e2a45;border:1px solid #9f7aea44;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600"><span style="font-size:24px">🎓</span>Academy</button>
+            <button onclick="router.go('ranking')" style="background:#1e2a45;border:1px solid #f6ad5544;border-radius:12px;padding:16px;color:#eaf0fb;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:13px;font-weight:600"><span style="font-size:24px">🏆</span>Ranking</button>
+          </div>` : ''}
           <div style="text-align:center;padding:10px;font-size:10px;color:#4a5568;letter-spacing:1px">v1.3.14-GH</div>
         </div>
         <nav style="position:fixed;bottom:0;left:0;right:0;background:#16213e;border-top:1px solid #2a3a55;display:flex;justify-content:space-around;padding:10px 0 calc(10px + env(safe-area-inset-bottom,0px));z-index:100">
           <button onclick="router.go('home-clt')" style="background:none;border:none;color:#4f8ef7;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><span style="font-size:22px">🏠</span>Home</button>
           <button onclick="router.go('turno-ativo')" style="background:none;border:none;color:#6c7a8d;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><span style="font-size:22px">⚡</span>Turno</button>
           <button onclick="router.go('historico-clt')" style="background:none;border:none;color:#6c7a8d;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><span style="font-size:22px">📋</span>Histórico</button>
+          ${isFiscal ? `<button onclick="router.go('academy')" style="background:none;border:none;color:#9f7aea;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><span style="font-size:22px">&#127891;</span>Academy</button>` : ''}
         </nav>
       </div>
       <style>
