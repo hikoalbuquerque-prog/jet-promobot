@@ -668,42 +668,88 @@ const turnoCLT = {
 
   async _fazerCheckout(turnoId) {
     if (!confirm('Encerrar turno agora?')) return;
+    const btn = document.getElementById('btn-checkout-clt');
+    if (btn) { btn.disabled = true; btn.textContent = 'Encerrando...'; }
     try {
       ui.toast('Encerrando...', 'info');
-      const res = await api.post({ evento: 'CHECKOUT_TURNO_CLT', turno_id: turnoId });
+      const g = state.get('gps_clt') || {};
+      const res = await api.post({ evento: 'CHECKOUT_TURNO_CLT', turno_id: turnoId, lat: g.lat, lng: g.lng });
       if (res.ok) {
         clearInterval(this._timer);
         heartbeat.parar();
-        
-        // Mostrar Coach JET se houver mensagem
-        if (res.msg_coach) {
-          this._mostrarCoachJet(res.msg_coach);
-        } else {
-          this.render();
-        }
+        this._mostrarRelatorioFinal(res);
+      } else {
+        ui.toast(res.erro || 'Erro ao encerrar.', 'error');
+        if (btn) { btn.disabled = false; btn.textContent = '🏁 ENCERRAR TURNO'; }
       }
-    } catch(e) { ui.toast('Erro ao encerrar', 'error'); }
+    } catch(e) { ui.toast('Erro ao encerrar: ' + e.message, 'error'); if (btn) { btn.disabled = false; btn.textContent = '🏁 ENCERRAR TURNO'; } }
   },
 
-  _mostrarCoachJet(msg) {
-    const modalId = 'modal-coach-jet';
+  _mostrarCoachJet(msg) { this._mostrarRelatorioFinal({ msg_coach: msg }); },
+
+  _mostrarRelatorioFinal(res) {
+    const modalId = 'modal-relatorio-final';
+    const msg = res.msg_coach || 'Bom descanso!';
+    const ocr = res.ocorrencias_hoje !== undefined ? res.ocorrencias_hoje : '--';
+    const org = res.organizacao_hoje !== undefined ? res.organizacao_hoje : '--';
+    const hrs = res.horas_trabalhadas !== undefined ? res.horas_trabalhadas : '--';
+    const nota = res.nota_performance > 0 ? res.nota_performance : null;
+    const estrelas = nota ? '⭐'.repeat(nota) + '☆'.repeat(5 - nota) : '';
+
     const m = document.createElement('div');
     m.id = modalId;
-    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px;';
-    m.innerHTML = `
-      <div style="background:#16213e;border:1px solid #4f8ef7;border-radius:24px;padding:30px;width:100%;max-width:400px;text-align:center;position:relative">
-        <div style="font-size:48px;margin-bottom:20px">🤖</div>
-        <h2 style="font-size:20px;font-weight:800;color:#fff;margin-bottom:16px;letter-spacing:1px">COACH JET</h2>
-        <div style="font-size:15px;color:#a0aec0;line-height:1.6;margin-bottom:30px;font-style:italic">"${msg}"</div>
-        <button onclick="document.getElementById('${modalId}').remove(); turnoCLT.render();" 
-          style="background:#4f8ef7;color:#fff;border:none;border-radius:12px;padding:16px;width:100%;font-size:15px;font-weight:700;cursor:pointer">
-          ENTENDIDO
-        </button>
-      </div>
-    `;
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:10000;overflow-y:auto;padding:20px;display:flex;align-items:flex-start;justify-content:center;';
+    m.innerHTML =
+      '<div style="background:#16213e;border:1px solid #4f8ef744;border-radius:24px;padding:28px;width:100%;max-width:420px;margin:auto">' +
+        '<div style="text-align:center;margin-bottom:20px">' +
+          '<div style="font-size:42px;margin-bottom:8px">🏁</div>' +
+          '<h2 style="font-size:18px;font-weight:800;color:#fff;letter-spacing:1px;margin:0">RELATÓRIO DO TURNO</h2>' +
+        '</div>' +
+
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">' +
+          '<div style="background:#0d1526;border-radius:12px;padding:14px;text-align:center">' +
+            '<div style="font-size:10px;color:#a0aec0;margin-bottom:4px">INFRAÇÕES</div>' +
+            '<div style="font-size:24px;font-weight:800;color:#4f8ef7">' + ocr + '</div>' +
+            '<div style="font-size:10px;color:#4a5568">meta: 15</div>' +
+          '</div>' +
+          '<div style="background:#0d1526;border-radius:12px;padding:14px;text-align:center">' +
+            '<div style="font-size:10px;color:#a0aec0;margin-bottom:4px">ORGANIZAÇÃO</div>' +
+            '<div style="font-size:24px;font-weight:800;color:#68d391">' + org + '</div>' +
+            '<div style="font-size:10px;color:#4a5568">meta: 15</div>' +
+          '</div>' +
+          '<div style="background:#0d1526;border-radius:12px;padding:14px;text-align:center">' +
+            '<div style="font-size:10px;color:#a0aec0;margin-bottom:4px">HORAS</div>' +
+            '<div style="font-size:24px;font-weight:800;color:#f6ad55">' + hrs + 'h</div>' +
+          '</div>' +
+          (nota ? '<div style="background:#0d1526;border-radius:12px;padding:14px;text-align:center">' +
+            '<div style="font-size:10px;color:#a0aec0;margin-bottom:4px">NOTA IA</div>' +
+            '<div style="font-size:18px">' + estrelas + '</div>' +
+            '<div style="font-size:12px;font-weight:700;color:#f6ad55">' + nota + '/5</div>' +
+          '</div>' : '') +
+        '</div>' +
+
+        '<div style="background:#0d1526;border:1px solid #4f8ef722;border-radius:14px;padding:16px;margin-bottom:20px">' +
+          '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
+            '<span style="font-size:24px">🤖</span>' +
+            '<span style="font-size:12px;font-weight:700;color:#4f8ef7;letter-spacing:1px">COACH JET</span>' +
+          '</div>' +
+          '<div style="font-size:14px;color:#e2e8f0;line-height:1.6;font-style:italic">"' + msg + '"</div>' +
+        '</div>' +
+
+        '<button onclick="_fecharRelatorio()" ' +
+          'style="background:#4f8ef7;color:#fff;border:none;border-radius:12px;padding:16px;width:100%;font-size:15px;font-weight:700;cursor:pointer">' +
+          'CONCLUIR' +
+        '</button>' +
+      '</div>';
     document.body.appendChild(m);
   },
 };
+
+function _fecharRelatorio() {
+  var el = document.getElementById('modal-relatorio-final');
+  if (el) el.remove();
+  router.go('home-clt');
+}
 
 function _navHeader(t) {
   return `<div style="background:#16213e;border-bottom:1px solid #2a3a55;padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:50">
