@@ -616,12 +616,24 @@ const turnoCLT = {
     const descricao = descEl ? descEl.value.trim() : '';
     const g = state.get('gps_clt') || {};
     try {
+      // Pegar GPS mais recente
+      const gps = state.get('gps_clt') || {};
+      let gpsLat = gps.lat, gpsLng = gps.lng;
+      // Tentar geolocalização fresca
+      try {
+        const pos = await new Promise((res, rej) =>
+          navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 5000 })
+        );
+        gpsLat = pos.coords.latitude;
+        gpsLng = pos.coords.longitude;
+      } catch(gpsErr) { /* usa GPS do estado */ }
+
       const res = await api.post({
         evento: 'REGISTRAR_ORGANIZACAO_PONTO',
         foto_antes_base64: turnoCLT._fotoOrganizacaoAntes,
         foto_depois_base64: turnoCLT._fotoOrganizacaoDepois,
         descricao,
-        lat: g.lat, lng: g.lng
+        lat: gpsLat, lng: gpsLng
       });
       if (res.ok) {
         if (turnoCLT._streamOrg) turnoCLT._streamOrg.getTracks().forEach(t => t.stop());
