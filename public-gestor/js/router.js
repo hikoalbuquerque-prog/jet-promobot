@@ -22,15 +22,15 @@ const router = (() => {
     relatorios:   { module: relatoriosScreen,    method: 'render',     hasNav: true,  navId: 'nav-relatorios' },
     'insights-ia':{ module: iaScreen,            method: 'render',     hasNav: true,  navId: 'nav-ia' },
     fiscalTurno:  { module: fiscalTurnoScreen,   method: 'render',     hasNav: true,  navId: 'nav-fiscal-turno' },
-    // fiscalDash: pendente inclusao de fiscal_dash.js no index.html
+    fiscalDash:   { module: fiscalDashScreen,    method: 'render',     hasNav: true,  navId: 'nav-fiscal-dash' },
   };
 
   // Configuração de Permissões (RBAC)
   const _PERMISSIONS = {
     FISCAL: ['fiscalTurno', 'mapa', 'slots', 'dashboard'], // Fiscais agora podem ver seu turno
     LIDER:  ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'equipes', 'insights-ia'],
-    GESTOR: ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'cadastros', 'broadcast', 'equipes', 'relatorios', 'insights-ia'], // Gestor vê tudo
-    REGIONAL: ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'cadastros', 'broadcast', 'equipes', 'relatorios', 'insights-ia']
+    GESTOR: ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'cadastros', 'broadcast', 'equipes', 'relatorios', 'insights-ia', 'fiscalDash'], // Gestor vê tudo
+    REGIONAL: ['dashboard', 'mapa', 'solicitacoes', 'slots', 'escala', 'escalaCLT', 'historicoCLT', 'historicoMEI', 'cadastros', 'broadcast', 'equipes', 'relatorios', 'insights-ia', 'fiscalDash']
   };
 
   let _alertInterval = null;
@@ -232,6 +232,9 @@ const router = (() => {
             </button>
             <button class="nav-item" id="nav-ia" data-route="insights-ia">
               🤖 Insights IA
+            </button>
+            <button class="nav-item" id="nav-fiscal-dash" data-route="fiscalDash">
+              🔍 Dashboard Fiscal
             </button>
 
           </nav>
