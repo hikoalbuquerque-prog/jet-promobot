@@ -53,13 +53,14 @@ const api = (() => {
     getHistoricoTurnosCLT(params)        { return _get('GET_HISTORICO_TURNOS_CLT', params); },
     getHistoricoJornadas(params)         { return _get('GET_HISTORICO_JORNADAS_GESTOR', params); },
     criarTurnoCLT(dados)                 { return _post('CRIAR_TURNO_CLT', dados); },
-    getFiscaisCLT()                      { return _get('GET_FISCAIS_CLT'); },
-    gerarEscalaFiscal(dados)             { return _post('GERAR_ESCALA_FISCAL', dados); },
     getCadastrosPendentes()              { return _get('GET_CADASTROS_PENDENTES'); },
     getMeusTurnosCLT()                  { return _get('GET_MEUS_TURNOS_CLT'); },
     aprovarCadastro(dados)               { return _post('APROVAR_CADASTRO', dados); },
     responderSolicitacao(id, decisao, obs) {
       return _post('RESPONDER_SOLICITACAO', { solicitacao_id: id, decisao, observacao: obs || '' });
     },
+    getFiscaisCLT()                          { return _get('GET_FISCAIS_CLT'); },
+    gerarEscalaFiscal(dados)                 { return _post('GERAR_ESCALA_FISCAL', dados); },
+    getDashboardFiscal(data, fiscal_id)      { return _get('GET_DASHBOARD_FISCAL', { data, fiscal_id }); },
   };
 })();
