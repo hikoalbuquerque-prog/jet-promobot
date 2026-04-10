@@ -22,7 +22,6 @@ const router = (() => {
     relatorios:   { module: relatoriosScreen,    method: 'render',     hasNav: true,  navId: 'nav-relatorios' },
     'insights-ia':{ module: iaScreen,            method: 'render',     hasNav: true,  navId: 'nav-ia' },
     fiscalTurno:  { module: fiscalTurnoScreen,   method: 'render',     hasNav: true,  navId: 'nav-fiscal-turno' },
-    fiscalDash:   { module: fiscalDashScreen,    method: 'render',     hasNav: true,  navId: 'nav-fiscal-dash' },
   };
 
   // Configuração de Permissões (RBAC)
