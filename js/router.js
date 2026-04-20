@@ -38,6 +38,14 @@ const router = (() => {
   return {
     go(screen, pushHistory = true) {
       const user = state.get('promotor');
+
+      // ── Detecção de Gestor/Líder ──────────────────────────
+      if ((screen === 'home' || screen === 'splash') &&
+          user && typeof gestor !== 'undefined' && gestor.isGestorUser(user)) {
+        gestor.init(user);
+        return;
+      }
+
       const isCLT = user && (!!user.eh_clt || ['FISCAL','SCOUT','MOTORISTA','CHARGER'].includes((user.cargo_principal||'').toUpperCase()));
       
       if (isCLT) {
@@ -68,6 +76,14 @@ const router = (() => {
       window.history.back();
     },
     replace(screen) {
+      // Deteccao de Gestor no replace (usado pelo auth._rotearPorPerfil)
+      if (screen === 'home' || screen === 'home-clt') {
+        const user = state.get('promotor');
+        if (user && typeof gestor !== 'undefined' && gestor.isGestorUser(user)) {
+          gestor.init(user);
+          return;
+        }
+      }
       state.set('currentScreen', screen);
       history.replaceState({ screen }, '', '#' + screen);
       const fn = routes[screen];
